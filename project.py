@@ -159,7 +159,6 @@ else:
                 current_seq = last_counter + idx
                 serial_no = f"{prefix}{current_seq:05d}"
                 
-                # 🛠️ [구문 에러 교정 완료 영역]
                 blank_records.append({
                     "serial_no": serial_no,
                     "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
@@ -184,23 +183,37 @@ else:
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
-        # 🚨 마스터 관리자 영역 (비밀번호 제거 및 안전 리셋 버전)
+        # 🚨 마스터 관리자 영역 (툴 종류별 선택 삭제 기능 추가)
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
         
-        with st.expander("💥 데이터베이스 전체 초기화 및 발행 번호 리셋", expanded=False):
-            st.error("⚠️ [주의] 이 기능을 실행하면 현재 데이터베이스에 저장된 모든 툴 내역이 영구 삭제되며, 다음 발행 번호가 1번(00001)으로 강제 리셋됩니다!")
+        with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
+            st.error("⚠️ [주의] 선택한 고유코드 유형의 모든 데이터가 영구 삭제되며, 해당 툴 종류의 다음 순번은 1번으로 리셋됩니다.")
             
-            # 위험성 확인용 체크박스만 배치
-            understand_risk = st.checkbox("❗ 위 위험성을 완벽히 이해했으며, 모든 데이터를 지우고 처음부터 연사를 시작하는 것에 동의합니다.")
+            # 💡 [요청 반영] 삭제할 앞 2자리 코드를 마우스로 안전하게 고르는 선택박스 추가
+            target_reset_code = st.selectbox(
+                "🎯 데이터 삭제 및 순번을 초기화할 툴 종류(앞 2자리)를 선택하세요",
+                ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"]
+            )
             
-            if st.button("🚨 모든 데이터 삭제 및 카운터 초기화 실행"):
+            # 위험성 확인용 체크박스
+            understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
+            
+            if st.button("🚨 선택한 대상 데이터 초기화 실행"):
                 if not understand_risk:
                     st.warning("⚠️ 동의 체크박스에 먼저 체크를 해주셔야 초기화가 가능합니다.")
                 else:
                     try:
-                        delete_res = db_collection.delete_many({})
-                        st.success(f"💥 초기화 완료! 총 {delete_res.deleted_count}건의 기록이 삭제되었으며 다음 순번은 1번부터 시작됩니다.")
+                        if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
+                            # 전체 삭제
+                            delete_res = db_collection.delete_many({})
+                            st.success(f"💥 완벽 초기화! 시스템 내 모든 {delete_res.deleted_count}건의 기록이 삭제되었습니다.")
+                        else:
+                            # 앞 2자리 코드만 정규식 패턴으로 추출하여 부분 삭제 (예: "^01")
+                            code_prefix = target_reset_code.split(" ")[0]
+                            delete_res = db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                            st.success(f"💥 {target_reset_code} 초기화 완료! 조건에 맞는 {delete_res.deleted_count}건의 기록만 선택 삭제되었습니다.")
+                        
                         st.balloons()
                         st.rerun()
                     except Exception as e:
