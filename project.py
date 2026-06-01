@@ -11,8 +11,10 @@ st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="w
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
 def get_database():
-    # secrets 파일을 찾지 않고, 무조건 지정된 몽고디비 주소로 바로 연결하도록 수정
-    MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
+    if "mongo" in st.secrets:
+        MONGO_URI = st.secrets["mongo"]["MONGO_URI"]
+    else:
+        MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
     client = MongoClient(MONGO_URI)
     return client["dashboard_db"]["tools_management"]
 
@@ -22,29 +24,44 @@ db_collection = get_database()
 today = datetime.date.today()
 mmdd = today.strftime("%m%d") 
 
-# 🗂️ 3. 왼쪽 사이드바 (트리 구조)
+# 🗂️ 3. 왼쪽 사이드바 (트리 구조 메뉴판)
 st.sidebar.markdown("## 📁 KKQ 통합 시스템")
 
 with st.sidebar.expander("💎 툴 관리 메뉴", expanded=True):
     tool_menu = st.sidebar.radio(
         "하위 목록",
-        ["📊 툴 관리 메인 대시보드", "⚙️ 데이터 수정 / 삭제"],
+        ["📊 툴 관리 메인 대시보드", "📂 발행된 QR코드 보관함", "⚙️ 데이터 수정 / 삭제"],
         key="tool_menu_radio"
     )
 
 with st.sidebar.expander("📦 제품 관리 메뉴", expanded=False):
     st.sidebar.write("📝 4파트 제품 인수인계 내역서 (준비중)")
 
-# 🛠️ QR코드 스캔 시 바로 검색 결과로 연동되기 위한 세션 상태(Session State) 설정
+# 🛠️ QR 스캔/보관함 연동을 위한 세션 상태 세팅
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
+
+# 헬퍼 함수: 시리얼 넘버를 받아서 QR코드 이미지 바이트를 생성하는 함수
+def generate_qr_bytes(serial_text):
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=6,
+        border=1,
+    )
+    qr.add_data(serial_text)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
 
 # --- 🟢 [메인 대시보드창] ---
 if tool_menu == "📊 툴 관리 메인 대시보드":
     st.title("💎 KKQ 4파트 다이아몬드 툴관리 SYSTEM")
     st.markdown("---")
     
-    # 메인 화면 5:5 좌우 분할
     main_col1, main_col2 = st.columns([1, 1], gap="large")
     
     # ----------------------------------------------------------------💡 [좌측: 시리얼 넘버 발행 및 등록]
@@ -54,7 +71,6 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
         tool_type = st.selectbox("💎 툴 종류 선택", ["전착툴 (코드: 01)", "레진툴 (코드: 02)", "메탈툴 (코드: 03)"])
         tool_code = "01" if "전착툴" in tool_type else "02" if "레진툴" in tool_type else "03"
         
-        # 🤖 자동 다음 넘버링 계산 로직 (+1)
         prefix = f"{tool_code}{mmdd}" 
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
@@ -86,7 +102,7 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
             waste_date = st.date_input("🗑️ 폐기 날짜 (해당 시 선택)", value=None)
             note = st.text_area("📝 특이사항 (공정 내용 등)")
             
-            submit_btn = st.form_submit_button("🚀 툴 등록 및 QR코드 파일 저장")
+            submit_btn = st.form_submit_button("🚀 툴 등록 및 QR코드 발행")
             
         if submit_btn:
             if not worker or not machine_no:
@@ -96,7 +112,6 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
                 if existing:
                     st.error(f"❌ 중복 에러: 이미 등록된 시리얼 넘버({serial_no})입니다!")
                 else:
-                    # 몽고디비 데이터 저장
                     new_data = {
                         "serial_no": serial_no,
                         "tool_type": tool_type.split(" ")[0],
@@ -110,35 +125,23 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
                     }
                     db_collection.insert_one(new_data)
                     
-                    # 🔍 1. QR코드 생성 (스캔 시 검색창으로 다이렉트 연동되는 텍스트 주입)
-                    qr = qrcode.QRCode(
-                        version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_L, # 10mm 소형화를 위해 데이터 밀도 최소화
-                        box_size=4, # 가로세로 약 10mm(118픽셀) 스케일 맞춤
-                        border=1,
-                    )
-                    qr.add_data(serial_no) # 시리얼 넘버 데이터 입력
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
+                    # 📁 로컬 PC 환경(D드라이브 존재시)에만 물리 파일 저장 (웹 서버 에러 방지 안전장치)
+                    try:
+                        img_to_save = qrcode.make(serial_no)
+                        save_dir = r"D:\KKQ_PYTHON\QR"
+                        if os.path.exists("D:\\") or os.path.splitdrive(os.getcwd())[0].upper() == "D:":
+                            if not os.path.exists(save_dir):
+                                os.makedirs(save_dir)
+                            img_to_save.save(os.path.join(save_dir, f"QR_{serial_no}.png"))
+                    except Exception:
+                        pass
                     
-                    # 📁 2. D:\KKQ_PYTHON\QR 경로에 로컬 파일 저장 로직
-                    save_dir = r"D:\KKQ_PYTHON\QR"
-                    if not os.path.exists(save_dir):
-                        os.makedirs(save_dir) # 폴더가 없으면 자동으로 만들어줍니다.
-                        
-                    file_name = f"QR_{serial_no}.png"
-                    full_path = os.path.join(save_dir, file_name)
-                    img.save(full_path) # 지정 경로에 이미지 저장
+                    st.success(f"🎉 [{serial_no}] 등록 성공!")
                     
-                    st.success(f"🎉 [{serial_no}] 등록 성공 및 QR코드 파일 저장 완료!")
-                    st.info(f"💾 저장 경로: {full_path} (가로세로 10mm 사이즈)")
+                    # 화면 미리보기 출력
+                    qr_bytes = generate_qr_bytes(serial_no)
+                    st.image(qr_bytes, caption=f"발행 완료: {serial_no}", width=120)
                     
-                    # 화면에도 미리보기 출력
-                    buf = BytesIO()
-                    img.save(buf, format="PNG")
-                    st.image(buf.getvalue(), caption=f"발행 완료: {file_name}", width=120)
-                    
-                    # 발행 후 오른쪽 검색창이 해당 툴을 바로 띄우도록 세션 연동
                     st.session_state.search_query = serial_no
                     st.balloons()
                     st.rerun()
@@ -147,7 +150,6 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
     with main_col2:
         st.subheader("🔍 툴 통합 검색 및 필터링 현황판")
         
-        # QR 스캔 시 자동으로 검색어가 입력되도록 세션 바인딩
         search_col1, search_col2 = st.columns(2)
         with search_col1:
             search_serial = st.text_input("🔍 시리얼 넘버로 검색", value=st.session_state.search_query)
@@ -158,7 +160,6 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
             
         st.markdown("---")
         
-        # 몽고디비 쿼리 조건 조립
         query = {}
         if search_serial:
             query["serial_no"] = {"$regex": search_serial, "$options": "i"}
@@ -177,12 +178,10 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
             else:
                 st.write(f"📊 검색 결과: 총 **{len(filtered_data)}** 건이 조회되었습니다.")
                 
-                # 검색된 툴 정보 테이블 시각화
                 for item in filtered_data:
                     limit_ratio = (item['current_use'] / item['use_limit']) * 100 if item['use_limit'] > 0 else 0
                     color_style = "red" if limit_ratio >= 90 else "black"
                     
-                    # 💡 QR 스캔 및 검색 시 해당 시리얼 번호가 즉시 펼쳐져서 세부 정보를 바로 보여줌
                     is_expanded = (search_serial == item['serial_no'])
                     with st.expander(f"🆔 시리얼: {item['serial_no']} | 종류: {item['tool_type']} | 장비: {item['machine_no']}", expanded=is_expanded):
                         st.markdown(f"### 📋 {item['serial_no']} 툴 정보 테이블")
@@ -199,6 +198,53 @@ if tool_menu == "📊 툴 관리 메인 대시보드":
                             
         except Exception as e:
             st.error(f"데이터 조회 실패: {e}")
+
+
+# --- 🔵 [📂 신규 추가 기능: 발행된 QR코드 보관함 창] ---
+elif tool_menu == "📂 발행된 QR코드 보관함":
+    st.title("📂 발행된 QR코드 온라인 보관함")
+    st.markdown("현장에 라벨 프린터가 없을 때, 그동안 생성된 QR코드들을 모아서 확인하고 개별 인쇄/다운로드하는 가상 폴더 창입니다.")
+    st.markdown("---")
+    
+    try:
+        # 데이터베이스의 모든 툴 정보를 시리얼 번호 역순으로 가져옴
+        all_tools = list(db_collection.find({}).sort("serial_no", -1))
+        
+        if not all_tools:
+            st.info("아직 등록된 툴이 없어 보관함이 비어 있습니다. 메인 대시보드에서 툴을 먼저 등록해 주세요.")
+        else:
+            st.write(f"🗃️ 현재 보관함에 총 **{len(all_tools)}개**의 툴 QR코드가 보관되어 있습니다.")
+            st.write("💡 *각 QR코드 아래의 버튼을 누르면 메인 대시보드 검색창으로 바로 이동합니다.*")
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 한 줄에 4개씩 바둑판(갤러리) 모양으로 배치하기 위한 테이블 구조 모방
+            # 스트림릿에서 flex/grid 대용으로 row-column 패턴 사용
+            chunk_size = 4
+            for i in range(0, len(all_tools), chunk_size):
+                chunk = all_tools[i:i+chunk_size]
+                cols = st.columns(4) # 4개 열 생성
+                
+                for idx, item in enumerate(chunk):
+                    with cols[idx]:
+                        # 각 툴의 QR 이미지 즉석 생성
+                        s_no = item["serial_no"]
+                        qr_img_bytes = generate_qr_bytes(s_no)
+                        
+                        # 카드 형태의 디자인으로 QR 출력
+                        st.image(qr_img_bytes, width=140)
+                        st.markdown(f"**🆔 {s_no}**")
+                        st.caption(f"🔧 {item['tool_type']} | ⚙️ {item['machine_no']}")
+                        
+                        # [이 툴 조회하기] 버튼 클릭 시 세션에 심고 메인 화면으로 리다이렉트하는 행위 로직
+                        if st.button("🔍 정보 조회", key=f"btn_{s_no}"):
+                            st.session_state.search_query = s_no
+                            st.success(f"{s_no} 선택됨! 메인 대시보드로 이동합니다.")
+                            st.rerun()
+                st.markdown("---")
+                
+    except Exception as e:
+        st.error(f"보관함 로딩 실패: {e}")
+
 
 # --- 🔴 [관리자 데이터 수정/삭제창] ---
 elif tool_menu == "⚙️ 데이터 수정 / 삭제":
