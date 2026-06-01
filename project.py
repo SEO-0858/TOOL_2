@@ -124,7 +124,7 @@ if qr_scanned_serial:
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
+    tool_menu = st.sidebar.radio("하위 목록", ["📊 비어있는 데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 껍데기 QR코드 대량 선발행":
