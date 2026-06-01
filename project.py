@@ -24,7 +24,7 @@ db_collection = get_database()
 today = datetime.date.today()
 mmdd = today.strftime("%m%d") 
 
-# 📱 QR 스캔 시 URL 파라미터 읽기 (?serial=XXXX)
+# 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
 qr_scanned_serial = query_params.get("serial", None)
 
@@ -46,23 +46,16 @@ if qr_scanned_serial:
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
     st.markdown("---")
     
-    # DB에서 기존 데이터 조회
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
-    # 기존 데이터가 있고, 이미 최초 등록(작업자/장비)이 완료된 상태라면 '수정/조회 모드'
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 사용 횟수를 변경할 수 있습니다.")
-        
-        # 현재 상태 읽어오기 (없으면 기본값 '사용중')
         current_status = existing_data.get("status", "사용중")
         status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            
-            # 💡 [요청 기능] 세 가지 항목 중 클릭해서 상태 변경
             u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중", "폐기"], index=status_index, horizontal=True)
-            
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
             u_machine = st.text_input("⚙️ 기계 가공 호기 수정", value=existing_data.get('machine_no', ''))
@@ -71,9 +64,7 @@ if qr_scanned_serial:
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if submit_u_btn:
-            # 폐기를 선택하면 폐기 날짜를 오늘로 기록, 아니면 유지
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
-            
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -85,17 +76,13 @@ if qr_scanned_serial:
                     "note": u_note
                 }}
             )
-            st.success("🎉 툴의 현재 상태와 정보가 성공적으로 업데이트되었습니다!")
+            st.success("🎉 툴의 현재 상태와 정보가 업데이트되었습니다!")
             st.rerun()
             
-    # 껍데기만 발행된 상태라 처음 정보를 입력하는 경우
     else:
         st.warning("📝 아직 정보가 기입되지 않은 공 QR코드입니다. 초기 정보를 기입해 주세요.")
-        
         with st.form(key="mobile_input_form"):
-            # 💡 [요청 기능] 최초 기입 시에도 상태 지정 가능 (기본값: 사용전)
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=0, horizontal=True)
-            
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
             m_machine = st.text_input("Machine ⚙️ 기계 가공 호기 (예: MCT 3호기)")
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
@@ -109,13 +96,12 @@ if qr_scanned_serial:
             else:
                 tool_code = qr_scanned_serial[:2]
                 waste_val = str(today) if m_status == "폐기" else "-"
-                
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
                         "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
-                        "status": m_status,  # 상태 저장
+                        "status": m_status,
                         "input_date": str(today),
                         "worker": m_worker,
                         "machine_no": m_machine,
@@ -135,12 +121,12 @@ if qr_scanned_serial:
         st.rerun()
 
 
-# --- 💻 [PC 관리자 모드: 대량 QR 선발행 및 모니터링 현황판] ---
+# --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판"])
+    tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
-    # 1) QR코드만 대량 연속 선발행하는 창
+    # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 껍데기 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행")
         st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
@@ -176,7 +162,7 @@ else:
                 blank_records.append({
                     "serial_no": serial_no,
                     "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
-                    "status": "사용전",  # 초기값은 사용전으로 세팅
+                    "status": "사용전",
                     "input_date": str(today),
                     "worker": "",
                     "machine_no": "",
@@ -197,10 +183,9 @@ else:
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
-    # 2) 현장에서 작업자가 입력한 내역을 모니터링하는 종합 현황판
+    # 2) 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
-        st.markdown("현장 작업자들이 QR코드를 찍어 실시간으로 변경한 툴 상태와 데이터 테이블입니다.")
         st.markdown("---")
         
         try:
@@ -209,14 +194,8 @@ else:
                 st.info("조회할 데이터가 없습니다.")
             else:
                 for item in all_data:
-                    # 💡 현황판 제목에 현재 툴의 상태([사용전], [사용중], [폐기])를 시각적으로 강조해 줍니다.
                     status = item.get("status", "사용전")
-                    if status == "사용전":
-                        status_badge = "🟢 [사용전]"
-                    elif status == "사용중":
-                        status_badge = "🟡 [사용중]"
-                    else:
-                        status_badge = "🔴 [폐기]"
+                    status_badge = "🟢 [사용전]" if status == "사용전" else "🟡 [사용중]" if status == "사용중" else "🔴 [폐기]"
                         
                     if not item['worker'] or not item['machine_no']:
                         expander_title = f"⚪ 기입 대기 | 🆔 {item['serial_no']} | 상태: {status_badge}"
@@ -236,3 +215,53 @@ else:
                         st.write(f"• **📝 현장 특이 사항:** {item['note']}")
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
+
+    # 3) 💡 [새로 추가된 기능] 데이터 수정 / 삭제 / 개별 QR 재발행 창
+    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
+        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
+        st.markdown("특정 시리얼 넘버를 잃어버렸거나 중간에 빈 번호를 메꾸기 위해 QR코드를 단독으로 재발행합니다.")
+        st.markdown("---")
+        
+        # 재발행 전용 섹션
+        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
+        target_serial = st.text_input("🆔 재발행할 10자리 시리얼 번호를 정확히 입력하세요 (예: 0106020016)").strip()
+        
+        if target_serial:
+            if len(target_serial) != 10:
+                st.warning("⚠️ 시리얼 넘버는 정확히 10자리 규격이어야 합니다.")
+            else:
+                # 데이터가 이미 존재하는지 체크
+                exist_item = db_collection.find_one({"serial_no": target_serial})
+                
+                if exist_item:
+                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
+                    st.markdown(f"**🔧 매칭 정보:** 종류({exist_item['tool_type']}) | 장비({exist_item['machine_no'] if exist_item['machine_no'] else '기입대기'}) | 상태({exist_item.get('status','사용전')})")
+                    
+                    # 화면에 인쇄용으로 크게 출력
+                    qr_res_bytes = generate_app_qr_bytes(target_serial)
+                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
+                    st.info("💡 위 QR코드를 마우스 우클릭하여 저장하거나 화면 인쇄하여 실물에 다시 부착하세요.")
+                else:
+                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
+                    st.markdown("아래 버튼을 누르면 이 번호를 새롭게 활성화(공 데이터 선점)하면서 QR코드를 강제 신규 발행합니다.")
+                    
+                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
+                        t_code = target_serial[:2]
+                        new_blank = {
+                            "serial_no": target_serial,
+                            "tool_type": "전착툴" if t_code=="01" else "레진툴" if t_code=="02" else "메탈툴",
+                            "status": "사용전",
+                            "input_date": str(today),
+                            "worker": "",
+                            "machine_no": "",
+                            "use_limit": 10000,
+                            "current_use": 0,
+                            "waste_date": "-",
+                            "note": "누락 번호 관리자 강제 재발행 완료"
+                        }
+                        db_collection.insert_one(new_blank)
+                        st.success(f"🎉 누락된 번호 `{target_serial}`가 데이터베이스에 성공적으로 안착되었습니다. 아래 QR코드를 사용하세요!")
+                        
+                        qr_res_bytes = generate_app_qr_bytes(target_serial)
+                        st.image(qr_res_bytes, width=180, caption=f"강제 생성 넘버: {target_serial}")
+                        st.rerun()
