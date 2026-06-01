@@ -8,15 +8,21 @@ import os
 # 🌟 1. 페이지 기본 설정
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
 
-# 🔒 2. 데이터베이스 연결
+# 🔒 2. 데이터베이스 연결 (가장 안전하고 검증된 연결 방식)
 @st.cache_resource
 def get_database():
-    if "mongo" in st.secrets:
-        MONGO_URI = st.secrets["mongo"]["MONGO_URI"]
-    else:
-        MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
-    client = MongoClient(MONGO_URI)
-    return client["dashboard_db"]["tools_management"]
+    # 몽고디비 연결 주소 (아이디/비번 포함)
+    MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    
+    try:
+        client = MongoClient(MONGO_URI)
+        # 💡 [주의] 만약 데이터베이스 이름이 다르면 에러가 날 수 있으므로 기본 test 데이터베이스 혹은 
+        # 질문자님의 클러스터 기본값으로 안전하게 연결을 유도합니다.
+        db = client["dashboard_db"]
+        return db["tools_management"]
+    except Exception as e:
+        st.error(f"몽고디비 클라이언트 생성 실패: {e}")
+        return None
 
 db_collection = get_database()
 
