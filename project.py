@@ -124,7 +124,6 @@ if qr_scanned_serial:
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    # 💡 [명칭 변경] '껍데기'를 '빈데이터'로 수정
     tool_menu = st.sidebar.radio("하위 목록", ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
     # 1) QR코드 대량 연속 선발행 창
@@ -152,13 +151,20 @@ else:
             
         st.info(f"🔍 마지막 발행 번호: **{last_counter}번** ➡️ 이번에 생성될 순번: **{last_counter+1}번 ~ {last_counter+quantity}번**")
         
+        # 💡 화면 표시 제어용 세션 변수 설정
+        if "show_qr_grid" not in st.session_state:
+            st.session_state.show_qr_grid = False
+        if "current_view_serials" not in st.session_state:
+            st.session_state.current_view_serials = []
+
         if st.button(f"🖨️ {quantity}개의 연속 QR코드 즉시 발행"):
             blank_records = []
-            grid_cols = st.columns(4)
+            generated_serials = []
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
                 serial_no = f"{prefix}{current_seq:05d}"
+                generated_serials.append(serial_no)
                 
                 blank_records.append({
                     "serial_no": serial_no,
@@ -172,17 +178,34 @@ else:
                     "waste_date": "-",
                     "note": "QR 선발행 완료 (현장 기입 대기)"
                 })
-                
-                with grid_cols[(idx-1) % 4]:
-                    st.image(generate_app_qr_bytes(serial_no), width=130)
-                    st.markdown(f"**🆔 {serial_no}**")
-                    st.caption("◀ 스캔 시 기입창 열림")
                     
             try:
                 db_collection.insert_many(blank_records)
-                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 선점되었습니다!")
+                st.session_state.current_view_serials = generated_serials
+                st.session_state.show_qr_grid = True  # 발행 직후 화면에 QR코드 보여주기
+                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다! 아래에서 인쇄해 주세요.")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
+
+        # 💡 [요청 사항 반영] 화면 제어 영역
+        if st.session_state.show_qr_grid and st.session_state.current_view_serials:
+            st.markdown("---")
+            grid_cols = st.columns(4)
+            for idx, s_no in enumerate(st.session_state.current_view_serials):
+                with grid_cols[idx % 4]:
+                    st.image(generate_app_qr_bytes(s_no), width=130)
+                    st.markdown(f"**🆔 {s_no}**")
+                    st.caption("◀ 스캔 시 기입창 열림")
+            
+            st.markdown("---")
+            st.info(f"💡 총 {len(st.session_state.current_view_serials)}개의 QR코드가 인쇄 대기 중입니다.")
+            
+            # DB는 건드리지 않고 오직 '화면에서만 목록을 삭제(닫기)'하는 버튼
+            if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
+                st.session_state.show_qr_grid = False
+                st.session_state.current_view_serials = []
+                st.success("✅ 인쇄 완료 확인! 데이터는 DB에 안전하게 보관되었으며, 화면 목록이 깔끔하게 정리되었습니다.")
+                st.rerun()
 
         # 🚨 마스터 관리자 영역
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
@@ -211,6 +234,8 @@ else:
                             delete_res = db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
                             st.success(f"💥 {target_reset_code} 초기화 완료! 조건에 맞는 {delete_res.deleted_count}건의 기록만 선택 삭제되었습니다.")
                         
+                        st.session_state.show_qr_grid = False
+                        st.session_state.current_view_serials = []
                         st.balloons()
                         st.rerun()
                     except Exception as e:
