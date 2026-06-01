@@ -128,7 +128,7 @@ else:
     
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 껍데기 QR코드 대량 선발행":
-        st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행")
+        st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행 (5자리 순번 버전)")
         st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
         st.markdown("---")
         
@@ -140,10 +140,11 @@ else:
             
         prefix = f"{tool_code}{mmdd}"
         
+        # 💡 [수정] 마지막 번호를 찾을 때 자릿수 확장 패턴에 맞춰 마지막 5자리를 슬라이싱 하도록 업데이트
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
             if last_tool:
-                last_counter = int(last_tool["serial_no"][-4:])
+                last_counter = int(last_tool["serial_no"][-5:]) # 뒤에서 5자리 슬라이싱
             else:
                 last_counter = 0
         except Exception:
@@ -157,7 +158,8 @@ else:
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
-                serial_no = f"{prefix}{current_seq:04d}"
+                # 💡 [수정] 포맷 형식을 :04d에서 :05d로 바꾸어 5자리 고정으로 설정 (예: 00001)
+                serial_no = f"{prefix}{current_seq:05d}"
                 
                 blank_records.append({
                     "serial_no": serial_no,
@@ -216,28 +218,26 @@ else:
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
-    # 3) 💡 [새로 추가된 기능] 데이터 수정 / 삭제 / 개별 QR 재발행 창
+    # 3) 데이터 수정 / 삭제 / 개별 QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
         st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
-        st.markdown("특정 시리얼 넘버를 잃어버렸거나 중간에 빈 번호를 메꾸기 위해 QR코드를 단독으로 재발행합니다.")
         st.markdown("---")
         
-        # 재발행 전용 섹션
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 10자리 시리얼 번호를 정확히 입력하세요 (예: 0106020016)").strip()
+        # 💡 [수정] 5자리 확장에 따라 예시 안내 문구를 11자리 규격(01060200016)으로 명시
+        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요 (예: 01060200016)").strip()
         
         if target_serial:
-            if len(target_serial) != 10:
-                st.warning("⚠️ 시리얼 넘버는 정확히 10자리 규격이어야 합니다.")
+            # 💡 [수정] 규격 제한을 10자리에서 11자리로 변경
+            if len(target_serial) != 11:
+                st.warning("⚠️ 시리얼 넘버는 정확히 11자리 규격이어야 합니다.")
             else:
-                # 데이터가 이미 존재하는지 체크
                 exist_item = db_collection.find_one({"serial_no": target_serial})
                 
                 if exist_item:
                     st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
                     st.markdown(f"**🔧 매칭 정보:** 종류({exist_item['tool_type']}) | 장비({exist_item['machine_no'] if exist_item['machine_no'] else '기입대기'}) | 상태({exist_item.get('status','사용전')})")
                     
-                    # 화면에 인쇄용으로 크게 출력
                     qr_res_bytes = generate_app_qr_bytes(target_serial)
                     st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
                     st.info("💡 위 QR코드를 마우스 우클릭하여 저장하거나 화면 인쇄하여 실물에 다시 부착하세요.")
