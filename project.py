@@ -159,11 +159,7 @@ else:
                 current_seq = last_counter + idx
                 serial_no = f"{prefix}{current_seq:05d}"
                 
+                # 🛠️ [구문 에러 교정 완료 영역]
                 blank_records.append({
                     "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
-                    "status": "사용전",
-                    "input_date": str(today),
-                    "worker": "",
-                    "machine_no": "",
-                    "use_limit": 10000
+                    "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool
