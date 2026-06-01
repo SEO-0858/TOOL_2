@@ -80,7 +80,7 @@ if qr_scanned_serial:
             st.rerun()
             
     else:
-        st.warning("📝 아직 정보가 기입되지 않은 공 QR코드입니다. 초기 정보를 기입해 주세요.")
+        st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=0, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
@@ -124,11 +124,12 @@ if qr_scanned_serial:
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
+    # 💡 [명칭 변경] '껍데기'를 '빈데이터'로 수정
+    tool_menu = st.sidebar.radio("하위 목록", ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
     # 1) QR코드 대량 연속 선발행 창
-    if tool_menu == "📊 껍데기 QR코드 대량 선발행":
-        st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행 (5자리 순번 버전)")
+    if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
+        st.title("🖨️ 현장 부착용 빈데이터 QR코드 대량 연속 발행 (5자리 순번 버전)")
         st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
         st.markdown("---")
         
@@ -179,24 +180,22 @@ else:
                     
             try:
                 db_collection.insert_many(blank_records)
-                st.success(f"🎉 {quantity}개의 순번 껍데기가 안전하게 DB에 선점되었습니다!")
+                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 선점되었습니다!")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
-        # 🚨 마스터 관리자 영역 (툴 종류별 선택 삭제 기능 추가)
+        # 🚨 마스터 관리자 영역
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
         
         with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
             st.error("⚠️ [주의] 선택한 고유코드 유형의 모든 데이터가 영구 삭제되며, 해당 툴 종류의 다음 순번은 1번으로 리셋됩니다.")
             
-            # 💡 [요청 반영] 삭제할 앞 2자리 코드를 마우스로 안전하게 고르는 선택박스 추가
             target_reset_code = st.selectbox(
                 "🎯 데이터 삭제 및 순번을 초기화할 툴 종류(앞 2자리)를 선택하세요",
                 ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"]
             )
             
-            # 위험성 확인용 체크박스
             understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
             
             if st.button("🚨 선택한 대상 데이터 초기화 실행"):
@@ -205,11 +204,9 @@ else:
                 else:
                     try:
                         if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                            # 전체 삭제
                             delete_res = db_collection.delete_many({})
                             st.success(f"💥 완벽 초기화! 시스템 내 모든 {delete_res.deleted_count}건의 기록이 삭제되었습니다.")
                         else:
-                            # 앞 2자리 코드만 정규식 패턴으로 추출하여 부분 삭제 (예: "^01")
                             code_prefix = target_reset_code.split(" ")[0]
                             delete_res = db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
                             st.success(f"💥 {target_reset_code} 초기화 완료! 조건에 맞는 {delete_res.deleted_count}건의 기록만 선택 삭제되었습니다.")
@@ -252,7 +249,7 @@ else:
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
-    # 3) 데이터 수정 / 삭제 / 개별 QR 재발행 창
+    # 3) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
         st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
         st.markdown("---")
