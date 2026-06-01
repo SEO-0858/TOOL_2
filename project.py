@@ -127,7 +127,7 @@ else:
     tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
     # 1) QR코드 대량 연속 선발행 창
-    if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
+    if tool_menu == "📊 껍데기 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행 (5자리 순번 버전)")
         st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
         st.markdown("---")
