@@ -11,10 +11,8 @@ st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="w
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
 def get_database():
-    if "mongo" in st.secrets:
-        MONGO_URI = st.secrets["mongo"]["MONGO_URI"]
-    else:
-        MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
+    # secrets 파일을 찾지 않고, 무조건 지정된 몽고디비 주소로 바로 연결하도록 수정
+    MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
     client = MongoClient(MONGO_URI)
     return client["dashboard_db"]["tools_management"]
 
