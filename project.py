@@ -127,7 +127,7 @@ else:
     tool_menu = st.sidebar.radio("하위 목록", ["📊 껍데기 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
     
     # 1) QR코드 대량 연속 선발행 창
-    if tool_menu == "📊 껍데기 QR코드 대량 선발행":
+    if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 공(Blank) QR코드 대량 연속 발행 (5자리 순번 버전)")
         st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
         st.markdown("---")
@@ -140,11 +140,10 @@ else:
             
         prefix = f"{tool_code}{mmdd}"
         
-        # 💡 [수정] 마지막 번호를 찾을 때 자릿수 확장 패턴에 맞춰 마지막 5자리를 슬라이싱 하도록 업데이트
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
             if last_tool:
-                last_counter = int(last_tool["serial_no"][-5:]) # 뒤에서 5자리 슬라이싱
+                last_counter = int(last_tool["serial_no"][-5:])
             else:
                 last_counter = 0
         except Exception:
@@ -158,7 +157,6 @@ else:
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
-                # 💡 [수정] 포맷 형식을 :04d에서 :05d로 바꾸어 5자리 고정으로 설정 (예: 00001)
                 serial_no = f"{prefix}{current_seq:05d}"
                 
                 blank_records.append({
@@ -184,6 +182,32 @@ else:
                 st.success(f"🎉 {quantity}개의 순번 껍데기가 안전하게 DB에 선점되었습니다!")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
+
+        # 💡 [요청 기능] 하단에 배치한 강제 시리얼 넘버 데이터 전체 초기화 버튼 스크립트
+        st.markdown("<br><br><br>---", unsafe_allow_html=True)
+        st.subheader("🚨 시스템 마스터 관리자 영역")
+        
+        with st.expander("💥 데이터베이스 전체 초기화 및 발행 번호 리셋", expanded=False):
+            st.error("⚠️ [주의] 이 기능을 실행하면 현재 데이터베이스에 저장된 모든 툴 내역이 영구 삭제되며, 다음 발행 번호가 1번(00001)으로 강제 리셋됩니다!")
+            
+            # 2중 안전 장치 구성
+            understand_risk = st.checkbox("❗ 위 위험성을 완벽히 이해했으며, 모든 데이터를 지우고 처음부터 연사를 시작하는 것에 동의합니다.")
+            confirm_code = st.text_input("확인을 위해 초기화 비밀번호를 입력하세요 (비밀번호: KKQRESET)", type="password")
+            
+            if st.button("🚨 모든 데이터 삭제 및 카운터 초기화 실행"):
+                if not understand_risk:
+                    st.warning("⚠️ 동의 체크박스에 먼저 체크를 해주셔야 초기화가 가능합니다.")
+                elif confirm_code != "KKQRESET":
+                    st.error("❌ 초기화 비밀번호가 일치하지 않습니다. 다시 입력해 주세요.")
+                else:
+                    try:
+                        # 몽고디비 컬렉션 내부의 데이터 전부 삭제
+                        delete_res = db_collection.delete_many({})
+                        st.success(f"💥 초기화 완료! 총 {delete_res.deleted_count}건의 기록이 삭제되었으며 다음 순번은 1번부터 시작됩니다.")
+                        st.balloons()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"초기화 중 DB 통신 에러 발생: {e}")
 
     # 2) 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
@@ -224,11 +248,9 @@ else:
         st.markdown("---")
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        # 💡 [수정] 5자리 확장에 따라 예시 안내 문구를 11자리 규격(01060200016)으로 명시
-        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요 (예: 01060200016)").strip()
+        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요 (예: 01060200001)").strip()
         
         if target_serial:
-            # 💡 [수정] 규격 제한을 10자리에서 11자리로 변경
             if len(target_serial) != 11:
                 st.warning("⚠️ 시리얼 넘버는 정확히 11자리 규격이어야 합니다.")
             else:
