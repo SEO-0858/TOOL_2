@@ -14,7 +14,7 @@ def get_database():
     if "mongo" in st.secrets:
         MONGO_URI = st.secrets["mongo"]["MONGO_URI"]
     else:
-        MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCmjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
+        MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCMjjTiTG5w@cluster0.1ectnsv.mongodb.net/?appName=Cluster0"
     client = MongoClient(MONGO_URI)
     return client["dashboard_db"]["tools_management"]
 
