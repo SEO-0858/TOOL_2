@@ -22,9 +22,13 @@ def get_database():
 
 db_collection = get_database()
 
-# 현시간 처리 (UTC -> 한국 시간 보정 등이 필요한 경우를 위해 datetime 활용)
-now = datetime.datetime.now()
-today = datetime.date.today()
+# 🕒 [중요] 한국 시간(KST) 전역 강제 설정 함수 (서버 시차 9시간 완벽 보정)
+def get_now_kst():
+    # 서버의 기본 UTC 시간에 정확히 9시간을 더해 대한민국 표준시를 강제 생성합니다.
+    return datetime.datetime.utcnow() + timedelta(hours=9)
+
+now = get_now_kst()
+today = now.date()
 mmdd = today.strftime("%m%d") 
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
@@ -77,13 +81,13 @@ if qr_scanned_serial:
         if submit_u_btn:
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
             
-            # 타이머 재계산 설정
+            # 실시간 한국 시간 기준으로 타이머 재산출
             total_duration_mins = (u_hours * 60) + u_mins
+            current_now = get_now_kst()
             if total_duration_mins > 0 and u_status == "사용중":
-                start_time_val = now.strftime("%Y-%m-%d %H:%M:%S")
-                target_time_val = (now + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                start_time_val = current_now.strftime("%Y-%m-%d %H:%M:%S")
+                target_time_val = (current_now + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
             else:
-                # 사용전, 폐기거나 주기가 0이면 타이머 초기화
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
 
@@ -102,7 +106,7 @@ if qr_scanned_serial:
                     "note": u_note
                 }}
             )
-            st.success("🎉 툴의 상태와 커스텀 드레싱 주기가 정상 업데이트되었습니다!")
+            st.success("🎉 툴의 상태와 커스텀 드레싱 주기가 한국 시간 기준으로 정상 업데이트되었습니다!")
             st.rerun()
             
     else:
@@ -132,11 +136,12 @@ if qr_scanned_serial:
                 tool_code = qr_scanned_serial[:2]
                 waste_val = str(today) if m_status == "폐기" else "-"
                 
-                # 시간 계산 
+                # 실시간 한국 시간 기준 매칭
                 total_mins = (dressing_hours * 60) + dressing_mins
+                current_now = get_now_kst()
                 if total_mins > 0 and m_status == "사용중":
-                    start_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
-                    target_time_str = (now + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                    start_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
+                    target_time_str = (current_now + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
                 else:
                     start_time_str = "-"
                     target_time_str = "-"
@@ -161,7 +166,7 @@ if qr_scanned_serial:
                     }},
                     upsert=True
                 )
-                st.success("🎉 현장 데이터 및 타이머 설정이 성공적으로 첫 등록되었습니다!")
+                st.success("🎉 한국 가공 시간 매칭 기준 데이터 저장이 완료되었습니다!")
                 st.balloons()
                 st.rerun()
                 
@@ -294,47 +299,44 @@ else:
                     except Exception as e:
                         st.error(f"초기화 중 DB 통신 에러 발생: {e}")
 
-    # 2) 💡 [신규 전사 탑재] 실시간 툴 드레싱 알림판
+    # 2) ⚠️ 실시간 툴 드레싱 알림판 (한국 시간 시차 완벽 매칭 연산 버전)
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
         st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
         st.markdown("작업자가 현장에서 설정한 **커스텀 시간 타이머**를 실시간으로 추적하는 상황판입니다.")
         st.markdown("---")
         
         try:
-            # 타이머 설정이 잡혀있고 현재 '사용중'인 툴 검색
             active_tools = list(db_collection.find({"status": "사용중", "target_time": {"$ne": "-"}}))
             
             if not active_tools:
                 st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
             else:
-                # 테이블 구성을 위한 헤더
                 st.markdown("### 📊 실시간 가동 현황 목록")
+                current_now = get_now_kst() # 실시간 한국 시간 연산용 클럭 동기화
                 
                 for item in active_tools:
                     target_time_str = item.get("target_time")
                     target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
                     
-                    # 남은 시간 계산
-                    time_diff = target_dt - now
+                    # 남은 시간 계산 (KST 클럭 연동)
+                    time_diff = target_dt - current_now
                     total_seconds = time_diff.total_seconds()
                     
-                    # 상태 판단 및 배지 지정
                     if total_seconds <= 0:
                         status_label = "🚨 드레싱/교체 필요 (시간초과)"
-                        color_hex = "#FF4B4B"  # 빨강
+                        color_hex = "#FF4B4B"
                         time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
-                    elif total_seconds <= 3600:  # 1시간 이내
+                    elif total_seconds <= 3600:
                         status_label = "🟡 주의 (1시간 이내 임박)"
-                        color_hex = "#FFAA00"  # 노랑
+                        color_hex = "#FFAA00"
                         time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
                     else:
                         status_label = "🟢 정상 가동 중"
-                        color_hex = "#00B050"  # 초록
+                        color_hex = "#00B050"
                         hours_left = int(total_seconds // 3600)
                         mins_left = int((total_seconds % 3600) // 60)
                         time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
                     
-                    # 컨테이너 스타일 박스로 가독성 극대화
                     with st.container():
                         st.markdown(
                             f"""
@@ -342,7 +344,7 @@ else:
                                 <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']})</h4>
                                 <p style="margin: 5px 0; font-size: 15px;">
                                     <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} 기 | <b>👷 담당 작업자:</b> {item['worker']} <br>
-                                    <b>📅 최초 장착 시간:</b> {item['start_time']} | <b>🎯 드레싱 마감 목표:</b> {target_time_str} <br>
+                                    <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
                                     <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
                                 </p>
                             </div>
@@ -350,24 +352,24 @@ else:
                             unsafe_allow_html=True
                         )
                         
-                        # 현장에서 원터치로 시간을 연장/리셋할 수 있는 버튼 연동
                         if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
                             t_hours = int(item.get('dressing_hours', 4))
                             t_mins = int(item.get('dressing_mins', 0))
                             new_total_mins = (t_hours * 60) + t_mins
                             
-                            new_start = now.strftime("%Y-%m-%d %H:%M:%S")
-                            new_target = (now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                            click_now = get_now_kst()
+                            new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
+                            new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
                             
                             db_collection.update_one(
                                 {"serial_no": item['serial_no']},
                                 {"$set": {
                                     "start_time": new_start,
                                     "target_time": new_target,
-                                    "note": item.get('note', '') + f"\n[{now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
+                                    "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
                                 }}
                             )
-                            st.success(f"🎉 {item['serial_no']}번 툴의 드레싱이 승인되어 카운트다운 타이머가 처음부터 다시 작동합니다!")
+                            st.success(f"🎉 {item['serial_no']}번 툴의 드레싱 타이머가 현재 한국 시간 기준으로 리셋되었습니다!")
                             st.rerun()
                             
         except Exception as e:
