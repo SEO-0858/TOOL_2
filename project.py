@@ -1,5 +1,6 @@
 import streamlit as st
 import re
+import pandas as pd
 import time
 from datetime import datetime, timedelta  # 👈 핵심: 이렇게 불러오면 명확합니다.
 from pymongo import MongoClient
