@@ -701,7 +701,7 @@ else:
             [12, 21, 36, 53, 4],
             [11, 22, 37, 52, 3],
             [10, 23, 38, 43],
-            [39, 40, 41, 42, 43],
+            [39, 40, 41, 42],
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
@@ -722,4 +722,4 @@ else:
                     # 고유 키(key)를 지정하여 에러 방지
                     if st.button(f"{m_no}", key=f"btn_{m_no}_{row_idx}_{col_idx}"):
                         st.info(f"{m_no}호기 정보: {'가동 중' if is_active else '공실'}")
-                    st.caption("가동" if is_active else "공실")          
+                    st.caption("가동" if is_active else "공실")
