@@ -703,7 +703,7 @@ else:
             [11, 22, 37, 52, 3],
             [10, 23, 38, 43],
             [39, 40, 41, 42],
-            [45, 46, 47, 48, 49, 50, 51]
+            [44,45, 46, 47, 48, 49, 50, 51]
         ]
 
         active_tools = list(db_collection.find({"status": "사용중"}))
@@ -738,4 +738,4 @@ else:
                         """, unsafe_allow_html=True)
 
         time.sleep(5)
-        st.rerun()    
+        st.rerun()         
