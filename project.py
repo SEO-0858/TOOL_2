@@ -644,47 +644,6 @@ else:
             st.error(f"데이터 로드 실패: {e}")
 
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
-    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
-        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
-        st.markdown("---")
-        
-        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요").strip()
-        
-        if target_serial:
-            if len(target_serial) != 11:
-                st.warning("⚠️ 시리얼 넘버는 정확히 11자리 규격이어야 합니다.")
-            else:
-                exist_item = db_collection.find_one({"serial_no": target_serial})
-                
-                if exist_item:
-                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
-                    qr_res_bytes = generate_app_qr_bytes(target_serial)
-                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
-                else:
-                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
-                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
-                        t_code = target_serial[:2]
-                        new_blank = {
-                            "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="01" else "레진툴" if t_code=="02" else "메탈툴",
-                            "status": "사용전",
-                            "input_date": str(today),
-                            "worker": "",
-                            "machine_no": "",
-                            "dressing_hours": 0,
-                            "dressing_mins": 0,
-                            "start_time": "-",
-                            "target_time": "-",
-                            "use_limit": 10000,
-                            "current_use": 0,
-                            "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
-                        }
-                        db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
-                        st.rerun()
-    # 5) 실시간 기계 정보창 (수정 완료)
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
@@ -702,28 +661,32 @@ else:
         ]
 
         active_tools = list(db_collection.find({"status": "사용중"}))
-        tool_map = {}
-        for t in active_tools:
-            m_no_str = str(t.get('machine_no', ''))
-            nums = re.findall(r'\d+', m_no_str)
-            if nums:
-                tool_map[int(nums[0])] = t
+        tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): t 
+                    for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
 
         for r_idx, row in enumerate(machine_layout):
             cols = st.columns(len(row))
             for c_idx, m_no in enumerate(row):
                 with cols[c_idx]:
                     tool_data = tool_map.get(m_no)
-                    # 고유 키 생성 (버튼 중복 방지)
-                    btn_key = f"btn_{m_no}_{r_idx}_{c_idx}"
                     
+                    # 상태에 따른 강조 색상 적용
                     if tool_data:
-                        with st.popover(f"{m_no}호기", use_container_width=True):
-                            st.subheader(f"⚙️ {m_no}호기 상세 정보")
-                            st.write(f"🆔 **시리얼:** `{tool_data.get('serial_no')}`")
-                            st.write(f"👷 **작업자:** {tool_data.get('worker', '정보없음')}")
-                            st.write(f"📅 **장착 시간:** {tool_data.get('start_time', '-')}")
+                        # 가동 중: 배경색이 눈에 띄게 (Markdown 사용)
+                        st.markdown(f"""
+                            <div style="background-color: #E8F5E9; padding: 10px; border-radius: 5px; border: 2px solid #2E7D32;">
+                                <h4 style="color: #1B5E20; margin: 0;">{m_no}호기</h4>
+                                <p style="color: #2E7D32; font-weight: bold; margin: 0;">ID: {tool_data.get('serial_no')}</p>
+                                <p style="color: #2E7D32; margin: 0;">작업자: {tool_data.get('worker', '미지정')}</p>
+                                <p style="color: #2E7D32; font-size: 0.8em; margin: 0;">시작: {tool_data.get('start_time', '-')}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.button(f"{m_no}호기", key=btn_key, use_container_width=True, disabled=True)
-    
+                        # 대기 중: 회색 박스
+                        st.markdown(f"""
+                            <div style="background-color: #F5F5F5; padding: 10px; border-radius: 5px; border: 1px solid #BDBDBD;">
+                                <h4 style="color: #616161; margin: 0;">{m_no}호기</h4>
+                                <p style="color: #9E9E9E; margin: 0;">공실</p>
+                            </div>
+                        """, unsafe_allow_html=True)
     
