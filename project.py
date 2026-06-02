@@ -645,9 +645,13 @@ else:
 
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
+        # 1. 자동 새로고침 설정 (현재 시간 실시간 갱신용)
+        import time
+        from datetime import datetime
         
-        # 1. 중복 없는 깔끔한 레이아웃 정의 (이미지 기반)
+        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
+        st.write(f"⏰ **현재 시간:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -661,39 +665,36 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
-        # 2. 데이터 최적화: 기계 번호당 딱 하나의 데이터만 가져오기
         active_tools = list(db_collection.find({"status": "사용중"}))
         tool_map = {}
         for t in active_tools:
             m_no_str = str(t.get('machine_no', ''))
             nums = re.findall(r'\d+', m_no_str)
             if nums:
-                # 같은 기계 번호라면, 가장 최근에 업데이트된 것 하나만 유지
-                m_no = int(nums[0])
-                tool_map[m_no] = t 
+                tool_map[int(nums[0])] = t
 
-        # 3. 화면 출력
         for row in layout:
             cols = st.columns(len(row))
             for i, m_no in enumerate(row):
                 with cols[i]:
                     t = tool_map.get(m_no)
                     if t:
-                        # 가동 중: 상세 정보 표시
-                        start_time_str = t.get('start_time', '정보없음')
                         st.markdown(f"""
-                            <div style="background-color:#E8F5E9; padding:8px; border-radius:5px; border:2px solid #2E7D32; font-size:12px;">
+                            <div style="background-color:#E8F5E9; padding:8px; border-radius:5px; border:2px solid #2E7D32; font-size:11px; height:120px;">
                                 <b>{m_no}호기 (가동중)</b><br>
                                 🆔 {t.get('serial_no', 'N/A')}<br>
                                 👷 {t.get('worker', '미지정')}<br>
                                 🛠 {t.get('tool_type', '일반')}<br>
-                                ⏱️ {start_time_str}
+                                ⏱️ {t.get('start_time', '정보없음')}
                             </div>
                         """, unsafe_allow_html=True)
                     else:
-                        # 대기 중: 간단히 표시
                         st.markdown(f"""
-                            <div style="background-color:#F5F5F5; padding:8px; border-radius:5px; border:1px solid #ccc; font-size:12px;">
-                                <b>{m_no}호기</b><br>공실
+                            <div style="background-color:#F5F5F5; padding:8px; border-radius:5px; border:1px solid #ccc; font-size:11px; height:120px;">
+                                <b>{m_no}호기</b><br>가동확인중..
                             </div>
                         """, unsafe_allow_html=True)
+
+        # 5초마다 자동 새로고침하여 현재 시간 및 정보 갱신
+        time.sleep(5)
+        st.rerun()
