@@ -647,6 +647,7 @@ else:
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
+        # 기계 배치 레이아웃
         machine_layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -661,44 +662,63 @@ else:
         ]
 
         active_tools = list(db_collection.find({"status": "사용중"}))
-        tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): t 
-                    for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+        tool_map = {}
+        for t in active_tools:
+            m_no_str = str(t.get('machine_no', ''))
+            nums = re.findall(r'\d+', m_no_str)
+            if nums:
+                tool_map[int(nums[0])] = t
+
+        # 타이머 동기화를 위한 자바스크립트 저장용 리스트
+        timer_scripts = []
 
         for r_idx, row in enumerate(machine_layout):
             cols = st.columns(len(row))
             for c_idx, m_no in enumerate(row):
                 with cols[c_idx]:
-                    tool_data = tool_map.get(m_no)
+                    t = tool_map.get(m_no)
                     
-                    if tool_data:
-                        # 저장된 시간 (DB 값 그대로 표시)
-                        raw_start_time = tool_data.get('start_time', '')
-                        
+                    if t:
+                        # DB에서 정보 추출 (필드명이 다를 경우를 대비해 예비 이름도 확인)
+                        serial = t.get('serial_no', 'N/A')
+                        worker = t.get('worker', t.get('operator', '미지정'))
+                        start_t = t.get('start_time', '')
+                        # '전착' 관련 데이터가 있으면 표시
+                        process_type = t.get('process', t.get('type', '일반'))
+
+                        # HTML 박스
                         st.markdown(f"""
                             <div style="background-color: #E8F5E9; padding: 10px; border-radius: 5px; border: 2px solid #2E7D32;">
-                                <h4 style="color: #1B5E20; margin: 0;">{m_no}호기</h4>
-                                <p style="color: #2E7D32; font-weight: bold; margin: 0;">ID: {tool_data.get('serial_no')}</p>
-                                <p style="color: #2E7D32; margin: 0;">장착시간: <span style="font-size: 0.9em;">{raw_start_time}</span></p>
-                                <p style="color: #C62828; font-weight: bold; margin-top: 5px;" id="timer_{m_no}">경과: 계산 중...</p>
+                                <h4 style="margin:0;">{m_no}호기</h4>
+                                <div style="font-size:0.85em;">
+                                    <b>ID:</b> {serial}<br>
+                                    <b>작업자:</b> {worker}<br>
+                                    <b>공정:</b> {process_type}<br>
+                                    <b>장착:</b> {start_t}<br>
+                                    <b style="color:red;" id="timer_{m_no}">경과: 계산중...</b>
+                                </div>
                             </div>
-                            <script>
-                                var startTime = new Date("{raw_start_time}").getTime();
-                                setInterval(function() {{
-                                    var now = new Date().getTime();
-                                    var diff = now - startTime;
-                                    var hrs = Math.floor(diff / 3600000);
-                                    var mins = Math.floor((diff % 3600000) / 60000);
-                                    var secs = Math.floor((diff % 60000) / 1000);
-                                    document.getElementById("timer_{m_no}").innerHTML = 
-                                        "경과: " + hrs + "시간 " + mins + "분 " + secs + "초";
-                                }}, 1000);
-                            </script>
                         """, unsafe_allow_html=True)
+                        
+                        # 타이머 스크립트 추가
+                        if start_t:
+                            timer_scripts.append(f"""
+                                (function() {{
+                                    var start = new Date("{start_t}").getTime();
+                                    var el = document.getElementById("timer_{m_no}");
+                                    setInterval(function() {{
+                                        var now = new Date().getTime();
+                                        var diff = now - start;
+                                        var h = Math.floor(diff/3600000);
+                                        var m = Math.floor((diff%3600000)/60000);
+                                        var s = Math.floor((diff%60000)/1000);
+                                        el.innerHTML = "경과: " + h + "시간 " + m + "분 " + s + "초";
+                                    }}, 1000);
+                                }})();
+                            """)
                     else:
-                        st.markdown(f"""
-                            <div style="background-color: #F5F5F5; padding: 10px; border-radius: 5px; border: 1px solid #BDBDBD;">
-                                <h4 style="color: #616161; margin: 0;">{m_no}호기</h4>
-                                <p style="color: #9E9E9E; margin: 0;">공실</p>
-                            </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f'<div style="background-color:#F5F5F5; padding:10px; border:1px solid #ccc;"><h4>{m_no}호기</h4>공실</div>', unsafe_allow_html=True)
+
+        # 모아둔 스크립트를 한 번에 실행
+        st.markdown(f"<script>{''.join(timer_scripts)}</script>", unsafe_allow_html=True)
     
