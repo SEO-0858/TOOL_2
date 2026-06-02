@@ -721,21 +721,25 @@ else:
                 with cols[i]:
                     t = tool_map.get(m_no)
                     if t:
+                        # 가동 중인 툴: 눈에 확 띄는 녹색 강조
                         st.markdown(f"""
-                            <div style="background-color:#E8F5E9; padding:5px; border-radius:5px; border:2px solid #2E7D32; font-size:10px; height:100px;">
-                                <b>{m_no}호기 (가동중)</b><br>
-                                ID: {t.get('serial_no', 'N/A')}<br>
-                                작업자: {t.get('worker', '미지정')}<br>
-                                툴: {t.get('tool_type', '일반')}<br>
-                                장착: {t.get('start_time', '확인불가')}
+                            <div style="background-color:#004d40; padding:10px; border-radius:8px; border:2px solid #000; color:white; height:120px; box-shadow: 2px 2px 5px #888;">
+                                <b style="font-size:14px;">{m_no}호기 가동중</b><hr style="margin:5px 0;">
+                                <div style="font-size:11px; line-height:1.4;">
+                                    <b>ID:</b> {t.get('serial_no', 'N/A')[-5:]}<br>
+                                    <b>작업자:</b> {t.get('worker', '미지정')}<br>
+                                    <b>장착:</b> {t.get('start_time', '확인불가').split(' ')[1][:5]}
+                                </div>
                             </div>
                         """, unsafe_allow_html=True)
                     else:
+                        # 공실: 깔끔한 회색 바탕에 아주 연한 글씨 (주의를 덜 끌게 함)
                         st.markdown(f"""
-                            <div style="background-color:#F5F5F5; padding:5px; border-radius:5px; border:1px solid #ccc; font-size:10px; height:100px;">
-                                <b>{m_no}호기</b><br>미지정툴???
+                            <div style="background-color:#f8f9fa; padding:10px; border-radius:8px; border:1px solid #dee2e6; color:#adb5bd; height:120px;">
+                                <b style="font-size:12px; color:#6c757d;">{m_no}호기</b><br>
+                                <div style="font-size:10px; margin-top:10px;">미장착중???????</div>
                             </div>
                         """, unsafe_allow_html=True)
 
         time.sleep(5)
-        st.rerun()                    
+        st.rerun()                             
