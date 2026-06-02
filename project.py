@@ -647,11 +647,8 @@ else:
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
-        # 1. 자동 새로고침 설정 (5초마다)
-        st.empty()
-        import time
-        
-        machine_layout = [
+        # 1. 중복 없는 깔끔한 레이아웃 정의 (이미지 기반)
+        layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
             [15, 18, 25, 33, 56],
@@ -664,44 +661,39 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
-        # 2. 현재 시간 가져오기
-        from datetime import datetime
-        now = datetime.now()
-
+        # 2. 데이터 최적화: 기계 번호당 딱 하나의 데이터만 가져오기
         active_tools = list(db_collection.find({"status": "사용중"}))
-        tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): t 
-                    for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+        tool_map = {}
+        for t in active_tools:
+            m_no_str = str(t.get('machine_no', ''))
+            nums = re.findall(r'\d+', m_no_str)
+            if nums:
+                # 같은 기계 번호라면, 가장 최근에 업데이트된 것 하나만 유지
+                m_no = int(nums[0])
+                tool_map[m_no] = t 
 
-        for r_idx, row in enumerate(machine_layout):
+        # 3. 화면 출력
+        for row in layout:
             cols = st.columns(len(row))
-            for c_idx, m_no in enumerate(row):
-                with cols[c_idx]:
+            for i, m_no in enumerate(row):
+                with cols[i]:
                     t = tool_map.get(m_no)
                     if t:
-                        # 시간 계산 (start_time이 datetime 객체라고 가정, 아니면 strptime 필요)
-                        start_t = t.get('start_time')
-                        if isinstance(start_t, str):
-                            try:
-                                start_t = datetime.fromisoformat(start_t)
-                            except: start_t = None
-                        
-                        elapsed = (now - start_t) if start_t else None
-                        
-                        # 화면 출력
+                        # 가동 중: 상세 정보 표시
+                        start_time_str = t.get('start_time', '정보없음')
                         st.markdown(f"""
-                            <div style="background-color: #E8F5E9; padding: 10px; border-radius: 5px; border: 2px solid #2E7D32;">
-                                <h4 style="margin:0;">{m_no}호기</h4>
-                                <div style="font-size:0.8em;">
-                                    ID: {t.get('serial_no', 'N/A')}<br>
-                                    작업자: {t.get('worker', '미지정')}<br>
-                                    경과: {str(elapsed).split('.')[0] if elapsed else '계산불가'}
-                                </div>
+                            <div style="background-color:#E8F5E9; padding:8px; border-radius:5px; border:2px solid #2E7D32; font-size:12px;">
+                                <b>{m_no}호기 (가동중)</b><br>
+                                🆔 {t.get('serial_no', 'N/A')}<br>
+                                👷 {t.get('worker', '미지정')}<br>
+                                🛠 {t.get('tool_type', '일반')}<br>
+                                ⏱️ {start_time_str}
                             </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.markdown(f'<div style="background-color:#F5F5F5; padding:10px; border:1px solid #ccc;"><h4>{m_no}호기</h4>공실</div>', unsafe_allow_html=True)
-        
-        # 3. 5초마다 자동 새로고침 (실시간 효과)
-        time.sleep(5)
-        st.rerun()
-    
+                        # 대기 중: 간단히 표시
+                        st.markdown(f"""
+                            <div style="background-color:#F5F5F5; padding:8px; border-radius:5px; border:1px solid #ccc; font-size:12px;">
+                                <b>{m_no}호기</b><br>공실
+                            </div>
+                        """, unsafe_allow_html=True)
