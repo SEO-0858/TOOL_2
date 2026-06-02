@@ -1,11 +1,10 @@
 import streamlit as st
-import re
-import pandas as pd
-import time
-from datetime import datetime, timedelta  # 👈 핵심: 이렇게 불러오면 명확합니다.
 from pymongo import MongoClient
+import datetime
+from datetime import timedelta, datetime as dt_class
 import qrcode
 from io import BytesIO
+import base64
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
@@ -26,7 +25,7 @@ db_collection = get_database()
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    return datetime.now() + timedelta(hours=9)
+    return datetime.datetime.utcnow() + timedelta(hours=9)
 
 now = get_now_kst()
 today = now.date()
@@ -202,8 +201,7 @@ else:
         "📊 빈데이터 QR코드 대량 선발행", 
         "⚠️ 실시간 툴 드레싱 알림판", 
         "📂 전체 데이터 현황판", 
-        "⚙️ 데이터 수정 / 삭제 / QR 재발행",
-        "🖥️ 실시간 기계 정보창"
+        "⚙️ 데이터 수정 / 삭제 / QR 재발행"
     ])
     
     # 1) QR코드 대량 연속 선발행 창
@@ -684,56 +682,3 @@ else:
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
-    elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
-        
-        # 1. 오류 없는 시간 표시
-        now_kst = get_now_kst()
-        st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        layout = [
-            [27, 28, 29, 30, 31, 9, 8, 7],
-            [16, 17, 26, 32, 57],
-            [15, 18, 25, 33, 56],
-            [14, 19, 24, 34, 55, 6],
-            [13, 20, 35, 54, 5],
-            [12, 21, 36, 53, 4],
-            [11, 22, 37, 52, 3],
-            [10, 23, 38, 43],
-            [39, 40, 41, 42],
-            [45, 46, 47, 48, 49, 50, 51]
-        ]
-
-        active_tools = list(db_collection.find({"status": "사용중"}))
-        tool_map = {}
-        for t in active_tools:
-            m_no_str = str(t.get('machine_no', ''))
-            nums = re.findall(r'\d+', m_no_str)
-            if nums:
-                m_no = int(nums[0])
-                tool_map[m_no] = t 
-
-        for row in layout:
-            cols = st.columns(len(row))
-            for i, m_no in enumerate(row):
-                with cols[i]:
-                    t = tool_map.get(m_no)
-                    if t:
-                        st.markdown(f"""
-                            <div style="background-color:#E8F5E9; padding:5px; border-radius:5px; border:2px solid #2E7D32; font-size:10px; height:100px;">
-                                <b>{m_no}호기 (가동중)</b><br>
-                                ID: {t.get('serial_no', 'N/A')}<br>
-                                작업자: {t.get('worker', '미지정')}<br>
-                                툴: {t.get('tool_type', '일반')}<br>
-                                장착: {t.get('start_time', '확인불가')}
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                            <div style="background-color:#F5F5F5; padding:5px; border-radius:5px; border:1px solid #ccc; font-size:10px; height:100px;">
-                                <b>{m_no}호기</b><br>공실
-                            </div>
-                        """, unsafe_allow_html=True)
-
-        time.sleep(5)
-        st.rerun()
