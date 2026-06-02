@@ -1,6 +1,7 @@
 import streamlit as st
 from pymongo import MongoClient
 import datetime
+from datetime import timedelta
 import qrcode
 from io import BytesIO
 
@@ -21,6 +22,8 @@ def get_database():
 
 db_collection = get_database()
 
+# 현시간 처리 (UTC -> 한국 시간 보정 등이 필요한 경우를 위해 datetime 활용)
+now = datetime.datetime.now()
 today = datetime.date.today()
 mmdd = today.strftime("%m%d") 
 
@@ -49,7 +52,7 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
-        st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 사용 횟수를 변경할 수 있습니다.")
+        st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태, 사용 횟수 및 드레싱 타이머를 변경할 수 있습니다.")
         current_status = existing_data.get("status", "사용중")
         status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
@@ -59,12 +62,31 @@ if qr_scanned_serial:
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
             u_machine = st.text_input("⚙️ 기계 가공 호기 수정", value=existing_data.get('machine_no', ''))
-            u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
             
+            st.markdown("---")
+            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정** (0시간 0분 설정 시 타이머 미작동)")
+            col_uh, col_um = st.columns(2)
+            with col_uh:
+                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=int(existing_data.get('dressing_hours', 0)), step=1, key="uh")
+            with col_um:
+                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
+                
+            u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if submit_u_btn:
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
+            
+            # 타이머 재계산 설정
+            total_duration_mins = (u_hours * 60) + u_mins
+            if total_duration_mins > 0 and u_status == "사용중":
+                start_time_val = now.strftime("%Y-%m-%d %H:%M:%S")
+                target_time_val = (now + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                # 사용전, 폐기거나 주기가 0이면 타이머 초기화
+                start_time_val = existing_data.get("start_time", "-")
+                target_time_val = existing_data.get("target_time", "-")
+
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -72,11 +94,15 @@ if qr_scanned_serial:
                     "current_use": u_count,
                     "worker": u_worker,
                     "machine_no": u_machine,
+                    "dressing_hours": u_hours,
+                    "dressing_mins": u_mins,
+                    "start_time": start_time_val,
+                    "target_time": target_time_val,
                     "waste_date": waste_val,
                     "note": u_note
                 }}
             )
-            st.success("🎉 툴의 현재 상태와 정보가 업데이트되었습니다!")
+            st.success("🎉 툴의 상태와 커스텀 드레싱 주기가 정상 업데이트되었습니다!")
             st.rerun()
             
     else:
@@ -85,6 +111,15 @@ if qr_scanned_serial:
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=0, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
             m_machine = st.text_input("Machine ⚙️ 기계 가공 호기 (예: MCT 3호기)")
+            
+            st.markdown("---")
+            st.markdown("⏳ **드레싱 주기 커스텀 설정** (작업자가 원하는 시간을 직접 입력하세요)")
+            col_h, col_m = st.columns(2)
+            with col_h:
+                dressing_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=4, step=1)
+            with col_m:
+                dressing_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5)
+                
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
             m_note = st.text_area("Note 📝 특이사항")
             
@@ -96,6 +131,16 @@ if qr_scanned_serial:
             else:
                 tool_code = qr_scanned_serial[:2]
                 waste_val = str(today) if m_status == "폐기" else "-"
+                
+                # 시간 계산 
+                total_mins = (dressing_hours * 60) + dressing_mins
+                if total_mins > 0 and m_status == "사용중":
+                    start_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
+                    target_time_str = (now + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    start_time_str = "-"
+                    target_time_str = "-"
+                
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
@@ -105,6 +150,10 @@ if qr_scanned_serial:
                         "input_date": str(today),
                         "worker": m_worker,
                         "machine_no": m_machine,
+                        "dressing_hours": dressing_hours,
+                        "dressing_mins": dressing_mins,
+                        "start_time": start_time_str,
+                        "target_time": target_time_str,
                         "use_limit": m_limit,
                         "current_use": 0,
                         "waste_date": waste_val,
@@ -112,7 +161,7 @@ if qr_scanned_serial:
                     }},
                     upsert=True
                 )
-                st.success("🎉 현장 데이터 정보가 성공적으로 첫 등록되었습니다!")
+                st.success("🎉 현장 데이터 및 타이머 설정이 성공적으로 첫 등록되었습니다!")
                 st.balloons()
                 st.rerun()
                 
@@ -124,7 +173,12 @@ if qr_scanned_serial:
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행"])
+    tool_menu = st.sidebar.radio("하위 목록", [
+        "📊 빈데이터 QR코드 대량 선발행", 
+        "⚠️ 실시간 툴 드레싱 알림판", 
+        "📂 전체 데이터 현황판", 
+        "⚙️ 데이터 수정 / 삭제 / QR 재발행"
+    ])
     
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
@@ -151,7 +205,6 @@ else:
             
         st.info(f"🔍 마지막 발행 번호: **{last_counter}번** ➡️ 이번에 생성될 순번: **{last_counter+1}번 ~ {last_counter+quantity}번**")
         
-        # 💡 화면 표시 제어용 세션 변수 설정
         if "show_qr_grid" not in st.session_state:
             st.session_state.show_qr_grid = False
         if "current_view_serials" not in st.session_state:
@@ -173,6 +226,10 @@ else:
                     "input_date": str(today),
                     "worker": "",
                     "machine_no": "",
+                    "dressing_hours": 0,
+                    "dressing_mins": 0,
+                    "start_time": "-",
+                    "target_time": "-",
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
@@ -182,12 +239,11 @@ else:
             try:
                 db_collection.insert_many(blank_records)
                 st.session_state.current_view_serials = generated_serials
-                st.session_state.show_qr_grid = True  # 발행 직후 화면에 QR코드 보여주기
+                st.session_state.show_qr_grid = True
                 st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다! 아래에서 인쇄해 주세요.")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
-        # 💡 [요청 사항 반영] 화면 제어 영역
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
             st.markdown("---")
             grid_cols = st.columns(4)
@@ -200,7 +256,6 @@ else:
             st.markdown("---")
             st.info(f"💡 총 {len(st.session_state.current_view_serials)}개의 QR코드가 인쇄 대기 중입니다.")
             
-            # DB는 건드리지 않고 오직 '화면에서만 목록을 삭제(닫기)'하는 버튼
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
                 st.session_state.current_view_serials = []
@@ -213,12 +268,10 @@ else:
         
         with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
             st.error("⚠️ [주의] 선택한 고유코드 유형의 모든 데이터가 영구 삭제되며, 해당 툴 종류의 다음 순번은 1번으로 리셋됩니다.")
-            
             target_reset_code = st.selectbox(
                 "🎯 데이터 삭제 및 순번을 초기화할 툴 종류(앞 2자리)를 선택하세요",
                 ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"]
             )
-            
             understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
             
             if st.button("🚨 선택한 대상 데이터 초기화 실행"):
@@ -227,12 +280,12 @@ else:
                 else:
                     try:
                         if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                            delete_res = db_collection.delete_many({})
-                            st.success(f"💥 완벽 초기화! 시스템 내 모든 {delete_res.deleted_count}건의 기록이 삭제되었습니다.")
+                            db_collection.delete_many({})
+                            st.success("💥 완벽 초기화! 시스템 내 모든 기록이 삭제되었습니다.")
                         else:
                             code_prefix = target_reset_code.split(" ")[0]
-                            delete_res = db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                            st.success(f"💥 {target_reset_code} 초기화 완료! 조건에 맞는 {delete_res.deleted_count}건의 기록만 선택 삭제되었습니다.")
+                            db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                            st.success(f"💥 {target_reset_code} 초기화 완료!")
                         
                         st.session_state.show_qr_grid = False
                         st.session_state.current_view_serials = []
@@ -241,7 +294,86 @@ else:
                     except Exception as e:
                         st.error(f"초기화 중 DB 통신 에러 발생: {e}")
 
-    # 2) 종합 현황판 창
+    # 2) 💡 [신규 전사 탑재] 실시간 툴 드레싱 알림판
+    elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
+        st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
+        st.markdown("작업자가 현장에서 설정한 **커스텀 시간 타이머**를 실시간으로 추적하는 상황판입니다.")
+        st.markdown("---")
+        
+        try:
+            # 타이머 설정이 잡혀있고 현재 '사용중'인 툴 검색
+            active_tools = list(db_collection.find({"status": "사용중", "target_time": {"$ne": "-"}}))
+            
+            if not active_tools:
+                st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
+            else:
+                # 테이블 구성을 위한 헤더
+                st.markdown("### 📊 실시간 가동 현황 목록")
+                
+                for item in active_tools:
+                    target_time_str = item.get("target_time")
+                    target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+                    
+                    # 남은 시간 계산
+                    time_diff = target_dt - now
+                    total_seconds = time_diff.total_seconds()
+                    
+                    # 상태 판단 및 배지 지정
+                    if total_seconds <= 0:
+                        status_label = "🚨 드레싱/교체 필요 (시간초과)"
+                        color_hex = "#FF4B4B"  # 빨강
+                        time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
+                    elif total_seconds <= 3600:  # 1시간 이내
+                        status_label = "🟡 주의 (1시간 이내 임박)"
+                        color_hex = "#FFAA00"  # 노랑
+                        time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
+                    else:
+                        status_label = "🟢 정상 가동 중"
+                        color_hex = "#00B050"  # 초록
+                        hours_left = int(total_seconds // 3600)
+                        mins_left = int((total_seconds % 3600) // 60)
+                        time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
+                    
+                    # 컨테이너 스타일 박스로 가독성 극대화
+                    with st.container():
+                        st.markdown(
+                            f"""
+                            <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
+                                <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']})</h4>
+                                <p style="margin: 5px 0; font-size: 15px;">
+                                    <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} 기 | <b>👷 담당 작업자:</b> {item['worker']} <br>
+                                    <b>📅 최초 장착 시간:</b> {item['start_time']} | <b>🎯 드레싱 마감 목표:</b> {target_time_str} <br>
+                                    <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
+                                </p>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                        
+                        # 현장에서 원터치로 시간을 연장/리셋할 수 있는 버튼 연동
+                        if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
+                            t_hours = int(item.get('dressing_hours', 4))
+                            t_mins = int(item.get('dressing_mins', 0))
+                            new_total_mins = (t_hours * 60) + t_mins
+                            
+                            new_start = now.strftime("%Y-%m-%d %H:%M:%S")
+                            new_target = (now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            db_collection.update_one(
+                                {"serial_no": item['serial_no']},
+                                {"$set": {
+                                    "start_time": new_start,
+                                    "target_time": new_target,
+                                    "note": item.get('note', '') + f"\n[{now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
+                                }}
+                            )
+                            st.success(f"🎉 {item['serial_no']}번 툴의 드레싱이 승인되어 카운트다운 타이머가 처음부터 다시 작동합니다!")
+                            st.rerun()
+                            
+        except Exception as e:
+            st.error(f"알림판 연동 오류: {e}")
+
+    # 3) 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("---")
@@ -268,13 +400,13 @@ else:
                             st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
                         with col_y:
                             st.write(f"• **⚙️ 기계 가공 호기:** {item['machine_no'] if item['machine_no'] else '-'}")
-                            st.write(f"• **📊 현재 사용 횟수:** {item['current_use']} / {item['use_limit']} 회")
-                            st.write(f"• **🗑️ 폐기 완료 날짜:** {item['waste_date']}")
+                            st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                            st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
                         st.write(f"• **📝 현장 특이 사항:** {item['note']}")
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
-    # 3) 데이터 수정 / 삭제 / QR 재발행 창
+    # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
         st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
         st.markdown("---")
@@ -290,15 +422,10 @@ else:
                 
                 if exist_item:
                     st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
-                    st.markdown(f"**🔧 매칭 정보:** 종류({exist_item['tool_type']}) | 장비({exist_item['machine_no'] if exist_item['machine_no'] else '기입대기'}) | 상태({exist_item.get('status','사용전')})")
-                    
                     qr_res_bytes = generate_app_qr_bytes(target_serial)
                     st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
-                    st.info("💡 위 QR코드를 마우스 우클릭하여 저장하거나 화면 인쇄하여 실물에 다시 부착하세요.")
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
-                    st.markdown("아래 버튼을 누르면 이 번호를 새롭게 활성화(공 데이터 선점)하면서 QR코드를 강제 신규 발행합니다.")
-                    
                     if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
                         t_code = target_serial[:2]
                         new_blank = {
@@ -308,14 +435,15 @@ else:
                             "input_date": str(today),
                             "worker": "",
                             "machine_no": "",
+                            "dressing_hours": 0,
+                            "dressing_mins": 0,
+                            "start_time": "-",
+                            "target_time": "-",
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
                             "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}`가 데이터베이스에 성공적으로 안착되었습니다. 아래 QR코드를 사용하세요!")
-                        
-                        qr_res_bytes = generate_app_qr_bytes(target_serial)
-                        st.image(qr_res_bytes, width=180, caption=f"강제 생성 넘버: {target_serial}")
+                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
