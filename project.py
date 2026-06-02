@@ -670,19 +670,31 @@ else:
                 with cols[c_idx]:
                     tool_data = tool_map.get(m_no)
                     
-                    # 상태에 따른 강조 색상 적용
                     if tool_data:
-                        # 가동 중: 배경색이 눈에 띄게 (Markdown 사용)
+                        # 저장된 시간 (DB 값 그대로 표시)
+                        raw_start_time = tool_data.get('start_time', '')
+                        
                         st.markdown(f"""
                             <div style="background-color: #E8F5E9; padding: 10px; border-radius: 5px; border: 2px solid #2E7D32;">
                                 <h4 style="color: #1B5E20; margin: 0;">{m_no}호기</h4>
                                 <p style="color: #2E7D32; font-weight: bold; margin: 0;">ID: {tool_data.get('serial_no')}</p>
-                                <p style="color: #2E7D32; margin: 0;">작업자: {tool_data.get('worker', '미지정')}</p>
-                                <p style="color: #2E7D32; font-size: 0.8em; margin: 0;">시작: {tool_data.get('start_time', '-')}</p>
+                                <p style="color: #2E7D32; margin: 0;">장착시간: <span style="font-size: 0.9em;">{raw_start_time}</span></p>
+                                <p style="color: #C62828; font-weight: bold; margin-top: 5px;" id="timer_{m_no}">경과: 계산 중...</p>
                             </div>
+                            <script>
+                                var startTime = new Date("{raw_start_time}").getTime();
+                                setInterval(function() {{
+                                    var now = new Date().getTime();
+                                    var diff = now - startTime;
+                                    var hrs = Math.floor(diff / 3600000);
+                                    var mins = Math.floor((diff % 3600000) / 60000);
+                                    var secs = Math.floor((diff % 60000) / 1000);
+                                    document.getElementById("timer_{m_no}").innerHTML = 
+                                        "경과: " + hrs + "시간 " + mins + "분 " + secs + "초";
+                                }}, 1000);
+                            </script>
                         """, unsafe_allow_html=True)
                     else:
-                        # 대기 중: 회색 박스
                         st.markdown(f"""
                             <div style="background-color: #F5F5F5; padding: 10px; border-radius: 5px; border: 1px solid #BDBDBD;">
                                 <h4 style="color: #616161; margin: 0;">{m_no}호기</h4>
