@@ -59,7 +59,6 @@ if qr_scanned_serial:
         current_status = existing_data.get("status", "사용중")
         status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
-        # 가공호기에서 숫자만 추출하기 위함
         orig_machine = existing_data.get('machine_no', '')
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
         try:
@@ -72,8 +71,6 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중", "폐기"], index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
-            
-            # ⚙️ 숫자만 입력하도록 유도
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
             
             st.markdown("---")
@@ -89,7 +86,7 @@ if qr_scanned_serial:
             
         if submit_u_btn:
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
-            machine_full_name = f"{u_machine_num}호기" # 자동으로 '호기' 붙임
+            machine_full_name = f"{u_machine_num}호기"
             
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
@@ -122,7 +119,6 @@ if qr_scanned_serial:
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
-        # 📅 [모바일 달력 및 시간 입력 로직 추가]
         st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
         current_now = get_now_kst()
         
@@ -132,15 +128,12 @@ if qr_scanned_serial:
         with col_time:
             chosen_time = st.time_input("장착 시간 선택", value=current_now.time())
             
-        # 선택된 날짜와 시간을 하나의 datetime 객체로 조립
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
         with st.form(key="mobile_input_form"):
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=1, horizontal=True) # 기본값을 사용중으로 변경
+            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=1, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
-            
-            # ⚙️ 기계 가공 호기 입력 칸을 숫자 스핀박스로 변경
-            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력, 예: 4)", min_value=1, max_value=200, value=4, step=1)
+            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
             
             st.markdown("---")
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
@@ -161,9 +154,8 @@ if qr_scanned_serial:
             else:
                 tool_code = qr_scanned_serial[:2]
                 waste_val = str(today) if m_status == "폐기" else "-"
-                machine_full_name = f"{m_machine_num}호기" # 입력받은 숫자에 '호기' 자동 결합
+                machine_full_name = f"{m_machine_num}호기"
                 
-                # 달력에서 가져온 입력 시간을 기준으로 타겟 마감시간 연산
                 total_mins = (dressing_hours * 60) + dressing_mins
                 if total_mins > 0 and m_status == "사용중":
                     start_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -376,7 +368,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (PC 수정에서도 동일 규격 적용)
+    # 3) 📂 종합 현황판 창 (수정 및 조회 연동)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -413,13 +405,37 @@ else:
                             except:
                                 def_m_int = 4
 
+                            # DB에서 기존 장착 시간(start_time) 파싱해서 달력 초기값으로 바인딩
+                            db_start_time = item.get("start_time", "-")
+                            board_now = get_now_kst()
+                            if db_start_time != "-":
+                                try:
+                                    parsed_dt = dt_class.strptime(db_start_time, "%Y-%m-%d %H:%M:%S")
+                                    init_date = parsed_dt.date()
+                                    init_time = parsed_dt.time()
+                                except:
+                                    init_date = board_now.date()
+                                    init_time = board_now.time()
+                            else:
+                                init_date = board_now.date()
+                                init_time = board_now.time()
+
+                            # 📅 수정을 위한 날짜/시간 선택기 배치
+                            st.markdown("📅 **최초 기계 장착 일시 수정**")
+                            col_be_d, col_be_t = st.columns(2)
+                            with col_be_d:
+                                ed_date = st.date_input("장착 날짜 변경", value=init_date, key=f"dt_{s_no}")
+                            with col_be_t:
+                                ed_time = st.time_input("장착 시간 변경", value=init_time, key=f"tm_{s_no}")
+
+                            combined_ed_dt = dt_class.combine(ed_date, ed_time)
+
                             with st.form(key=f"board_edit_form_{s_no}"):
                                 ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(status) if status in ["사용전", "사용중", "폐기"] else 0, horizontal=True)
                                 col_e1, col_e2 = st.columns(2)
                                 with col_e1:
                                     ed_worker = st.text_input("👷 교체 작업자 이름", value=item.get('worker', ''))
                                 with col_e2:
-                                    # PC 수정창에서도 숫자만 기입 유도
                                     ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     
                                 st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
@@ -438,14 +454,12 @@ else:
                                 full_mach_name = f"{ed_machine_num}호기"
                                 
                                 total_mins = (ed_hours * 60) + ed_mins
-                                board_now = get_now_kst()
                                 if total_mins > 0 and ed_status == "사용중":
-                                    start_time_val = item.get("start_time") if item.get("start_time") != "-" else board_now.strftime("%Y-%m-%d %H:%M:%S")
-                                    st_dt = dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S")
-                                    target_time_val = (st_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                                    start_time_val = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
+                                    target_time_val = (combined_ed_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
                                 else:
-                                    start_time_val = item.get("start_time", "-")
-                                    target_time_val = item.get("target_time", "-")
+                                    start_time_val = "-" if ed_status == "사용전" else item.get("start_time", "-")
+                                    target_time_val = "-"
                                     
                                 db_collection.update_one(
                                     {"serial_no": s_no},
@@ -475,6 +489,7 @@ else:
                             with col_x:
                                 st.write(f"• **💎 툴 종류:** {item['tool_type']}")
                                 st.write(f"• **📅 최초 발행일:** {item['input_date']}")
+                                st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
                                 st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
                             with col_y:
                                 st.write(f"• **⚙️ 기계 가공 호기:** {item['machine_no'] if item['machine_no'] else '-'}")
