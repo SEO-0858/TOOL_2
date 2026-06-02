@@ -280,42 +280,70 @@ else:
                 st.session_state.current_view_serials = []
                 st.rerun()
 
-        # 🚨 마스터 관리자 영역 (업데이트 완료!)
+        # 🚨 마스터 관리자 영역 (개별 시리얼 삭제 기능 업데이트!)
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
         
-        # 삭제 이벤트를 처리하기 위한 세션 제어 변수 선언
         if "reset_success" not in st.session_state:
             st.session_state.reset_success = False
+        if "reset_message" not in st.session_state:
+            st.session_state.reset_message = ""
 
         if st.session_state.reset_success:
-            st.success("💥 선택하신 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! (관련 서브 메뉴는 세션을 보호하기 위해 자동으로 숨김 처리되었습니다)")
+            st.success(st.session_state.reset_message)
             st.balloons()
             if st.button("🔄 관리자 영역 새로고침 (메뉴 다시 열기)"):
                 st.session_state.reset_success = False
+                st.session_state.reset_message = ""
                 st.rerun()
         else:
-            with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
-                target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
-                understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
+            with st.expander("💥 데이터베이스 초기화 및 특정 시리얼 개별 삭제", expanded=False):
+                # 삭제 방식 선택 박스 제공
+                delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
                 
-                if st.button("🚨 선택한 대상 데이터 초기화 실행"):
-                    if understand_risk:
-                        if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                            db_collection.delete_many({})
+                if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
+                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
+                    understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
+                    
+                    if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
+                        if understand_risk:
+                            if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
+                                db_collection.delete_many({})
+                                st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
+                            else:
+                                code_prefix = target_reset_code.split(" ")[0]
+                                db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                                st.session_state.reset_message = f"💥 선택하신 {target_reset_code} 데이터 초기화 처리가 완벽하게 끝났습니다!"
+                            
+                            st.session_state.show_qr_grid = False
+                            st.session_state.current_view_serials = []
+                            st.session_state.reset_success = True
+                            st.rerun()
                         else:
-                            code_prefix = target_reset_code.split(" ")[0]
-                            db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                        
-                        # 인쇄 대기중인 그리드 세션도 같이 밀어버림
-                        st.session_state.show_qr_grid = False
-                        st.session_state.current_view_serials = []
-                        
-                        # 완벽하게 삭제되었다는 시각적 플래그 설정 및 리프레시
-                        st.session_state.reset_success = True
-                        st.rerun()
-                    else:
-                        st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
+                            st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
+                            
+                else:
+                    # 🎯 개별 시리얼 삭제 인터페이스
+                    target_single_serial = st.text_input("🆔 삭제 처리할 11자리 시리얼 번호를 정확히 기입하세요 (예: 01060200001)").strip()
+                    understand_risk_single = st.checkbox("❗ 기입한 특정 시리얼 툴 데이터를 영구 삭제하는 것에 동의합니다.", key="risk_single")
+                    
+                    if st.button("❌ 해당 개별 시리얼 넘버 데이터 즉시 삭제", key="btn_single_del"):
+                        if not target_single_serial:
+                            st.error("⚠️ 시리얼 번호를 입력해 주세요.")
+                        elif len(target_single_serial) != 11:
+                            st.error("⚠️ 시리얼 번호는 정확히 11자리여야 합니다.")
+                        elif not understand_risk_single:
+                            st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
+                        else:
+                            # 해당 시리얼이 실제 존재하는지 확인
+                            match_count = db_collection.count_documents({"serial_no": target_single_serial})
+                            if match_count == 0:
+                                st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
+                            else:
+                                db_collection.delete_one({"serial_no": target_single_serial})
+                                st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
+                                st.session_state.reset_success = True
+                                st.rerun()
 
     # 2) ⚠️ 실시간 툴 드레싱 알림판
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
@@ -508,7 +536,8 @@ else:
                                 st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
                                 st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
                             with col_y:
-                                st.write(f"• **⚙️ 기계 가공 호기:** {item['machine_no'] if item['machine_no'] else '-'}")
+                                East_mach = item['machine_no'] if item['machine_no'] else '-'
+                                st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
                                 st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
                                 st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
                             st.write(f"• **📝 현장 특이 사항:** {item['note']}")
