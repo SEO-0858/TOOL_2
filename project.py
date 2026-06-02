@@ -683,10 +683,15 @@ else:
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
+    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
+        # [기존 수정/삭제 코드 전체를 여기에 넣으세요]
+        st.write("⚙️ 데이터 관리 기능 코드가 들어갈 자리입니다.")
+
+    # 5) 실시간 기계 정보창 (배치도)
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 현황")
         
-        # 기계 번호 리스트 (이미지 기준)
+        # 이미지에 맞춘 기계 배치 레이아웃
         machine_layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -700,16 +705,21 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
-        # 데이터베이스에서 현재 가동 중인 기계들 불러오기
         active_tools = list(db_collection.find({"status": "사용중"}))
-        active_machines = [int(t['machine_no'].replace('호기', '')) for t in active_tools if '호기' in t.get('machine_no', '')]
+        active_machines = []
+        for t in active_tools:
+            m_no_str = str(t.get('machine_no', ''))
+            if '호기' in m_no_str:
+                try:
+                    active_machines.append(int(m_no_str.replace('호기', '')))
+                except: continue
 
-        # 배치도 그리기
-        for row in machine_layout:
+        for row_idx, row in enumerate(machine_layout):
             cols = st.columns(len(row))
-            for i, m_no in enumerate(row):
-                with cols[i]:
-                    # 가동 중이면 초록색, 아니면 회색
-                    color = "green" if m_no in active_machines else "gray"
-                    st.button(f"{m_no}", key=f"btn_{m_no}", help=f"{m_no}호기 정보 확인")
-                    st.caption("공실" if m_no not in active_machines else "가동중")                 
+            for col_idx, m_no in enumerate(row):
+                with cols[col_idx]:
+                    is_active = m_no in active_machines
+                    # 고유 키(key)를 지정하여 에러 방지
+                    if st.button(f"{m_no}", key=f"btn_{m_no}_{row_idx}_{col_idx}"):
+                        st.info(f"{m_no}호기 정보: {'가동 중' if is_active else '공실'}")
+                    st.caption("가동" if is_active else "공실")          
