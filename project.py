@@ -78,7 +78,7 @@ else:
     else:
         # 여기에 기존 파일의 'if tool_menu == "📊 ...":' 부터 끝까지 모든 코드를 복사해서 붙여넣으세요.
         st.write("기존 메뉴 기능을 불러오는 중...")
- if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
+    if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 빈데이터 QR코드 대량 연속 발행 (5자리 순번 버전)")
         st.markdown("---")
         
