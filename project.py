@@ -683,15 +683,10 @@ else:
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
-    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
-        # [기존 수정/삭제 코드 전체를 여기에 넣으세요]
-        st.write("⚙️ 데이터 관리 기능 코드가 들어갈 자리입니다.")
-
-    # 5) 실시간 기계 정보창 (배치도)
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥️ 실시간 기계 배치 현황")
+        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
-        # 이미지에 맞춘 기계 배치 레이아웃
+        # 1. 레이아웃 설정
         machine_layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -705,21 +700,34 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
+        # 2. DB에서 '사용중'인 툴 데이터 조회
         active_tools = list(db_collection.find({"status": "사용중"}))
-        active_machines = []
+        # 빠른 조회를 위해 기계 번호별로 데이터 매핑
+        tool_map = {}
         for t in active_tools:
             m_no_str = str(t.get('machine_no', ''))
-            if '호기' in m_no_str:
-                try:
-                    active_machines.append(int(m_no_str.replace('호기', '')))
-                except: continue
+            nums = re.findall(r'\d+', m_no_str)
+            if nums:
+                tool_map[int(nums[0])] = t
 
-        for row_idx, row in enumerate(machine_layout):
+        # 3. 배치도 출력
+        for r_idx, row in enumerate(machine_layout):
             cols = st.columns(len(row))
-            for col_idx, m_no in enumerate(row):
-                with cols[col_idx]:
-                    is_active = m_no in active_machines
-                    # 고유 키(key)를 지정하여 에러 방지
-                    if st.button(f"{m_no}", key=f"btn_{m_no}_{row_idx}_{col_idx}"):
-                        st.info(f"{m_no}호기 정보: {'가동 중' if is_active else '공실'}")
-                    st.caption("가동" if is_active else "공실")
+            for c_idx, m_no in enumerate(row):
+                with cols[c_idx]:
+                    tool_data = tool_map.get(m_no)
+                    
+                    # 가동 중이면 Primary(파란색), 아니면 Secondary(회색)
+                    btn_type = "primary" if tool_data else "secondary"
+                    
+                    # 팝오버를 사용하여 클릭 시 상세 정보 노출
+                    with st.popover(f"{m_no}호기", use_container_width=True):
+                        if tool_data:
+                            st.subheader(f"⚙️ {m_no}호기 상세 정보")
+                            st.write(f"🆔 **시리얼:** `{tool_data.get('serial_no')}`")
+                            st.write(f"👷 **작업자:** {tool_data.get('worker', '정보없음')}")
+                            st.write(f"📅 **장착 시간:** {tool_data.get('start_time', '-')}")
+                            st.write(f"📝 **특이사항:** {tool_data.get('note', '-')}")
+                        else:
+                            st.write(f"⚪ {m_no}호기: 현재 **대기 중**입니다.")
+    
