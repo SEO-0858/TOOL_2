@@ -1,12 +1,13 @@
 import streamlit as st
-from pymongo import MongoClient
-import datetime
-from datetime import timedelta, datetime as dt_class
-import qrcode
-from io import BytesIO
-import base64
+import pandas as pd
 import re
 import time
+import qrcode
+import base64
+from io import BytesIO
+from datetime import datetime  # 👈 이 줄이 반드시 있어야 datetime.now()를 씁니다
+from pymongo import MongoClient
+# (기타 다른 import 문들은 아래에 두셔도 됩니다)
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
@@ -739,4 +740,4 @@ else:
 
         # 4. 자동 새로고침
         time.sleep(5)
-        st.rerun()      
+        st.rerun()                    
