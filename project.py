@@ -4,6 +4,7 @@ import datetime
 from datetime import timedelta, datetime as dt_class
 import qrcode
 from io import BytesIO
+import base64
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
@@ -266,21 +267,84 @@ else:
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
+        # 🖨️ QR코드 출력 그리드 시스템 및 특수 인쇄 제어 브릿지
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
             st.markdown("---")
+            
+            # [인쇄 전용 HTML 가상 DOM 빌드업 영역]
+            # 사이드바나 잡다한 UI 요소를 배제하고 오직 큐알 그리드만 라벨지에 가득 채워 찍히도록 스타일 선언
+            html_printable_content = "<div id='print-target-area' style='display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; padding: 10px;'>"
+            
             grid_cols = st.columns(4)
             for idx, s_no in enumerate(st.session_state.current_view_serials):
+                qr_bytes = generate_app_qr_bytes(s_no)
+                # HTML 내부에 이미지를 주입하기 위해 Base64 데이터로 인코딩 처리
+                base64_qr = base64.b64encode(qr_bytes).decode("utf-8")
+                
+                # Streamlit 화면용 렌더링
                 with grid_cols[idx % 4]:
-                    st.image(generate_app_qr_bytes(s_no), width=130)
+                    st.image(qr_bytes, width=130)
                     st.markdown(f"**🆔 {s_no}**")
-            
+                
+                # 배경 가상 인쇄를 위한 HTML 조각 축적
+                html_printable_content += f"""
+                <div style="width: 140px; text-align: center; border: 1px dashed #ccc; padding: 8px; background: white; margin-bottom:10px; page-break-inside: avoid;">
+                    <img src="data:image/png;base64,{base64_qr}" style="width: 120px; height: 120px;" />
+                    <div style="font-family: monospace; font-size: 11px; font-weight: bold; margin-top: 4px; color:#000;">ID: {s_no}</div>
+                </div>
+                """
+            html_printable_content += "</div>"
             st.markdown("---")
+            
+            # 🖨️ [요청 반영] 인쇄완료 버튼 위쪽에 배치한 유저 인쇄 액션 스위치
+            # 브라우저의 window.print()를 호출하되 주변 테두리는 다 숨기고 #print-target-area 안쪽만 선명하게 뽑아내는 스크립트 결합
+            js_print_trigger = f"""
+            <script>
+            function executeQrPrint() {{
+                var printWindow = window.open('', '_blank', 'width=900,height=700');
+                printWindow.document.write('<html><head><title>KKQ 4파트 QR코드 라벨 인쇄</title>');
+                printWindow.document.write('<style>body {{ margin: 10px; padding: 0; background: #fff; }} @page {{ size: auto; margin: 5mm; }}</style>');
+                printWindow.document.write('</head><body>');
+                printWindow.document.write(`{html_printable_content}`);
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(function() {{
+                    printWindow.print();
+                    printWindow.close();
+                }}, 600);
+            }}
+            </script>
+            <button onclick="executeQrPrint()" style="
+                width: 100%;
+                background-color: #00B050;
+                color: white;
+                padding: 14px 20px;
+                margin: 8px 0;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 16px;
+                font-weight: bold;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+            ">
+                🖨️ 생성된 QR코드 전체 프린터로 인쇄하기 (라벨 발행 연동)
+            </button>
+            """
+            
+            # Streamlit 내부에 안전하게 프론트엔드 인쇄 트리거 삽입
+            st.components.v1.html(js_print_trigger, height=75)
+            
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
                 st.session_state.current_view_serials = []
                 st.rerun()
 
-        # 🚨 마스터 관리자 영역 (개별 시리얼 삭제 기능 업데이트!)
+        # 🚨 마스터 관리자 영역
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
         
@@ -298,7 +362,6 @@ else:
                 st.rerun()
         else:
             with st.expander("💥 데이터베이스 초기화 및 특정 시리얼 개별 삭제", expanded=False):
-                # 삭제 방식 선택 박스 제공
                 delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
                 
                 if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
@@ -323,7 +386,6 @@ else:
                             st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
                             
                 else:
-                    # 🎯 개별 시리얼 삭제 인터페이스
                     target_single_serial = st.text_input("🆔 삭제 처리할 11자리 시리얼 번호를 정확히 기입하세요 (예: 01060200001)").strip()
                     understand_risk_single = st.checkbox("❗ 기입한 특정 시리얼 툴 데이터를 영구 삭제하는 것에 동의합니다.", key="risk_single")
                     
@@ -335,7 +397,6 @@ else:
                         elif not understand_risk_single:
                             st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
                         else:
-                            # 해당 시리얼이 실제 존재하는지 확인
                             match_count = db_collection.count_documents({"serial_no": target_single_serial})
                             if match_count == 0:
                                 st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
