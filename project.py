@@ -733,9 +733,9 @@ else:
                     else:
                         st.markdown(f"""
                             <div style="background-color:#F5F5F5; padding:5px; border-radius:5px; border:1px solid #ccc; font-size:10px; height:100px;">
-                                <b>{m_no}호기</b><br>공실
+                                <b>{m_no}호기</b><br>미지정툴???
                             </div>
                         """, unsafe_allow_html=True)
 
         time.sleep(5)
-        st.rerun()         
+        st.rerun()     
