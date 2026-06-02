@@ -280,22 +280,42 @@ else:
                 st.session_state.current_view_serials = []
                 st.rerun()
 
-        # 🚨 마스터 관리자 영역
+        # 🚨 마스터 관리자 영역 (업데이트 완료!)
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
-        with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
-            target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
-            understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
-            if st.button("🚨 선택한 대상 데이터 초기화 실행"):
-                if understand_risk:
-                    if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                        db_collection.delete_many({})
+        
+        # 삭제 이벤트를 처리하기 위한 세션 제어 변수 선언
+        if "reset_success" not in st.session_state:
+            st.session_state.reset_success = False
+
+        if st.session_state.reset_success:
+            st.success("💥 선택하신 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! (관련 서브 메뉴는 세션을 보호하기 위해 자동으로 숨김 처리되었습니다)")
+            st.balloons()
+            if st.button("🔄 관리자 영역 새로고침 (메뉴 다시 열기)"):
+                st.session_state.reset_success = False
+                st.rerun()
+        else:
+            with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
+                target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
+                understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
+                
+                if st.button("🚨 선택한 대상 데이터 초기화 실행"):
+                    if understand_risk:
+                        if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
+                            db_collection.delete_many({})
+                        else:
+                            code_prefix = target_reset_code.split(" ")[0]
+                            db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                        
+                        # 인쇄 대기중인 그리드 세션도 같이 밀어버림
+                        st.session_state.show_qr_grid = False
+                        st.session_state.current_view_serials = []
+                        
+                        # 완벽하게 삭제되었다는 시각적 플래그 설정 및 리프레시
+                        st.session_state.reset_success = True
+                        st.rerun()
                     else:
-                        code_prefix = target_reset_code.split(" ")[0]
-                        db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                    st.session_state.show_qr_grid = False
-                    st.session_state.current_view_serials = []
-                    st.rerun()
+                        st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
 
     # 2) ⚠️ 실시간 툴 드레싱 알림판
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
@@ -368,7 +388,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (수정 및 조회 연동)
+    # 3) 📂 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -394,7 +414,6 @@ else:
                         if edit_key not in st.session_state:
                             st.session_state[edit_key] = False
                             
-                        # 📝 [수정 모드]
                         if st.session_state[edit_key]:
                             st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
                             
@@ -405,7 +424,6 @@ else:
                             except:
                                 def_m_int = 4
 
-                            # DB에서 기존 장착 시간(start_time) 파싱해서 달력 초기값으로 바인딩
                             db_start_time = item.get("start_time", "-")
                             board_now = get_now_kst()
                             if db_start_time != "-":
@@ -420,7 +438,6 @@ else:
                                 init_date = board_now.date()
                                 init_time = board_now.time()
 
-                            # 📅 수정을 위한 날짜/시간 선택기 배치
                             st.markdown("📅 **최초 기계 장착 일시 수정**")
                             col_be_d, col_be_t = st.columns(2)
                             with col_be_d:
@@ -483,7 +500,6 @@ else:
                                 st.session_state[edit_key] = False
                                 st.rerun()
                                 
-                        # 📄 [일반 조회 모드]
                         else:
                             col_x, col_y = st.columns(2)
                             with col_x:
