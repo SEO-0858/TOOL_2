@@ -201,7 +201,8 @@ else:
         "📊 빈데이터 QR코드 대량 선발행", 
         "⚠️ 실시간 툴 드레싱 알림판", 
         "📂 전체 데이터 현황판", 
-        "⚙️ 데이터 수정 / 삭제 / QR 재발행"
+        "⚙️ 데이터 수정 / 삭제 / QR 재발행",
+        "🖥️ 실시간 기계 정보창"
     ])
     
     # 1) QR코드 대량 연속 선발행 창
@@ -682,3 +683,30 @@ else:
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
+    elif tool_menu == "🖥️ 실시간 기계 정보창":
+        st.title("🖥️ 실시간 기계 정보창")
+        st.markdown("---")
+        
+        # 1. DB에서 데이터 가져오기
+        tools = list(db_collection.find({"status": {"$ne": "폐기"}}))
+        
+        # 2. 기계별로 상태를 보여주는 레이아웃
+        # 예: 3개씩 열을 나누어 배치
+        cols = st.columns(3)
+        for i, tool in enumerate(tools):
+            with cols[i % 3]:
+                # 기계 번호가 있으면 표시, 없으면 '미배정'
+                m_no = tool.get("machine_no", "미배정")
+                status = tool.get("status", "상태없음")
+                
+                # 카드 형식으로 기계 정보 표시
+                with st.container(border=True):
+                    st.subheader(f"기계: {m_no}")
+                    st.write(f"시리얼: `{tool.get('serial_no')}`")
+                    st.write(f"현재 상태: **{status}**")
+                    
+                    # 상태에 따른 색상 구분
+                    if status == "사용중":
+                        st.success("⚙️ 가동 중")
+                    else:
+                        st.warning("⏳ 대기 중")     
