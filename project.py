@@ -22,9 +22,8 @@ def get_database():
 
 db_collection = get_database()
 
-# 🕒 [중요] 한국 시간(KST) 전역 강제 설정 함수 (서버 시차 9시간 완벽 보정)
+# 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    # 서버의 기본 UTC 시간에 정확히 9시간을 더해 대한민국 표준시를 강제 생성합니다.
     return datetime.datetime.utcnow() + timedelta(hours=9)
 
 now = get_now_kst()
@@ -81,7 +80,6 @@ if qr_scanned_serial:
         if submit_u_btn:
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
             
-            # 실시간 한국 시간 기준으로 타이머 재산출
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
             if total_duration_mins > 0 and u_status == "사용중":
@@ -136,7 +134,6 @@ if qr_scanned_serial:
                 tool_code = qr_scanned_serial[:2]
                 waste_val = str(today) if m_status == "폐기" else "-"
                 
-                # 실시간 한국 시간 기준 매칭
                 total_mins = (dressing_hours * 60) + dressing_mins
                 current_now = get_now_kst()
                 if total_mins > 0 and m_status == "사용중":
@@ -188,7 +185,6 @@ else:
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 빈데이터 QR코드 대량 연속 발행 (5자리 순번 버전)")
-        st.markdown("데이터 기입 및 상태 설정은 현장에서 실물 QR을 스캔하여 진행합니다.")
         st.markdown("---")
         
         c1, c2 = st.columns(2)
@@ -245,7 +241,7 @@ else:
                 db_collection.insert_many(blank_records)
                 st.session_state.current_view_serials = generated_serials
                 st.session_state.show_qr_grid = True
-                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다! 아래에서 인쇄해 주세요.")
+                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다!")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
@@ -256,69 +252,46 @@ else:
                 with grid_cols[idx % 4]:
                     st.image(generate_app_qr_bytes(s_no), width=130)
                     st.markdown(f"**🆔 {s_no}**")
-                    st.caption("◀ 스캔 시 기입창 열림")
             
             st.markdown("---")
-            st.info(f"💡 총 {len(st.session_state.current_view_serials)}개의 QR코드가 인쇄 대기 중입니다.")
-            
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
                 st.session_state.current_view_serials = []
-                st.success("✅ 인쇄 완료 확인! 데이터는 DB에 안전하게 보관되었으며, 화면 목록이 깔끔하게 정리되었습니다.")
                 st.rerun()
 
         # 🚨 마스터 관리자 영역
         st.markdown("<br><br><br>---", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
-        
         with st.expander("💥 데이터베이스 툴 종류별 선택 초기화 및 리셋", expanded=False):
-            st.error("⚠️ [주의] 선택한 고유코드 유형의 모든 데이터가 영구 삭제되며, 해당 툴 종류의 다음 순번은 1번으로 리셋됩니다.")
-            target_reset_code = st.selectbox(
-                "🎯 데이터 삭제 및 순번을 초기화할 툴 종류(앞 2자리)를 선택하세요",
-                ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"]
-            )
+            target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
             understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.")
-            
             if st.button("🚨 선택한 대상 데이터 초기화 실행"):
-                if not understand_risk:
-                    st.warning("⚠️ 동의 체크박스에 먼저 체크를 해주셔야 초기화가 가능합니다.")
-                else:
-                    try:
-                        if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                            db_collection.delete_many({})
-                            st.success("💥 완벽 초기화! 시스템 내 모든 기록이 삭제되었습니다.")
-                        else:
-                            code_prefix = target_reset_code.split(" ")[0]
-                            db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                            st.success(f"💥 {target_reset_code} 초기화 완료!")
-                        
-                        st.session_state.show_qr_grid = False
-                        st.session_state.current_view_serials = []
-                        st.balloons()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"초기화 중 DB 통신 에러 발생: {e}")
+                if understand_risk:
+                    if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
+                        db_collection.delete_many({})
+                    else:
+                        code_prefix = target_reset_code.split(" ")[0]
+                        db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                    st.session_state.show_qr_grid = False
+                    st.session_state.current_view_serials = []
+                    st.rerun()
 
-    # 2) ⚠️ 실시간 툴 드레싱 알림판 (한국 시간 시차 완벽 매칭 연산 버전)
+    # 2) ⚠️ 실시간 툴 드레싱 알림판
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
         st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
-        st.markdown("작업자가 현장에서 설정한 **커스텀 시간 타이머**를 실시간으로 추적하는 상황판입니다.")
         st.markdown("---")
         
         try:
             active_tools = list(db_collection.find({"status": "사용중", "target_time": {"$ne": "-"}}))
-            
             if not active_tools:
                 st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
             else:
                 st.markdown("### 📊 실시간 가동 현황 목록")
-                current_now = get_now_kst() # 실시간 한국 시간 연산용 클럭 동기화
+                current_now = get_now_kst()
                 
                 for item in active_tools:
                     target_time_str = item.get("target_time")
                     target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-                    
-                    # 남은 시간 계산 (KST 클럭 연동)
                     time_diff = target_dt - current_now
                     total_seconds = time_diff.total_seconds()
                     
@@ -356,7 +329,6 @@ else:
                             t_hours = int(item.get('dressing_hours', 4))
                             t_mins = int(item.get('dressing_mins', 0))
                             new_total_mins = (t_hours * 60) + t_mins
-                            
                             click_now = get_now_kst()
                             new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
                             new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
@@ -369,15 +341,16 @@ else:
                                     "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
                                 }}
                             )
-                            st.success(f"🎉 {item['serial_no']}번 툴의 드레싱 타이머가 현재 한국 시간 기준으로 리셋되었습니다!")
+                            st.success(f"🎉 타이머가 현재 시간 기준으로 리셋되었습니다!")
                             st.rerun()
                             
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 종합 현황판 창
+    # 3) 📂 [편집 연동 업그레이드] 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
+        st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.markdown("---")
         
         try:
@@ -386,25 +359,98 @@ else:
                 st.info("조회할 데이터가 없습니다.")
             else:
                 for item in all_data:
+                    s_no = item["serial_no"]
                     status = item.get("status", "사용전")
                     status_badge = "🟢 [사용전]" if status == "사용전" else "🟡 [사용중]" if status == "사용중" else "🔴 [폐기]"
                         
                     if not item['worker'] or not item['machine_no']:
-                        expander_title = f"⚪ 기입 대기 | 🆔 {item['serial_no']} | 상태: {status_badge}"
+                        expander_title = f"⚪ 기입 대기 | 🆔 {s_no} | 상태: {status_badge}"
                     else:
-                        expander_title = f"🆔 {item['serial_no']} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
+                        expander_title = f"🆔 {s_no} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
                         
                     with st.expander(expander_title):
-                        col_x, col_y = st.columns(2)
-                        with col_x:
-                            st.write(f"• **💎 툴 종류:** {item['tool_type']}")
-                            st.write(f"• **📅 최초 발행일:** {item['input_date']}")
-                            st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
-                        with col_y:
-                            st.write(f"• **⚙️ 기계 가공 호기:** {item['machine_no'] if item['machine_no'] else '-'}")
-                            st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                            st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                        st.write(f"• **📝 현장 특이 사항:** {item['note']}")
+                        # 수정 토글 버튼 추적용 상태값 생성 (각 시리얼넘버별 고유화)
+                        edit_key = f"is_editing_{s_no}"
+                        if edit_key not in st.session_state:
+                            st.session_state[edit_key] = False
+                            
+                        # 📝 [수정 모드 활성화된 경우]
+                        if st.session_state[edit_key]:
+                            st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
+                            
+                            with st.form(key=f"board_edit_form_{s_no}"):
+                                ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(status) if status in ["사용전", "사용중", "폐기"] else 0, horizontal=True)
+                                col_e1, col_e2 = st.columns(2)
+                                with col_e1:
+                                    ed_worker = st.text_input("👷 교체 작업자 이름", value=item.get('worker', ''))
+                                with col_e2:
+                                    ed_machine = st.text_input("⚙️ 기계 가공 호기", value=item.get('machine_no', ''))
+                                    
+                                st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
+                                col_eh, col_em = st.columns(2)
+                                with col_eh:
+                                    ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
+                                with col_em:
+                                    ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
+                                    
+                                ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
+                                
+                                b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
+                                
+                            if b_submit:
+                                waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
+                                
+                                # 시간 재계산 동기화
+                                total_mins = (ed_hours * 60) + ed_mins
+                                board_now = get_now_kst()
+                                if total_mins > 0 and ed_status == "사용중":
+                                    # 상태가 '사용중'으로 새로 바뀌거나 주기가 바뀌면 타이머를 새로 시작함
+                                    start_time_val = board_now.strftime("%Y-%m-%d %H:%M:%S")
+                                    target_time_val = (board_now + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                                else:
+                                    start_time_val = item.get("start_time", "-")
+                                    target_time_val = item.get("target_time", "-")
+                                    
+                                db_collection.update_one(
+                                    {"serial_no": s_no},
+                                    {"$set": {
+                                        "status": ed_status,
+                                        "worker": ed_worker,
+                                        "machine_no": ed_machine,
+                                        "dressing_hours": ed_hours,
+                                        "dressing_mins": ed_mins,
+                                        "start_time": start_time_val,
+                                        "target_time": target_time_val,
+                                        "waste_date": waste_date_val,
+                                        "note": ed_note
+                                    }}
+                                )
+                                st.session_state[edit_key] = False # 저장 후 수정 창 닫기
+                                st.success(f"🎉 시리얼 [{s_no}] 데이터가 성공적으로 업데이트되었습니다.")
+                                st.rerun()
+                                
+                            if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
+                                st.session_state[edit_key] = False
+                                st.rerun()
+                                
+                        # 📄 [일반 조회 모드 인 경우] -> 1_15.png에 보이는 기존 디자인 화면
+                        else:
+                            col_x, col_y = st.columns(2)
+                            with col_x:
+                                st.write(f"• **💎 툴 종류:** {item['tool_type']}")
+                                st.write(f"• **📅 최초 발행일:** {item['input_date']}")
+                                st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
+                            with col_y:
+                                st.write(f"• **⚙️ 기계 가공 호기:** {item['machine_no'] if item['machine_no'] else '-'}")
+                                st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                                st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
+                            st.write(f"• **📝 현장 특이 사항:** {item['note']}")
+                            
+                            # ✏️ 직관적인 편집 전환 버튼 생성
+                            if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
+                                st.session_state[edit_key] = True
+                                st.rerun()
+                                
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
@@ -414,7 +460,7 @@ else:
         st.markdown("---")
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요 (예: 01060200001)").strip()
+        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요").strip()
         
         if target_serial:
             if len(target_serial) != 11:
