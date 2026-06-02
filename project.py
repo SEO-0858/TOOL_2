@@ -1,13 +1,8 @@
 import streamlit as st
-import pandas as pd
 import re
 import time
-import qrcode
-import base64
-from io import BytesIO
-from datetime import datetime  # 👈 이 줄이 반드시 있어야 datetime.now()를 씁니다
+from datetime import datetime, timedelta  # 👈 핵심: 이렇게 불러오면 명확합니다.
 from pymongo import MongoClient
-# (기타 다른 import 문들은 아래에 두셔도 됩니다)
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
@@ -28,7 +23,7 @@ db_collection = get_database()
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    return datetime.datetime.utcnow() + timedelta(hours=9)
+    return datetime.now() + timedelta(hours=9)
 
 now = get_now_kst()
 today = now.date()
@@ -689,10 +684,10 @@ else:
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
-        # 1. 시간 표시 (오류 방지를 위해 datetime.now() 사용)
-        st.write(f"⏰ **현재 기준 시간:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        # 1. 오류 없는 시간 표시
+        now_kst = get_now_kst()
+        st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # 2. 레이아웃 및 데이터 처리
         layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -707,15 +702,14 @@ else:
         ]
 
         active_tools = list(db_collection.find({"status": "사용중"}))
-        # 최신 데이터 하나만 남기기
         tool_map = {}
         for t in active_tools:
             m_no_str = str(t.get('machine_no', ''))
             nums = re.findall(r'\d+', m_no_str)
             if nums:
-                tool_map[int(nums[0])] = t
+                m_no = int(nums[0])
+                tool_map[m_no] = t 
 
-        # 3. 화면 출력 (박스 스타일링)
         for row in layout:
             cols = st.columns(len(row))
             for i, m_no in enumerate(row):
@@ -738,6 +732,5 @@ else:
                             </div>
                         """, unsafe_allow_html=True)
 
-        # 4. 자동 새로고침
         time.sleep(5)
-        st.rerun()                    
+        st.rerun()
