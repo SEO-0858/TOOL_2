@@ -6,6 +6,7 @@ import qrcode
 from io import BytesIO
 import base64
 import re
+import time
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
