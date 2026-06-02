@@ -645,11 +645,53 @@ else:
             st.error(f"데이터 로드 실패: {e}")
 
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
+    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
+        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
+        st.markdown("---")
+        
+        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
+        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요").strip()
+        
+        if target_serial:
+            if len(target_serial) != 11:
+                st.warning("⚠️ 시리얼 넘버는 정확히 11자리 규격이어야 합니다.")
+            else:
+                exist_item = db_collection.find_one({"serial_no": target_serial})
+                
+                if exist_item:
+                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
+                    qr_res_bytes = generate_app_qr_bytes(target_serial)
+                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
+                else:
+                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
+                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
+                        t_code = target_serial[:2]
+                        new_blank = {
+                            "serial_no": target_serial,
+                            "tool_type": "전착툴" if t_code=="01" else "레진툴" if t_code=="02" else "메탈툴",
+                            "status": "사용전",
+                            "input_date": str(today),
+                            "worker": "",
+                            "machine_no": "",
+                            "dressing_hours": 0,
+                            "dressing_mins": 0,
+                            "start_time": "-",
+                            "target_time": "-",
+                            "use_limit": 10000,
+                            "current_use": 0,
+                            "waste_date": "-",
+                            "note": "누락 번호 관리자 강제 재발행 완료"
+                        }
+                        db_collection.insert_one(new_blank)
+                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
+                        st.rerun()
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
+        
+        # 1. 시간 표시 (오류 방지를 위해 datetime.now() 사용)
         st.write(f"⏰ **현재 기준 시간:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # 1. 기계 레이아웃 정의
+        # 2. 레이아웃 및 데이터 처리
         layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -663,25 +705,22 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
-        # 2. 데이터 중복 해결: 기계 번호별 최신 데이터 1개만 매핑
         active_tools = list(db_collection.find({"status": "사용중"}))
+        # 최신 데이터 하나만 남기기
         tool_map = {}
         for t in active_tools:
             m_no_str = str(t.get('machine_no', ''))
             nums = re.findall(r'\d+', m_no_str)
             if nums:
-                m_no = int(nums[0])
-                # 같은 기계 번호가 여러 개 있어도 마지막 데이터(보통 최신)로 덮어쓰기
-                tool_map[m_no] = t
+                tool_map[int(nums[0])] = t
 
-        # 3. 화면 출력
+        # 3. 화면 출력 (박스 스타일링)
         for row in layout:
             cols = st.columns(len(row))
             for i, m_no in enumerate(row):
                 with cols[i]:
                     t = tool_map.get(m_no)
                     if t:
-                        # 가동 중 상세 정보
                         st.markdown(f"""
                             <div style="background-color:#E8F5E9; padding:5px; border-radius:5px; border:2px solid #2E7D32; font-size:10px; height:100px;">
                                 <b>{m_no}호기 (가동중)</b><br>
@@ -692,13 +731,12 @@ else:
                             </div>
                         """, unsafe_allow_html=True)
                     else:
-                        # 공실 표시
                         st.markdown(f"""
                             <div style="background-color:#F5F5F5; padding:5px; border-radius:5px; border:1px solid #ccc; font-size:10px; height:100px;">
                                 <b>{m_no}호기</b><br>공실
                             </div>
                         """, unsafe_allow_html=True)
 
-        # 5초마다 자동 새로고침
+        # 4. 자동 새로고침
         time.sleep(5)
-        st.rerun()
+        st.rerun()      
