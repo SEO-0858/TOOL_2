@@ -88,7 +88,7 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=50, value=20, step=1)
             
-        prefix = f"{tool_code}{mmdd}"
+         prefix = f"{tool_code}{mmdd}"
         
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
