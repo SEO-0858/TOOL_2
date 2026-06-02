@@ -5,6 +5,7 @@ from datetime import timedelta, datetime as dt_class
 import qrcode
 from io import BytesIO
 import base64
+import re
 
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
@@ -683,10 +684,10 @@ else:
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
                         st.rerun()
+    # 5) 실시간 기계 정보창 (수정 완료)
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
         
-        # 1. 레이아웃 설정
         machine_layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -700,9 +701,7 @@ else:
             [45, 46, 47, 48, 49, 50, 51]
         ]
 
-        # 2. DB에서 '사용중'인 툴 데이터 조회
         active_tools = list(db_collection.find({"status": "사용중"}))
-        # 빠른 조회를 위해 기계 번호별로 데이터 매핑
         tool_map = {}
         for t in active_tools:
             m_no_str = str(t.get('machine_no', ''))
@@ -710,24 +709,21 @@ else:
             if nums:
                 tool_map[int(nums[0])] = t
 
-        # 3. 배치도 출력
         for r_idx, row in enumerate(machine_layout):
             cols = st.columns(len(row))
             for c_idx, m_no in enumerate(row):
                 with cols[c_idx]:
                     tool_data = tool_map.get(m_no)
+                    # 고유 키 생성 (버튼 중복 방지)
+                    btn_key = f"btn_{m_no}_{r_idx}_{c_idx}"
                     
-                    # 가동 중이면 Primary(파란색), 아니면 Secondary(회색)
-                    btn_type = "primary" if tool_data else "secondary"
-                    
-                    # 팝오버를 사용하여 클릭 시 상세 정보 노출
-                    with st.popover(f"{m_no}호기", use_container_width=True):
-                        if tool_data:
+                    if tool_data:
+                        with st.popover(f"{m_no}호기", use_container_width=True):
                             st.subheader(f"⚙️ {m_no}호기 상세 정보")
                             st.write(f"🆔 **시리얼:** `{tool_data.get('serial_no')}`")
                             st.write(f"👷 **작업자:** {tool_data.get('worker', '정보없음')}")
                             st.write(f"📅 **장착 시간:** {tool_data.get('start_time', '-')}")
-                            st.write(f"📝 **특이사항:** {tool_data.get('note', '-')}")
-                        else:
-                            st.write(f"⚪ {m_no}호기: 현재 **대기 중**입니다.")
+                    else:
+                        st.button(f"{m_no}호기", key=btn_key, use_container_width=True, disabled=True)
+    
     
