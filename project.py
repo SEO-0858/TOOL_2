@@ -206,9 +206,9 @@ else:
                 st.balloons()
                 st.rerun()
                 
-    if st.button("🏠 메인 시스템으로 돌아가기"):
-        st.query_params.clear()
-        st.rerun()
+if st.button("🏠 메인 시스템으로 돌아가기"):
+    st.query_params.clear()
+    st.rerun()
 
 
 # --- 💻 [PC 관리자 모드] ---
