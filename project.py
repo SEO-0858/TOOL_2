@@ -100,7 +100,9 @@ if qr_scanned_serial:
             else:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
-
+            
+            change_time = get_now_kst().strftime('%m/%d %H:%M')
+            updated_note = f"{existing_data.get('note', '')}\n[{change_time}] 상태: {u_status} / 작업자: {u_worker} / 특이사항: {u_note}"
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -113,7 +115,7 @@ if qr_scanned_serial:
                     "start_time": start_time_val,
                     "target_time": target_time_val,
                     "waste_date": waste_val,
-                    "note": u_note
+                    "note": updated_note
                 }}
             )
             st.success("🎉 정보가 정상 업데이트되었습니다!")
@@ -600,7 +602,10 @@ else:
                                     else:
                                         start_time_val = "-" if ed_status == "사용전" else item.get("start_time", "-")
                                         target_time_val = "-"
-                                        
+
+                                    change_time = get_now_kst().strftime('%m/%d %H:%M')
+                                    updated_note = f"{item.get('note', '')}\n[{change_time}] 상태: {ed_status} / 작업자: {ed_worker} / 비고: {ed_note}"
+
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -612,7 +617,7 @@ else:
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
-                                            "note": ed_note
+                                            "note": updated_note
                                         }}
                                     )
                                     st.session_state[edit_key] = False
@@ -737,4 +742,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True)                           
+                        """, unsafe_allow_html=True)                      
