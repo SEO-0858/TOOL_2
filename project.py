@@ -60,7 +60,7 @@ if qr_scanned_serial:
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
         current_status = existing_data.get("status", "사용중")
-        status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
+        status_index = ["사용전", "사용중","재사용", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "재사용","폐기"] else 1
         
         orig_machine = existing_data.get('machine_no', '')
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
@@ -71,7 +71,7 @@ if qr_scanned_serial:
 
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중", "폐기"], index=status_index, horizontal=True)
+            u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중","재사용","폐기"], index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
@@ -145,7 +145,7 @@ if qr_scanned_serial:
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
         with st.form(key="mobile_input_form"):
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=1, horizontal=True)
+            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중","재사용", "폐기"], index=1, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
             
@@ -582,7 +582,7 @@ else:
                                 combined_ed_dt = dt_class.combine(ed_date, ed_time)
 
                                 with st.form(key=f"board_edit_form_{s_no}"):
-                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(status) if status in ["사용전", "사용중", "폐기"] else 0, horizontal=True)
+                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중","재사용","폐기"], index=["사용전", "사용중","재사용", "폐기"].index(status) if status in ["사용전", "사용중","재사용", "폐기"] else 0, horizontal=True)
                                     col_e1, col_e2 = st.columns(2)
                                     with col_e1:
                                         ed_worker = st.text_input("👷 교체 작업자 이름", value=item.get('worker', ''))
