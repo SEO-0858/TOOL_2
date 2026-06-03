@@ -107,12 +107,15 @@ if qr_scanned_serial:
             
             # 2. 기존 메모 가져오기
             existing_note = existing_data.get('note', '')
-            
-            # 3. 기존 메모에 방금 만든 new_entry가 없을 때만 추가 (중복 방지)
-            if new_entry not in existing_note:
+
+            # 3. 중복 방지 로직: 기존 메모의 마지막 줄과 비교
+            last_line = existing_note.split('\n')[-1] if existing_note else ""
+
+            # 마지막 줄과 완전히 똑같다면 추가하지 않음
+            if new_entry != last_line:
                 updated_note = f"{existing_note}\n{new_entry}".strip()
             else:
-                updated_note = existing_note # 이미 있으면 기존 메모 그대로 유지
+                updated_note = existing_note
 
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
@@ -619,11 +622,13 @@ else:
                                     new_entry = f"[{change_time}] 상태: {ed_status} / 작업자: {ed_worker} / 비고: {ed_note}"
                                     existing_note = item.get('note', '')
 
-                                    # 기록이 이미 있다면 줄바꿈 후 추가
-                                    if new_entry not in existing_note:
-                                     final_note = f"{existing_note}\n{new_entry}".strip()
+                                    # 가장 마지막 줄 기록과 비교
+                                    last_line = existing_note.split('\n')[-1] if existing_note else ""
+                                    
+                                    if new_entry != last_line:
+                                        final_note = f"{existing_note}\n{new_entry}".strip()
                                     else:
-                                     final_note = existing_note
+                                        final_note = existing_note
 
                                     db_collection.update_one(
                                         {"serial_no": s_no},
@@ -761,4 +766,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True)                        
+                        """, unsafe_allow_html=True)                       
