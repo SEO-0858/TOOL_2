@@ -129,8 +129,7 @@ if qr_scanned_serial:
         with col_date:
             chosen_date = st.date_input("장착 날짜 선택", value=current_now.date())
         with col_time:
-            chosen_time = st.time_input("장착 시간 선택", value=current_now.time())
-            
+            chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300)
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
         with st.form(key="mobile_input_form"):
@@ -566,7 +565,7 @@ else:
                                 with col_be_d:
                                     ed_date = st.date_input("장착 날짜 변경", value=init_date, key=f"dt_{s_no}")
                                 with col_be_t:
-                                    ed_time = st.time_input("장착 시간 변경", value=init_time, key=f"tm_{s_no}")
+                                    ed_time = st.time_input("장착 시간 변경", value=init_time, step=300, key=f"tm_{s_no}")
 
                                 combined_ed_dt = dt_class.combine(ed_date, ed_time)
 
