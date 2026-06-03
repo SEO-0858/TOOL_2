@@ -87,53 +87,54 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-    if submit_u_btn:
-            # 1. 변화된 내용 추적을 위한 로그 리스트 생성
+if submit_u_btn:
+            # 1. 변화된 내용 추적을 위한 로그 리스트
             change_logs = []
             
-            # 상태 변경 체크
+            # 2. 값 비교
             if u_status != existing_data.get("status"):
                 change_logs.append(f"상태: {existing_data.get('status')} -> {u_status}")
             
-            # 기계 호기 변경 체크 (기존 데이터와 비교)
             new_machine = f"{u_machine_num}호기"
             if new_machine != existing_data.get("machine_no"):
                 change_logs.append(f"장비: {existing_data.get('machine_no')} -> {new_machine}")
             
-            # 작업자 변경 체크
             if u_worker != existing_data.get("worker"):
                 change_logs.append(f"작업자: {u_worker}")
 
-            # 2. 변화가 있을 때만 자동 기록 추가
-            if change_logs:
-                timestamp = get_now_kst().strftime("%m/%d %H:%M")
-                log_entry = f"\n[{timestamp}] " + ", ".join(change_logs)
-                # 기존 입력값(u_note)과 자동 기록(log_entry)을 합침
-                final_note = (u_note + log_entry).strip()
-            else:
-                final_note = u_note
+            # 3. 특이사항 병합 (수동입력 + 자동로그)
+            timestamp = get_now_kst().strftime("%m/%d %H:%M")
+            log_entry = f"\n[{timestamp}] " + ", ".join(change_logs) if change_logs else ""
+            final_note = (u_note + log_entry).strip()
 
-            # 3. DB 업데이트 (u_note 대신 final_note 사용)
+            # 4. DB 업데이트 실행
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
-            machine_full_name = f"{u_machine_num}호기"
             
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status,
-                    "current_use": u_count,
-                    "worker": u_worker,
-                    "machine_no": machine_full_name,
-                    "dressing_hours": u_hours,
-                    "dressing_mins": u_mins,
-                    "waste_date": waste_val,
-                    "note": final_note
-                }}
-            )
-            st.success("🎉 정보가 정상 업데이트되었습니다!")
-            st.rerun()
+            try:
+                result = db_collection.update_one(
+                    {"serial_no": qr_scanned_serial},
+                    {"$set": {
+                        "status": u_status,
+                        "current_use": u_count,
+                        "worker": u_worker,
+                        "machine_no": new_machine,
+                        "dressing_hours": u_hours,
+                        "dressing_mins": u_mins,
+                        "waste_date": waste_val,
+                        "note": final_note
+                    }}
+                )
+                
+                if result.modified_count > 0 or result.matched_count > 0:
+                    st.success("🎉 정보가 정상 업데이트되었습니다!")
+                    time.sleep(1) # 업데이트 반영을 위한 짧은 대기
+                    st.rerun()
+                else:
+                    st.warning("⚠️ 데이터 변경 사항이 없습니다.")
+            except Exception as e:
+                st.error(f"❌ 데이터 저장 중 오류 발생: {e}")
             
-    else:
+else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
         st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
