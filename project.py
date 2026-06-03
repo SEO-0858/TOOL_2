@@ -50,71 +50,75 @@ def generate_app_qr_bytes(serial_text):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-# --- 📱 모바일/현장 QR 스캔 기입 모드 ---
-# --- 📱 모바일/현장 QR 스캔 기입 모드 ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
+    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
+    st.markdown("---")
     
-    # 1. DB에서 데이터 다시 불러오기
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
-    if existing_data:
-        STATUS_OPTIONS = ["사용전", "사용중", "재사용", "폐기"]
+    if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
+        st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
         current_status = existing_data.get("status", "사용중")
+        status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
-        # 2. 폼 정의
+        orig_machine = existing_data.get('machine_no', '')
+        orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
+        try:
+            default_machine_int = int(orig_machine_num) if orig_machine_num else 1
+        except:
+            default_machine_int = 1
+
         with st.form(key="mobile_update_form"):
-            u_status = st.radio("🔄 툴 현재 상태", STATUS_OPTIONS, index=STATUS_OPTIONS.index(current_status) if current_status in STATUS_OPTIONS else 0, horizontal=True)
-            u_count = st.number_input("📊 사용 횟수", value=int(existing_data.get('current_use', 0)))
-            u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
+            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+            u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중", "폐기"], index=status_index, horizontal=True)
+            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
+            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
+            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
             
-            m_no_str = existing_data.get('machine_no', '1')
-            u_machine = st.number_input("⚙️ 기계 호기", value=int(re.findall(r'\d+', m_no_str)[0]) if re.findall(r'\d+', m_no_str) else 1, step=1)
-            u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
+            st.markdown("---")
+            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
+            col_uh, col_um = st.columns(2)
+            with col_uh:
+                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=int(existing_data.get('dressing_hours', 0)), step=1, key="uh")
+            with col_um:
+                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
+                
+            u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
+            submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-            submit_u_btn = st.form_submit_button("🔄 저장 및 자동 기록")
+        if submit_u_btn:
+            waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
+            machine_full_name = f"{u_machine_num}호기"
             
-            # 3. 버튼 클릭 시 즉시 실행
-            if submit_u_btn:
-                # 변경 사항 로그 작성
-                change_logs = []
-                if u_status != existing_data.get("status"): change_logs.append(f"상태:{existing_data.get('status')}->{u_status}")
-                if f"{u_machine}호기" != existing_data.get("machine_no"): change_logs.append(f"장비:{existing_data.get('machine_no')}->{u_machine}호기")
-                if u_worker != existing_data.get("worker"): change_logs.append(f"작업자:{u_worker}")
-                
-                final_note = u_note
-                if change_logs:
-                    timestamp = get_now_kst().strftime("%m/%d %H:%M")
-                    final_note = f"{u_note}\n[{timestamp}] " + ", ".join(change_logs)
-                
-                # DB 업데이트
-                update_result = db_collection.update_one(
-                    {"serial_no": qr_scanned_serial}, 
-                    {"$set": {
-                        "status": u_status, 
-                        "current_use": u_count, 
-                        "worker": u_worker, 
-                        "machine_no": f"{u_machine}호기", 
-                        "note": final_note
-                    }}
-                )
-                
-                # 저장 확인 및 새로고침
-                if update_result.modified_count > 0 or update_result.matched_count > 0:
-                    st.success("✅ 업데이트 완료!")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ 변경된 데이터가 없습니다.")
+            total_duration_mins = (u_hours * 60) + u_mins
+            current_now = get_now_kst()
+            if total_duration_mins > 0 and u_status == "사용중":
+                start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
+                start_dt = dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S")
+                target_time_val = (start_dt + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                start_time_val = existing_data.get("start_time", "-")
+                target_time_val = existing_data.get("target_time", "-")
 
-    if st.button("🏠 메인 시스템으로 돌아가기"):
-        st.query_params.clear()
-        st.rerun()
-
-    # 메인으로 돌아가기 버튼 (폼 밖으로 분리)
-    if st.button("🏠 메인 시스템으로 돌아가기"):
-        st.query_params.clear()
-        st.rerun()
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "current_use": u_count,
+                    "worker": u_worker,
+                    "machine_no": machine_full_name,
+                    "dressing_hours": u_hours,
+                    "dressing_mins": u_mins,
+                    "start_time": start_time_val,
+                    "target_time": target_time_val,
+                    "waste_date": waste_val,
+                    "note": u_note
+                }}
+            )
+            st.success("🎉 정보가 정상 업데이트되었습니다!")
+            st.rerun()
+            
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
