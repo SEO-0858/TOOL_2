@@ -659,9 +659,39 @@ else:
                 exist_item = db_collection.find_one({"serial_no": target_serial})
                 
                 if exist_item:
-                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다. [QR코드 즉시 재생성 완료]")
+                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
+                    
+                    # QR 생성 및 인쇄 로직
                     qr_res_bytes = generate_app_qr_bytes(target_serial)
+                    base64_qr = base64.b64encode(qr_res_bytes).decode("utf-8")
+                    
                     st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
+                    
+                    # 대량 발행창의 인쇄 로직 적용
+                    html_content = f"""
+                    <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
+                        <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
+                        <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
+                    </div>
+                    """
+                    
+                    js_print_trigger = f"""
+                    <script>
+                    function executeQrPrint() {{
+                        var printWindow = window.open('', '_blank', 'width=400,height=400');
+                        printWindow.document.write('<html><head><title>QR 인쇄</title></head><body>');
+                        printWindow.document.write(`{html_content}`);
+                        printWindow.document.write('</body></html>');
+                        printWindow.document.close();
+                        setTimeout(function() {{ printWindow.print(); printWindow.close(); }}, 500);
+                    }}
+                    </script>
+                    <button onclick="executeQrPrint()" style="width:100%; padding:10px; background-color:#00B050; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
+                        🖨️ 이 QR코드 인쇄하기
+                    </button>
+                    """
+                    st.components.v1.html(js_print_trigger, height=60)
+
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
                     if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
@@ -683,7 +713,7 @@ else:
                             "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다.")
+                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
                         st.rerun()
 
     elif tool_menu == "🖥️ 실시간 기계 정보창":
