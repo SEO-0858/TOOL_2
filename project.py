@@ -84,7 +84,7 @@ if qr_scanned_serial:
             with col_um:
                 u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
                 
-            u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
+            u_note = st.text_area("오늘의 특이사항을 입력하세요 (여기 적은 것만 추가됨)", value="")
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if submit_u_btn:
@@ -101,20 +101,15 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
             
-            # 1. 새로 추가할 한 줄만 생성
-            change_time = get_now_kst().strftime('%m/%d %H:%M')
-            new_entry = f"[{change_time}] 상태: {u_status} / 작업자: {u_worker} / 특이사항: {u_note}"
-            
-            # 2. 기존 메모 가져오기
+            # 1. 새로 입력한 내용이 있을 때만 기존 기록과 합침
             existing_note = existing_data.get('note', '')
-
-            # 3. 중복 방지 로직: 기존 메모의 마지막 줄과 비교
-            last_line = existing_note.split('\n')[-1] if existing_note else ""
-
-            # 마지막 줄과 완전히 똑같다면 추가하지 않음
-            if new_entry != last_line:
+            
+            if u_note.strip(): # 입력창에 글자가 있을 때만
+                change_time = get_now_kst().strftime('%m/%d %H:%M')
+                new_entry = f"[{change_time}] 상태: {u_status} / 작업자: {u_worker} / 특이사항: {u_note}"
                 updated_note = f"{existing_note}\n{new_entry}".strip()
             else:
+                # 입력창이 비어있으면 기존 기록 유지
                 updated_note = existing_note
 
             db_collection.update_one(
@@ -766,4 +761,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True)                       
+                        """, unsafe_allow_html=True)                    
