@@ -51,8 +51,10 @@ def generate_app_qr_bytes(serial_text):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
+# --- 📱 모바일/현장 QR 스캔 기입 모드 ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
+    # 데이터를 최신 상태로 다시 조회
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
     if existing_data:
@@ -64,31 +66,47 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태", STATUS_OPTIONS, index=STATUS_OPTIONS.index(current_status) if current_status in STATUS_OPTIONS else 0, horizontal=True)
             u_count = st.number_input("📊 사용 횟수", value=int(existing_data.get('current_use', 0)))
             u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-            u_machine = st.number_input("⚙️ 기계 호기", value=int(re.findall(r'\d+', existing_data.get('machine_no', '1'))[0]), step=1)
+            
+            # 숫자만 추출
+            m_no_str = existing_data.get('machine_no', '1')
+            m_no_nums = re.findall(r'\d+', m_no_str)
+            u_machine = st.number_input("⚙️ 기계 호기", value=int(m_no_nums[0]) if m_no_nums else 1, step=1)
+            
             u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
             submit_u_btn = st.form_submit_button("🔄 저장 및 자동 기록")
             
-        if submit_u_btn:
-            # 1. 변경 내역 감지
-            change_logs = []
-            if u_status != existing_data.get("status"): change_logs.append(f"상태:{existing_data.get('status')}->{u_status}")
-            if f"{u_machine}호기" != existing_data.get("machine_no"): change_logs.append(f"장비:{existing_data.get('machine_no')}->{u_machine}호기")
-            if u_worker != existing_data.get("worker"): change_logs.append(f"작업자:{u_worker}")
-            
-            # 2. 특이사항 업데이트
-            final_note = u_note
-            if change_logs:
-                timestamp = get_now_kst().strftime("%m/%d %H:%M")
-                final_note += f"\n[{timestamp}] " + ", ".join(change_logs)
-            
-            # 3. DB 저장
-            db_collection.update_one({"serial_no": qr_scanned_serial}, {"$set": {
-                "status": u_status, "current_use": u_count, "worker": u_worker, 
-                "machine_no": f"{u_machine}호기", "note": final_note
-            }})
-            st.success("✅ 업데이트 완료!")
-            time.sleep(0.5)
-            st.rerun()
+            if submit_u_btn:
+                # 1. 변화 감지 로직
+                change_logs = []
+                if u_status != existing_data.get("status"): 
+                    change_logs.append(f"상태:{existing_data.get('status')}->{u_status}")
+                if f"{u_machine}호기" != existing_data.get("machine_no"): 
+                    change_logs.append(f"장비:{existing_data.get('machine_no')}->{u_machine}호기")
+                if u_worker != existing_data.get("worker"): 
+                    change_logs.append(f"작업자:{u_worker}")
+                
+                # 2. 특이사항 업데이트
+                final_note = u_note
+                if change_logs:
+                    timestamp = get_now_kst().strftime("%m/%d %H:%M")
+                    final_note = (u_note + f"\n[{timestamp}] " + ", ".join(change_logs)).strip()
+                
+                # 3. DB 업데이트 (여기서 바로 실행)
+                db_collection.update_one({"serial_no": qr_scanned_serial}, {"$set": {
+                    "status": u_status, 
+                    "current_use": u_count, 
+                    "worker": u_worker, 
+                    "machine_no": f"{u_machine}호기", 
+                    "note": final_note
+                }})
+                st.success("✅ 업데이트 완료!")
+                time.sleep(0.5)
+                st.rerun()
+
+    # 버튼을 폼 외부로 확실히 분리
+    if st.button("🏠 메인 시스템으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
     # 메인으로 돌아가기 버튼 (폼 밖으로 분리)
     if st.button("🏠 메인 시스템으로 돌아가기"):
