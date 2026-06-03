@@ -101,8 +101,19 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
             
+            # 1. 새로 추가할 한 줄만 생성
             change_time = get_now_kst().strftime('%m/%d %H:%M')
-            updated_note = f"{existing_data.get('note', '')}\n[{change_time}] 상태: {u_status} / 작업자: {u_worker} / 특이사항: {u_note}"
+            new_entry = f"[{change_time}] 상태: {u_status} / 작업자: {u_worker} / 특이사항: {u_note}"
+            
+            # 2. 기존 메모 가져오기
+            existing_note = existing_data.get('note', '')
+            
+            # 3. 기존 메모에 방금 만든 new_entry가 없을 때만 추가 (중복 방지)
+            if new_entry not in existing_note:
+                updated_note = f"{existing_note}\n{new_entry}".strip()
+            else:
+                updated_note = existing_note # 이미 있으면 기존 메모 그대로 유지
+
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -603,8 +614,16 @@ else:
                                         start_time_val = "-" if ed_status == "사용전" else item.get("start_time", "-")
                                         target_time_val = "-"
 
+                                    # 수정할 부분: 저장 버튼 누를 때 기록 누적
                                     change_time = get_now_kst().strftime('%m/%d %H:%M')
-                                    updated_note = f"{item.get('note', '')}\n[{change_time}] 상태: {ed_status} / 작업자: {ed_worker} / 비고: {ed_note}"
+                                    new_entry = f"[{change_time}] 상태: {ed_status} / 작업자: {ed_worker} / 비고: {ed_note}"
+                                    existing_note = item.get('note', '')
+
+                                    # 기록이 이미 있다면 줄바꿈 후 추가
+                                    if new_entry not in existing_note:
+                                     final_note = f"{existing_note}\n{new_entry}".strip()
+                                    else:
+                                     final_note = existing_note
 
                                     db_collection.update_one(
                                         {"serial_no": s_no},
@@ -617,7 +636,7 @@ else:
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
-                                            "note": updated_note
+                                            "note": final_note
                                         }}
                                     )
                                     st.session_state[edit_key] = False
@@ -742,4 +761,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True)                      
+                        """, unsafe_allow_html=True)                        
