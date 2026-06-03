@@ -87,54 +87,39 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-if submit_u_btn:
-            # 1. 변화된 내용 추적을 위한 로그 리스트
-            change_logs = []
-            
-            # 2. 값 비교
-            if u_status != existing_data.get("status"):
-                change_logs.append(f"상태: {existing_data.get('status')} -> {u_status}")
-            
-            new_machine = f"{u_machine_num}호기"
-            if new_machine != existing_data.get("machine_no"):
-                change_logs.append(f"장비: {existing_data.get('machine_no')} -> {new_machine}")
-            
-            if u_worker != existing_data.get("worker"):
-                change_logs.append(f"작업자: {u_worker}")
-
-            # 3. 특이사항 병합 (수동입력 + 자동로그)
-            timestamp = get_now_kst().strftime("%m/%d %H:%M")
-            log_entry = f"\n[{timestamp}] " + ", ".join(change_logs) if change_logs else ""
-            final_note = (u_note + log_entry).strip()
-
-            # 4. DB 업데이트 실행
+        if submit_u_btn:
             waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
+            machine_full_name = f"{u_machine_num}호기"
             
-            try:
-                result = db_collection.update_one(
-                    {"serial_no": qr_scanned_serial},
-                    {"$set": {
-                        "status": u_status,
-                        "current_use": u_count,
-                        "worker": u_worker,
-                        "machine_no": new_machine,
-                        "dressing_hours": u_hours,
-                        "dressing_mins": u_mins,
-                        "waste_date": waste_val,
-                        "note": final_note
-                    }}
-                )
-                
-                if result.modified_count > 0 or result.matched_count > 0:
-                    st.success("🎉 정보가 정상 업데이트되었습니다!")
-                    time.sleep(1) # 업데이트 반영을 위한 짧은 대기
-                    st.rerun()
-                else:
-                    st.warning("⚠️ 데이터 변경 사항이 없습니다.")
-            except Exception as e:
-                st.error(f"❌ 데이터 저장 중 오류 발생: {e}")
+            total_duration_mins = (u_hours * 60) + u_mins
+            current_now = get_now_kst()
+            if total_duration_mins > 0 and u_status == "사용중":
+                start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
+                start_dt = dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S")
+                target_time_val = (start_dt + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                start_time_val = existing_data.get("start_time", "-")
+                target_time_val = existing_data.get("target_time", "-")
+
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "current_use": u_count,
+                    "worker": u_worker,
+                    "machine_no": machine_full_name,
+                    "dressing_hours": u_hours,
+                    "dressing_mins": u_mins,
+                    "start_time": start_time_val,
+                    "target_time": target_time_val,
+                    "waste_date": waste_val,
+                    "note": u_note
+                }}
+            )
+            st.success("🎉 정보가 정상 업데이트되었습니다!")
+            st.rerun()
             
-else:
+    else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
         st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
@@ -206,9 +191,9 @@ else:
                 st.balloons()
                 st.rerun()
                 
-if st.button("🏠 메인 시스템으로 돌아가기"):
-    st.query_params.clear()
-    st.rerun()
+    if st.button("🏠 메인 시스템으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 
 # --- 💻 [PC 관리자 모드] ---
