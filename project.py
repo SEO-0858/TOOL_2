@@ -724,54 +724,61 @@ else:
                         st.rerun()
 
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
-        
-        # 1. 오류 없는 시간 표시
-        now_kst = get_now_kst()
-        st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        layout = [
-            [27, 28, 29, 30, 31, 9, 8, 7],
-            [16, 17, 26, 32, 57],
-            [15, 18, 25, 33, 56],
-            [14, 19, 24, 34, 55, 6],
-            [13, 20, 35, 54, 5],
-            [12, 21, 36, 53, 4],
-            [11, 22, 37, 52, 3],
-            [10, 23, 38, 43],
-            [39, 40, 41, 42],
-            [44,45, 46, 47, 48, 49, 50, 51]
-        ]
+            st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
+            now_kst = get_now_kst()
+            st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            layout = [
+                [27, 28, 29, 30, 31, 9, 8, 7],
+                [16, 17, 26, 32, 57],
+                [15, 18, 25, 33, 56],
+                [14, 19, 24, 34, 55, 6],
+                [13, 20, 35, 54, 5],
+                [12, 21, 36, 53, 4],
+                [11, 22, 37, 52, 3],
+                [10, 23, 38, 43],
+                [39, 40, 41, 42],
+                [44, 45, 46, 47, 48, 49, 50, 51]
+            ]
 
-        active_tools = list(db_collection.find({"status": "사용중"}))
-        tool_map = {}
-        for t in active_tools:
-            m_no_str = str(t.get('machine_no', ''))
-            nums = re.findall(r'\d+', m_no_str)
-            if nums:
-                m_no = int(nums[0])
-                tool_map[m_no] = t 
+            # 1. 하나의 기계에 여러 툴이 있을 수 있으므로 리스트로 관리
+            active_tools = list(db_collection.find({"status": "사용중"}))
+            machine_tool_map = {}
+            for t in active_tools:
+                m_no_str = str(t.get('machine_no', ''))
+                nums = re.findall(r'\d+', m_no_str)
+                if nums:
+                    m_no = int(nums[0])
+                    if m_no not in machine_tool_map:
+                        machine_tool_map[m_no] = []
+                    machine_tool_map[m_no].append(t)
 
-        for row in layout:
-            cols = st.columns(len(row))
-            for i, m_no in enumerate(row):
-                with cols[i]:
-                    t = tool_map.get(m_no)
-                    if t:
-                        # 🟢 가동 중인 툴: 박스 높이를 늘리고 글자 크기를 최적화
-                        st.markdown(f"""
-                            <div style="background-color:#E8F5E9; padding:8px; border-radius:6px; border:2px solid #2E7D32; font-size:11px; height:130px; overflow:hidden;">
-                                <b style="color:#1b5e20;">{m_no}호기 (가동중)</b><br>
-                                ID: {t.get('serial_no', 'N/A')}<br>
-                                작업자: {t.get('worker', '미지정')}<br>
-                                툴: {t.get('tool_type', '일반')}<br>
-                                장착: {str(t.get('start_time', ''))[5:16]}
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        # ⚪ 공실: 깔끔하게 정리
-                        st.markdown(f"""
-                            <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
-                                <br><b>{m_no}호기</b><br>툴미지정기계???????
-                            </div>
-                        """, unsafe_allow_html=True) 
+            for row in layout:
+                cols = st.columns(len(row))
+                for i, m_no in enumerate(row):
+                    with cols[i]:
+                        tools = machine_tool_map.get(m_no, [])
+                        if tools:
+                            # 🟢 툴이 있는 경우: 여러 개여도 모두 표시
+                            tool_cards = ""
+                            for t in tools:
+                                tool_cards += f"""
+                                <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
+                                    <b>ID: {t.get('serial_no', 'N/A')}</b><br>
+                                    작업자: {t.get('worker', '미지정')}<br>
+                                    장착: {str(t.get('start_time', ''))[5:16]}
+                                </div>
+                                """
+                            st.markdown(f"""
+                                <div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;">
+                                    <b style="color:#1b5e20; font-size:11px;">{m_no}호기 ({len(tools)}개)</b>
+                                    {tool_cards}
+                                </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            # ⚪ 공실
+                            st.markdown(f"""
+                                <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;">
+                                    <br><b>{m_no}호기</b><br>대기중
+                                </div>
+                            """, unsafe_allow_html=True)
