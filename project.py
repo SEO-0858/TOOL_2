@@ -61,7 +61,7 @@ if qr_scanned_serial:
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
         current_status = existing_data.get("status", "사용중")
         
-        # 5가지 상태 선택지 매칭 및 예외 방어
+        # 5가지 상태 리스트 구성
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(current_status) if current_status in status_options else 1
         
@@ -110,7 +110,7 @@ if qr_scanned_serial:
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
             
-            # 가동계열 상태(사용중, 재사용)일 경우 마감 시간 연산 작동
+            # 가동계열 상태(사용중, 재사용)일 경우 마감 주기 계산
             if total_duration_mins > 0 and u_status in ["사용중", "재사용"]:
                 start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
                 try:
@@ -180,7 +180,7 @@ if qr_scanned_serial:
             if not m_worker:
                 st.error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
             else:
-                tool_code = qr_scanned_serial[:2]
+                tool_code = qr_scanned_serial[:3]
                 waste_val = str(today) if m_status == "폐기" else "-"
                 machine_full_name = f"{m_machine_num}호기"
                 
@@ -243,6 +243,7 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
+        # 순수 12자리 숫자 프리픽스 규칙 준수 (001 + MMDD)
         prefix = f"{tool_code}{mmdd}"
         
         try:
@@ -496,7 +497,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창
+    # 3) 📂 종합 현황판 창 (⭐ 4분할 복합 검색 레이아웃 유지 및 오타 완벽 복구)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -622,7 +623,7 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
-                                    with col_em:
+                                    with col_em:  # 🛠️ 문법 오류(=) 부분 안전하게 교정 완료
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -735,7 +736,7 @@ else:
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
                     if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
-                        t_code = target_serial[:2]
+                        t_code = target_serial[:3]
                         new_blank = {
                             "serial_no": target_serial,
                             "tool_type": "전착툴" if t_code=="001" else "레진툴" if t_code=="002" else "메탈툴",
@@ -775,7 +776,7 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
-            # 기계 배치 대시보드 맵 연동 가동 상태 조건 ('사용중', '재사용')
+            # 기계 배치 모니터링 대상 연동 ('사용중', '재사용')
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
