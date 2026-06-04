@@ -110,7 +110,7 @@ if qr_scanned_serial:
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
             
-            # 가동계열 상태(사용중, 재사용)일 경우 마감 주기 계산
+            # 사용중 혹은 재사용 상태일 때 드레싱 주기 타이머 작동 연동
             if total_duration_mins > 0 and u_status in ["사용중", "재사용"]:
                 start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
                 try:
@@ -123,8 +123,14 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
 
+            # 역사 기록 자동 조합 로그 문장 생성
             timestamp = get_now_kst().strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
+            
+            # 현장 특이사항에 이력 실시간 글자 조합 및 누적
+            log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
+            final_note_val = u_note.strip() + auto_log_msg
 
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
@@ -135,7 +141,7 @@ if qr_scanned_serial:
                         "worker": u_worker,
                         "machine_no": machine_full_name,
                         "waste_date": waste_val,
-                        "note": u_note,
+                        "note": final_note_val,
                         "start_time": start_time_val,
                         "target_time": target_time_val
                     },
@@ -243,7 +249,7 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
-        # 순수 12자리 숫자 프리픽스 규칙 준수 (001 + MMDD)
+        # 순수 12자리 숫자 프리픽스 규칙 엄격 준수 (001 + MMDD)
         prefix = f"{tool_code}{mmdd}"
         
         try:
@@ -431,7 +437,7 @@ else:
         st.markdown("---")
         
         try:
-            # 실시간 전광판 가동계열 상태 조건 업데이트 ('사용중', '재사용')
+            # 타이머 전광판 가동계열 상태 조건 업데이트 ('사용중', '재사용')
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
             if not active_tools:
                 st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
@@ -497,7 +503,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (⭐ 4분할 복합 검색 레이아웃 유지 및 오타 완벽 복구)
+    # 3) 📂 종합 현황판 창 (⭐ 4분할 복합 검색 레이아웃 및 자동 이력 시스템 추가 완료)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -623,7 +629,7 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
-                                    with col_em:  # 🛠️ 문법 오류(=) 부분 안전하게 교정 완료
+                                    with col_em:  # ✅ 문법 오류 완벽 교정 완료
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -642,6 +648,11 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
+                                    # [기능 반영] 저장 버튼 작동 시 특이사항 비고 칸 하단에 이력 문구 자동 연결 조립
+                                    log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                                    auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
+                                    final_note_val = ed_note.strip() + auto_log_msg
+                                        
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -653,11 +664,12 @@ else:
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
-                                            "note": ed_note
+                                            "note": final_note_val
                                         }}
                                     )
                                     st.session_state[edit_key] = False
-                                    st.success(f"🎉 데이터가 성공적으로 업데이트되었습니다.")
+                                    st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
+                                    time.sleep(0.5)
                                     st.rerun()
                                     
                                 if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
@@ -776,7 +788,7 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
-            # 기계 배치 모니터링 대상 연동 ('사용중', '재사용')
+            # 기계 배치 모니터링 대상 가동계열 상태 포함 연동 ('사용중', '재사용')
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
