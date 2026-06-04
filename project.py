@@ -540,48 +540,37 @@ else:
                             expander_title = f"🆔 {s_no} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
                             
                         # 542번 줄 시작점
-                        with st.expander(expander_title):
-                            edit_key = f"is_editing_{s_no}"
+                        with st.expander(f"⚙️ 시리얼: {s_no} (기계: {item.get('machine_no', '미지정')})"):
+                            # 1. 고유 상태키 생성
+                            edit_key = f"edit_state_{s_no}"
                             if edit_key not in st.session_state:
                                 st.session_state[edit_key] = False
-                                
-                            # 1. 수정 모드인 경우 (폼 표시)
+
+                            # 2. 수정 모드일 때
                             if st.session_state[edit_key]:
-                                st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
-                                
-                                # (기존 코드: 변수 설정 및 시간 파싱 부분 그대로 유지)
-                                orig_m = item.get('machine_no', '')
-                                orig_m_num = ''.join(filter(str.isdigit, orig_m))
-                                def_m_int = int(orig_m_num) if orig_m_num else 4
-                                # ... (시간 파싱 로직 동일하게 유지) ...
-
-                                with st.form(key=f"board_edit_form_{s_no}"):
-                                    # ... (입력 필드들: ed_status, ed_worker, ed_machine_num 등 그대로 유지) ...
-                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(status) if status in ["사용전", "사용중", "폐기"] else 0, horizontal=True)
-                                    ed_worker = st.text_input("👷 교체 작업자 이름", value=item.get('worker', ''))
-                                    ed_machine_num = st.number_input("⚙️ 기계 가공 호기", value=def_m_int, key=f"mach_{s_no}")
-                                    ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
+                                st.markdown("### ✏️ 툴 정보 수정")
+                                with st.form(key=f"form_{s_no}"):
+                                    ed_status = st.radio("상태", ["사용전", "사용중", "폐기"], index=0)
+                                    ed_worker = st.text_input("작업자", value=item.get('worker', ''))
+                                    ed_machine = st.number_input("기계 호기", value=1)
                                     
-                                    b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
-                                    b_cancel = st.form_submit_button("❌ 취소")
-                                    
-                                    if b_submit:
-                                        # DB 업데이트 로직 (기존과 동일하게 유지)
-                                        # ... [생략: DB 업데이트 코드] ...
-                                        st.session_state[edit_key] = False # 수정 완료 후 닫기
-                                        st.success("✅ 저장 완료!")
+                                    # 저장/취소 버튼
+                                    col1, col2 = st.columns(2)
+                                    if col1.form_submit_button("💾 저장"):
+                                        db_collection.update_one(
+                                            {"serial_no": s_no},
+                                            {"$set": {"status": ed_status, "worker": ed_worker, "machine_no": f"{ed_machine}호기"}}
+                                        )
+                                        st.session_state[edit_key] = False
                                         st.rerun()
-                                    
-                                    if b_cancel:
-                                        st.session_state[edit_key] = False # 취소 시 닫기
+                                    if col2.form_submit_button("❌ 취소"):
+                                        st.session_state[edit_key] = False
                                         st.rerun()
-
-                            # 2. 수정 모드가 아닌 경우 (정보 표시 + 수정 버튼)
+                            
+                            # 3. 일반 보기 모드일 때
                             else:
-                                # ... (기존 정보 표시 UI 코드 그대로 유지) ...
-                                col_x, col_y = st.columns(2)
-                                # ...
-                                if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}"):
+                                st.write(f"현재 상태: {item.get('status')}")
+                                if st.button("✏️ 수정하기", key=f"btn_{s_no}"):
                                     st.session_state[edit_key] = True
                                     st.rerun()
                     else:
