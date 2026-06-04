@@ -592,45 +592,42 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
+                                    
+                        
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                if b_submit:
-                                    waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
-                                    full_mach_name = f"{ed_machine_num}호기"
-                                    
-                                    total_mins = (ed_hours * 60) + ed_mins
-                                    if total_mins > 0 and ed_status == "사용중":
-                                        start_time_val = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
-                                        target_time_val = (combined_ed_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
-                                    else:
-                                        start_time_val = "-" if ed_status == "사용전" else item.get("start_time", "-")
-                                        target_time_val = "-"
-                                        
-                                    db_collection.update_one(
-                                        {"serial_no": s_no},
-                                        {"$set": {
-                                            "status": ed_status,
-                                            "worker": ed_worker,
-                                            "machine_no": full_mach_name,
-                                            "dressing_hours": ed_hours,
-                                            "dressing_mins": ed_mins,
-                                            "start_time": start_time_val,
-                                            "target_time": target_time_val,
-                                            "waste_date": waste_date_val,
-                                            "note": ed_note
-                                        }}
-                                    )
-                                    st.session_state[edit_key] = False
-                                    st.success(f"🎉 데이터가 성공적으로 업데이트되었습니다.")
-                                    st.rerun()
-                                    
-                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                                    
-                            else:
+                                    # [핵심 수정] 들여쓰기를 form 안쪽으로 맞춤
+                                    if b_submit:
+                                        # 1. 변경 이력 생성
+                                        timestamp = get_now_kst().strftime("%m/%d %H:%M")
+                                        # ed_machine_num을 사용하여 호기 문자열 생성
+                                        history_text = f"[{timestamp}] 상태:{item.get('status')}→{ed_status}, 작업자:{ed_worker}, 기계:{ed_machine_num}호기"
+
+                                        # 2. 기존 note 내용 가져오기
+                                        old_note = item.get('note', '')
+
+                                        # 3. 새로운 note 완성
+                                        new_note = f"{ed_note}\n{history_text}"
+
+                                        # 4. DB 업데이트
+                                        db_collection.update_one(
+                                            {"serial_no": s_no},
+                                            {
+                                                "$set": {
+                                                    "status": ed_status,
+                                                    "worker": ed_worker,
+                                                    "machine_no": f"{ed_machine_num}호기", # 올바른 변수명 사용
+                                                    "note": new_note
+                                                },
+                                                "$push": {"history": history_text}
+                                            }
+                                        )
+                                        st.success("✅ 변경사항과 이력이 저장되었습니다!")
+                                        st.rerun()
+
+                    else:
                                 col_x, col_y = st.columns(2)
                                 with col_x:
                                     st.write(f"• **💎 툴 종류:** {item['tool_type']}")
@@ -774,4 +771,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True) 
+                        """, unsafe_allow_html=True)
