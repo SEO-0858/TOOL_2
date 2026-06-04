@@ -230,7 +230,7 @@ else:
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
             if last_tool:
-                last_counter = int(last_tool["serial_no"][-3:])
+                last_counter = int(last_tool["serial_no"][-5:])
             else:
                 last_counter = 0
         except Exception:
@@ -249,7 +249,7 @@ else:
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
-                serial_no = f"{prefix}{current_seq:03d}"
+                serial_no = f"{prefix}{current_seq:05d}"
                 generated_serials.append(serial_no)
                 
                 blank_records.append({
