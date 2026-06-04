@@ -181,7 +181,7 @@ if qr_scanned_serial:
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
-                        "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
+                        "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                         "status": m_status,
                         "input_date": str(today),
                         "worker": m_worker,
