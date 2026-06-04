@@ -257,7 +257,7 @@ else:
                 
                 blank_records.append({
                     "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="01" else "레진툴" if tool_code=="02" else "메탈툴",
+                    "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                     "status": "사용전",
                     "input_date": str(today),
                     "worker": "",
@@ -368,7 +368,7 @@ else:
                 delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
                 
                 if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
-                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["01 (전착툴)", "02 (레진툴)", "03 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
+                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["001 (전착툴)", "002 (레진툴)", "003 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
                     understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
                     
                     if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
@@ -395,7 +395,7 @@ else:
                     if st.button("❌ 해당 개별 시리얼 넘버 데이터 즉시 삭제", key="btn_single_del"):
                         if not target_single_serial:
                             st.error("⚠️ 시리얼 번호를 입력해 주세요.")
-                        elif len(target_single_serial) != 11:
+                        elif len(target_single_serial) != 12:
                             st.error("⚠️ 시리얼 번호는 정확히 11자리여야 합니다.")
                         elif not understand_risk_single:
                             st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
