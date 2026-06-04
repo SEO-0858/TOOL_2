@@ -638,7 +638,7 @@ else:
                                     East_mach = item['machine_no'] if item['machine_no'] else '-'
                                     st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
                                     st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                                    st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
+                                    st.write(f"• **🎯 다음 드레싱까지 남은시간:** {item.get('target_time', '-')}")
                                 st.write(f"• **📝 현장 특이 사항:** {item['note']}")
                                 
                                 if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
@@ -771,4 +771,4 @@ else:
                             <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:130px; text-align:center; color:#777;">
                                 <br><b>{m_no}호기</b><br>툴미지정기계???????
                             </div>
-                        """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True) 
