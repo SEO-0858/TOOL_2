@@ -59,7 +59,7 @@ if qr_scanned_serial:
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        current_status = existing_data.get("status", "사용중")
+        current_status = existing_data.get("status", "사용전")
         status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
         orig_machine = existing_data.get('machine_no', '')
