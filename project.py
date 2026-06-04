@@ -14,6 +14,7 @@ st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="w
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
 def get_database():
+    # ⚠️ 보안 주의: 실제 운영 환경에서는 st.secrets 등을 활용하여 관리하는 것을 권장합니다.
     MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCMjjTiTG5w@cluster0.1ectnsv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
     try:
         client = MongoClient(MONGO_URI)
@@ -35,766 +36,778 @@ mmdd = today.strftime("%m%d")
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
-qr_scanned_serial = query_params.get("serial", None)
+serial_from_url = query_params.get("serial", None)
 
-# QR코드 생성 헬퍼 함수
-def generate_app_qr_bytes(serial_text):
-    app_url = f"https://kkqpd4p.streamlit.app/?serial={serial_text}"
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=1)
-    qr.add_data(app_url)
+# --- 헬퍼 함수 정의 ---
+def generate_qr_base64(serial_no):
+    """시리얼 번호를 기반으로 QR코드를 생성하고 Base64 문자열로 반환"""
+    # 2026년 기준 도메인 및 포트 가치 반영 (필요시 도메인 변경 가능)
+    qr_url = f"http://localhost:8501/?serial={serial_no}"
+    qr = qrcode.QRCode(version=1, box_size=3, border=1)
+    qr.add_data(qr_url)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
-# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-if qr_scanned_serial:
-    st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
-    st.markdown("---")
     
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+def get_machine_display_num(m_str):
+    """기계 번호 문자열에서 숫자만 추출하여 정렬용 정수 반환"""
+    if not m_str:
+        return 9999
+    nums = re.findall(r'\d+', str(m_str))
+    return int(nums[0]) if nums else 9999
+
+
+# ==========================================
+# 📱 [모드 1] 현장 QR 코드 스캔 모드 (URL 파라미터 존재 시)
+# ==========================================
+if serial_from_url:
+    st.title(f"📱 현장 툴 작업 프로세스 ({serial_from_url})")
     
-    if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
-        st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        current_status = existing_data.get("status", "사용중")
-        status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
+    if db_collection is None:
+        st.error("데이터베이스가 연결되지 않았습니다.")
+        st.stop()
         
-        orig_machine = existing_data.get('machine_no', '')
-        orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
-        try:
-            default_machine_int = int(orig_machine_num) if orig_machine_num else 1
-        except:
-            default_machine_int = 1
-
-        with st.form(key="mobile_update_form"):
-            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", ["사용전", "사용중", "폐기"], index=status_index, horizontal=True)
-            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
-            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
-            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
+    # 1. 기존 등록 여부 확인
+    tool_data = db_collection.find_one({"serial_no": serial_from_url})
+    
+    if not tool_data:
+        st.warning("⚠️ 아직 세부 정보가 등록되지 않은 QR 코드입니다. 최초 등록을 진행해 주세요.")
+        
+        # 기본 정보 파싱 시도 (예: 전착툴_0604_00001)
+        parsed_type = "전착툴"
+        if "_" in serial_from_url:
+            prefix = serial_from_url.split("_")[0]
+            if "레진" in prefix: parsed_type = "레진툴"
+            elif "메탈" in prefix: parsed_type = "메탈툴"
             
-            st.markdown("---")
-            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
-            col_uh, col_um = st.columns(2)
-            with col_uh:
-                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=int(existing_data.get('dressing_hours', 0)), step=1, key="uh")
-            with col_um:
-                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
+        with st.form("init_form"):
+            st.subheader("🆕 신규 툴 최초 등록")
+            tool_type = st.selectbox("툴 종류", ["전착툴", "레진툴", "메탈툴"], index=["전착툴", "레진툴", "메탈툴"].index(parsed_type))
+            worker = st.text_input("작업자 성명 *", placeholder="홍길동")
+            machine_no = st.text_input("장착 기계 번호 (호기) *", placeholder="12호기")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                target_hours = st.number_input("드레싱 주기 (시간)", min_value=0, max_value=500, value=12, step=1)
+            with col2:
+                target_minutes = st.number_input("드레싱 주기 (분)", min_value=0, max_value=59, value=0, step=5)
                 
-           # 수정 코드
-            default_val = existing_data.get('note', '')
-            u_note = st.text_area(
-            "📝 현장 특이사항", 
-            value="" if "QR 선발행" in default_val else default_val, # 발행 문구면 비워줌
-            placeholder=f"기존 기록: {default_val}\n여기에 내용을 입력하세요..."
-)
-            submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
+            limit_cnt = st.number_input("최대 사용 한도 횟수 (드레싱 제한)", min_value=1, max_value=100, value=5, step=1)
+            memo = st.text_area("특이사항 및 메모", placeholder="초기 특이사항 기입")
             
-        if submit_u_btn:
-            # 💡 [수정] 폐기 상태일 때 현재 시간(날짜+시간)을 waste_date에 저장
-            current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            submit_init = st.form_submit_button("🚀 최초 장착 및 가동 시작")
             
-            if u_status == "폐기":
-                # 기존 폐기 날짜가 없다면 현재 시간 기록, 이미 있다면 유지
-                waste_val = existing_data.get("waste_date", "-")
-                if waste_val == "-":
-                    waste_val = current_time_str
-            else:
-                waste_val = "-" # 폐기가 아니면 "-"로 초기화
-            
-            machine_full_name = f"{u_machine_num}호기"
-            
-            total_duration_mins = (u_hours * 60) + u_mins
-            current_now = get_now_kst()
-            if total_duration_mins > 0 and u_status == "사용중":
-                start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
-                start_dt = dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S")
-                target_time_val = (start_dt + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                start_time_val = existing_data.get("start_time", "-")
-                target_time_val = existing_data.get("target_time", "-")
-
-            # 1. 쿼리 윗부분에 이력 생성 로직 추가
-            timestamp = get_now_kst().strftime("%m/%d %H:%M")
-            history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
-
-            # 2. 업데이트 쿼리에 $push 추가
-            db_collection.update_one(
-              {"serial_no": qr_scanned_serial},
-              {
-                  "$set": {
-                  "status": u_status,
-                  "current_use": u_count,
-                  "worker": u_worker,
-                  "machine_no": machine_full_name,
-                  "waste_date": waste_val,
-                  "note": u_note
-              },
-            "$push": {"history": history_entry} # ⬅️ 이 부분을 추가하세요!
-        }
-)
-            # 💡 아래 코드를 바로 밑에 추가하세요!
-            st.success("✅ 수정사항이 저장되었습니다!")
-            time.sleep(1) # 저장 완료를 확인하기 위해 1초 대기
-            st.rerun()    # 화면을 새로고침하여 바뀐 정보를 즉시 반영    
-    else:
-        st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
-        
-        st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
-        current_now = get_now_kst()
-        
-        col_date, col_time = st.columns(2)
-        with col_date:
-            chosen_date = st.date_input("장착 날짜 선택", value=current_now.date())
-        with col_time:
-            chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300)
-        combined_dt = dt_class.combine(chosen_date, chosen_time)
-        
-        with st.form(key="mobile_input_form"):
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=0, horizontal=True)
-            m_worker = st.text_input("Worker 👷 교체 작업자 이름")
-            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
-            
-            st.markdown("---")
-            st.markdown("⏳ **드레싱 주기 커스텀 설정**")
-            col_h, col_m = st.columns(2)
-            with col_h:
-                dressing_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=4, step=1)
-            with col_m:
-                dressing_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5)
-                
-            m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
-            m_note = st.text_area("Note 📝 특이사항")
-            
-            submit_m_btn = st.form_submit_button("💾 데이터 저장 및 등록 완료")
-            
-        if submit_m_btn:
-            if not m_worker:
-                st.error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
-            else:
-                tool_code = qr_scanned_serial[:2]
-                waste_val = str(today) if m_status == "폐기" else "-"
-                machine_full_name = f"{m_machine_num}호기"
-                
-                total_mins = (dressing_hours * 60) + dressing_mins
-                if total_mins > 0 and m_status == "사용중":
-                    start_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
-                    target_time_str = (combined_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+            if submit_init:
+                if not worker.strip() or not machine_no.strip():
+                    st.error("❌ 작업자 성명과 장착 기계 번호는 필수 입력 항목입니다.")
                 else:
-                    start_time_str = "-"
-                    target_time_str = "-"
+                    start_time = get_now_kst()
+                    total_dur_minutes = (target_hours * 60) + target_minutes
+                    target_time = start_time + timedelta(minutes=total_dur_minutes)
+                    
+                    new_doc = {
+                        "serial_no": serial_from_url,
+                        "tool_type": tool_type,
+                        "status": "사용중",
+                        "worker": worker.strip(),
+                        "machine_no": machine_no.strip(),
+                        "start_time": start_time,
+                        "target_time": target_time,
+                        "dressing_period_minutes": total_dur_minutes,
+                        "limit_cnt": limit_cnt,
+                        "current_cnt": 0,
+                        "memo": memo.strip(),
+                        "waste_date": None,
+                        "history": [{
+                            "timestamp": start_time,
+                            "action": "최초 등록 및 장착 가동",
+                            "worker": worker.strip(),
+                            "machine_no": machine_no.strip(),
+                            "status": "사용중"
+                        }]
+                    }
+                    db_collection.insert_one(new_doc)
+                    st.success(f"🎉 [{serial_from_url}] 툴이 성공적으로 가동 리스트에 등록되었습니다!")
+                    time.sleep(1)
+                    st.rerun()
+    else:
+        # 이미 등록된 툴인 경우 -> 상태 수정 및 카운트 관리 화면
+        st.success("✅ 조회 성공: 정상 등록되어 운영 중인 툴입니다.")
+        
+        # 현재 상태 서머리 카드
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("툴 종류", tool_data.get("tool_type"))
+        c2.metric("현재 상태", tool_data.get("status"))
+        c3.metric("현재 기계", tool_data.get("machine_no"))
+        c4.metric("드레싱 횟수", f"{tool_data.get('current_cnt') or 0} / {tool_data.get('limit_cnt') or 5} 회")
+        
+        st.write("---")
+        
+        # 현장 상태 업데이트 폼
+        with st.form("update_form"):
+            st.subheader("🔄 실시간 상태 조치 및 변경")
+            status_opt = ["사용전", "사용중", "폐기"]
+            curr_status = tool_data.get("status", "사용중")
+            status_idx = status_opt.index(curr_status) if curr_status in status_opt else 1
+            
+            new_status = st.selectbox("변경할 상태", status_opt, index=status_idx)
+            new_worker = st.text_input("담당 작업자 수정/확인", value=tool_data.get("worker", ""))
+            new_machine = st.text_input("장착 기계 수정/확인", value=tool_data.get("machine_no", ""))
+            new_cnt = st.number_input("현재까지 진행된 드레싱 누적 횟수", min_value=0, max_value=200, value=int(tool_data.get("current_cnt") or 0))
+            new_memo = st.text_area("현장 작업 메모 갱신", value=tool_data.get("memo", ""))
+            
+            submit_update = st.form_submit_button("💾 현장 정보 업데이트 저장")
+            
+            if submit_update:
+                up_time = get_now_kst()
+                w_date = up_time if new_status == "폐기" else tool_data.get("waste_date")
+                
+                # 타겟 시간 재계산 방어 로직 (사용중으로 바뀔 때 주기 정보 보존)
+                p_min = tool_data.get("dressing_period_minutes", 720)
+                t_time = tool_data.get("target_time")
+                if curr_status != "사용중" and new_status == "사용중":
+                    t_time = up_time + timedelta(minutes=p_min)
+                    
+                update_fields = {
+                    "status": new_status,
+                    "worker": new_worker.strip(),
+                    "machine_no": new_machine.strip(),
+                    "current_cnt": new_cnt,
+                    "memo": new_memo.strip(),
+                    "waste_date": w_date,
+                    "target_time": t_time
+                }
+                
+                hist_entry = {
+                    "timestamp": up_time,
+                    "action": f"현장 모바일 수정 ({curr_status} -> {new_status})",
+                    "worker": new_worker.strip(),
+                    "machine_no": new_machine.strip(),
+                    "status": new_status
+                }
                 
                 db_collection.update_one(
-                    {"serial_no": qr_scanned_serial},
-                    {"$set": {
-                        "serial_no": qr_scanned_serial,
-                        "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
-                        "status": m_status,
-                        "input_date": str(today),
-                        "worker": m_worker,
-                        "machine_no": machine_full_name,
-                        "dressing_hours": dressing_hours,
-                        "dressing_mins": dressing_mins,
-                        "start_time": start_time_str,
-                        "target_time": target_time_str,
-                        "use_limit": m_limit,
-                        "current_use": 0,
-                        "waste_date": waste_val,
-                        "note": m_note
-                    }},
-                    upsert=True
+                    {"serial_no": serial_from_url},
+                    {"$set": update_fields, "$push": {"history": hist_entry}}
                 )
-                st.success("🎉 지정하신 장착 시간 기준으로 저장이 완료되었습니다!")
-                st.balloons()
+                st.success("✅ 현장 상태가 성공적으로 DB에 반영되었습니다.")
+                time.sleep(1)
                 st.rerun()
                 
-    if st.button("🏠 메인 시스템으로 돌아가기"):
+        # 과거 이력 확인 (확장 섹션)
+        with st.expander("📜 이 툴의 전체 변경 이력 보기"):
+            for h in reversed(tool_data.get("history", [])):
+                st.write(f"- **{str(h.get('timestamp'))[:19]}** | 작업자: {h.get('worker')} | 기계: {h.get('machine_no')} | 행동: {h.get('action')} -> `{h.get('status')}`")
+
+    if st.button("🏠 전체 관리 시스템(PC모드)으로 전환"):
         st.query_params.clear()
         st.rerun()
 
 
-# --- 💻 [PC 관리자 모드] ---
+# ==========================================
+# 💻 [모드 2] PC 종합 모니터링 및 관리자 모드
+# ==========================================
 else:
-    st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", [
-        "📊 빈데이터 QR코드 대량 선발행", 
-        "⚠️ 실시간 툴 드레싱 알림판", 
-        "📂 전체 데이터 현황판", 
-        "⚙️ 데이터 수정 / 삭제 / QR 재발행",
-        "🖥️ 실시간 기계 정보창"
-    ])
+    st.sidebar.title("🛠️ 툴 종합 관리 센터")
+    menu = st.sidebar.radio(
+        "메뉴 선택", 
+        [
+            "📊 빈데이터 QR코드 대량 선발행", 
+            "⚠️ 실시간 툴 드레싱 알림판", 
+            "📂 전체 데이터 현황판", 
+            "⚙️ 데이터 수정 / 삭제 / QR 재발행",
+            "🖥️ 실시간 기계 정보창"
+        ]
+    )
     
-    # 1) QR코드 대량 연속 선발행 창
-    if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
-        st.title("🖨️ 현장 부착용 빈데이터 QR코드 대량 연속 발행 (5자리 순번 버전)")
-        st.markdown("---")
+    # ------------------------------------------
+    # 메뉴 1: 빈데이터 QR코드 대량 선발행
+    # ------------------------------------------
+    if menu == "📊 빈데이터 QR코드 대량 선발행":
+        st.title("📊 빈데이터 QR코드 대량 선발행 시스템")
+        st.write("현장에 미리 부착해 둘 공백 상태의 QR 라벨을 규칙 기반으로 일괄 생성합니다.")
         
-        c1, c2 = st.columns(2)
-        with c1:
-            tool_code = st.text_input("🆔 고유넘버 앞 3자리 입력 (전착:001 / 레진:002 / 메탈:003)", value="001", max_chars=3)
-        with c2:
-            quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
+        with st.form("bulk_form"):
+            t_type = st.selectbox("선발행 툴 종류 선택", ["전착툴", "레진툴", "메탈툴"])
+            qty = st.number_input("발행 수량 (개)", min_value=1, max_value=100, value=10)
+            start_num = st.number_input("시작 순번 (당일 발행 기준)", min_value=1, max_value=99999, value=1)
             
-        prefix = f"{tool_code}{mmdd}"
-        
-        try:
-            last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
-            if last_tool:
-                last_counter = int(last_tool["serial_no"][-5:])
-            else:
-                last_counter = 0
-        except Exception:
-            last_counter = 0
+            submit_bulk = st.form_submit_button("✨ 빈 데이터베이스 시리얼 및 QR 대량 생성")
             
-        st.info(f"🔍 마지막 발행 번호: **{last_counter}번** ➡️ 이번에 생성될 순번: **{last_counter+1}번 ~ {last_counter+quantity}번**")
-        
-        if "show_qr_grid" not in st.session_state:
-            st.session_state.show_qr_grid = False
-        if "current_view_serials" not in st.session_state:
-            st.session_state.current_view_serials = []
-
-        if st.button(f"🖨️ {quantity}개의 연속 QR코드 즉시 발행"):
-            blank_records = []
-            generated_serials = []
-            
-            for idx in range(1, quantity + 1):
-                current_seq = last_counter + idx
-                serial_no = f"{prefix}{current_seq:05d}"
-                generated_serials.append(serial_no)
-                
-                blank_records.append({
-                    "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
-                    "status": "사용전",
-                    "input_date": str(today),
-                    "worker": "",
-                    "machine_no": "",
-                    "dressing_hours": 0,
-                    "dressing_mins": 0,
-                    "start_time": "-",
-                    "target_time": "-",
-                    "use_limit": 10000,
-                    "current_use": 0,
-                    "waste_date": "-",
-                    "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] QR 선발행 완료 (현장 기입 대기)"
-                })
-                    
-            try:
-                db_collection.insert_many(blank_records)
-                st.session_state.current_view_serials = generated_serials
-                st.session_state.show_qr_grid = True
-                st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다!")
-            except Exception as e:
-                st.error(f"오류 발생: {e}")
-
-        if st.session_state.show_qr_grid and st.session_state.current_view_serials:
-            st.markdown("---")
-            
-            html_printable_content = "<div id='print-target-area' style='display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; padding: 10px;'>"
-            
-            grid_cols = st.columns(4)
-            for idx, s_no in enumerate(st.session_state.current_view_serials):
-                qr_bytes = generate_app_qr_bytes(s_no)
-                base64_qr = base64.b64encode(qr_bytes).decode("utf-8")
-                
-                with grid_cols[idx % 4]:
-                    st.image(qr_bytes, width=130)
-                    st.markdown(f"**🆔 {s_no}**")
-                
-                html_printable_content += f"""
-                <div style="width: 140px; text-align: center; border: 1px dashed #ccc; padding: 8px; background: white; margin-bottom:10px; page-break-inside: avoid;">
-                    <img src="data:image/png;base64,{base64_qr}" style="width: 120px; height: 120px;" />
-                    <div style="font-family: monospace; font-size: 11px; font-weight: bold; margin-top: 4px; color:#000;">ID: {s_no}</div>
-                </div>
-                """
-            html_printable_content += "</div>"
-            st.markdown("---")
-            
-            js_print_trigger = f"""
-            <script>
-            function executeQrPrint() {{
-                var printWindow = window.open('', '_blank', 'width=900,height=700');
-                printWindow.document.write('<html><head><title>KKQ 4파트 QR코드 라벨 인쇄</title>');
-                printWindow.document.write('<style>body {{ margin: 10px; padding: 0; background: #fff; }} @page {{ size: auto; margin: 5mm; }}</style>');
-                printWindow.document.write('</head><body>');
-                printWindow.document.write(`{html_printable_content}`);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.focus();
-                setTimeout(function() {{
-                    printWindow.print();
-                    printWindow.close();
-                }}, 600);
-            }}
-            </script>
-            <button onclick="executeQrPrint()" style="
-                width: 100%;
-                background-color: #00B050;
-                color: white;
-                padding: 14px 20px;
-                margin: 8px 0;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: bold;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-            ">
-                🖨️ 생성된 QR코드 전체 프린터로 인쇄하기 (라벨 발행 연동)
-            </button>
-            """
-            
-            st.components.v1.html(js_print_trigger, height=75)
-            
-            if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
-                st.session_state.show_qr_grid = False
-                st.session_state.current_view_serials = []
-                st.rerun()
-
-        st.markdown("<br><br><br>---", unsafe_allow_html=True)
-        st.subheader("🚨 시스템 마스터 관리자 영역")
-        
-        if "reset_success" not in st.session_state:
-            st.session_state.reset_success = False
-        if "reset_message" not in st.session_state:
-            st.session_state.reset_message = ""
-
-        if st.session_state.reset_success:
-            st.success(st.session_state.reset_message)
-            st.balloons()
-            if st.button("🔄 관리자 영역 새로고침 (메뉴 다시 열기)"):
-                st.session_state.reset_success = False
-                st.session_state.reset_message = ""
-                st.rerun()
-        else:
-            with st.expander("💥 데이터베이스 초기화 및 특정 시리얼 개별 삭제", expanded=False):
-                delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
-                
-                if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
-                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["001 (전착툴)", "002 (레진툴)", "003 (메탈툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
-                    understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
-                    
-                    if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
-                        if understand_risk:
-                            if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                                db_collection.delete_many({})
-                                st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
-                            else:
-                                code_prefix = target_reset_code.split(" ")[0]
-                                db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                                st.session_state.reset_message = f"💥 선택하신 {target_reset_code} 데이터 초기화 처리가 완벽하게 끝났습니다!"
-                            
-                            st.session_state.show_qr_grid = False
-                            st.session_state.current_view_serials = []
-                            st.session_state.reset_success = True
-                            st.rerun()
-                        else:
-                            st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
-                            
+            if submit_bulk:
+                if db_collection is None:
+                    st.error("데이터베이스 연결 실패")
                 else:
-                    target_single_serial = st.text_input("🆔 삭제 처리할 12자리 시리얼 번호를 정확히 기입하세요 (예: 001060200001)").strip()
-                    understand_risk_single = st.checkbox("❗ 기입한 특정 시리얼 툴 데이터를 영구 삭제하는 것에 동의합니다.", key="risk_single")
+                    success_cnt = 0
+                    skip_cnt = 0
                     
-                    if st.button("❌ 해당 개별 시리얼 넘버 데이터 즉시 삭제", key="btn_single_del"):
-                        if not target_single_serial:
-                            st.error("⚠️ 시리얼 번호를 입력해 주세요.")
-                        elif len(target_single_serial) != 12:
-                            st.error("⚠️ 시리얼 번호는 정확히 11자리여야 합니다.")
-                        elif not understand_risk_single:
-                            st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
-                        else:
-                            match_count = db_collection.count_documents({"serial_no": target_single_serial})
-                            if match_count == 0:
-                                st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
-                            else:
-                                db_collection.delete_one({"serial_no": target_single_serial})
-                                st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
-                                st.session_state.reset_success = True
-                                st.rerun()
-
-    # 2) ⚠️ 실시간 툴 드레싱 알림판
-    elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
-        st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
-        st.markdown("---")
-        
-        try:
-            active_tools = list(db_collection.find({"status": "사용중", "target_time": {"$ne": "-"}}))
-            if not active_tools:
-                st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
-            else:
-                st.markdown("### 📊 실시간 가동 현황 목록")
-                current_now = get_now_kst()
-                
-                for item in active_tools:
-                    target_time_str = item.get("target_time")
-                    target_dt = dt_class.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-                    time_diff = target_dt - current_now
-                    total_seconds = time_diff.total_seconds()
+                    type_code = "WJ" if t_type == "전착툴" else ("RJ" if t_type == "레진툴" else "MT")
                     
-                    if total_seconds <= 0:
-                        status_label = "🚨 드레싱/교체 필요 (시간초과)"
-                        color_hex = "#FF4B4B"
-                        time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
-                    elif total_seconds <= 3600:
-                        status_label = "🟡 주의 (1시간 이내 임박)"
-                        color_hex = "#FFAA00"
-                        time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
-                    else:
-                        status_label = "🟢 정상 가동 중"
-                        color_hex = "#00B050"
-                        hours_left = int(total_seconds // 3600)
-                        mins_left = int((total_seconds % 3600) // 60)
-                        time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
-                    
-                    with st.container():
-                        st.markdown(
-                            f"""
-                            <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
-                                <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']})</h4>
-                                <p style="margin: 5px 0; font-size: 15px;">
-                                    <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
-                                    <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
-                                    <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
-                                </p>
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
+                    for i in range(qty):
+                        seq = start_num + i
+                        serial_str = f"{type_code}_{mmdd}_{seq:05d}"
                         
-                        if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
-                            t_hours = int(item.get('dressing_hours', 4))
-                            t_mins = int(item.get('dressing_mins', 0))
-                            new_total_mins = (t_hours * 60) + t_mins
-                            click_now = get_now_kst()
-                            new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
-                            new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                        # 중복 검사
+                        exist = db_collection.find_one({"serial_no": serial_str})
+                        if exist:
+                            skip_cnt += 1
+                            continue
                             
-                            db_collection.update_one(
-                                {"serial_no": item['serial_no']},
-                                {"$set": {
-                                    "start_time": new_start,
-                                    "target_time": new_target,
-                                    "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
-                                }}
-                            )
-                            st.success(f"🎉 타이머가 현재 시간 기준으로 리셋되었습니다!")
-                            st.rerun()
-                            
-        except Exception as e:
-            st.error(f"알림판 연동 오류: {e}")
-
-    # 3) 📂 종합 현황판 창 (⭐ 상태 솔팅 및 시리얼 검색창 고도화 영역)
-    elif tool_menu == "📂 전체 데이터 현황판":
-        st.title("📂 현장 기입 데이터 통합 현황판")
-        st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
-        st.markdown("---")
-        
-        # 🔍 [추가] 좌측 상단 실시간 검색 및 상태 정렬 컨트롤 보드 구조화
-        search_col1, search_col2 = st.columns([1, 1])
-        with search_col1:
-            status_filter = st.selectbox(
-                "🔍 툴 상태별 정렬 필터", 
-                ["사용중 🟡 (기본값)", "전체 보기 📂", "사용전(기기대기) 🟢", "폐기 🔴"], 
-                index=0
-            )
-        with search_col2:
-            keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색 (번호 입력)", placeholder="예: 010602").strip()
-
-        st.markdown("---")
-        
-        try:
-            # 기본 정렬 조건: 시리얼 넘버 최신순
-            all_data = list(db_collection.find({}).sort("serial_no", -1))
-            
-            if not all_data:
-                st.info("조회할 데이터가 없습니다.")
-            else:
-                filtered_data = []
-                
-                # 🚀 메모리 단계적 하이브리드 필터링 파이프라인
-                for item in all_data:
-                    item_status = item.get("status", "사용전")
-                    
-                    # 1단계: 상태 셀렉트박스 매칭 검사
-                    if status_filter == "사용중 🟡 (기본값)" and item_status != "사용중":
-                        continue
-                    elif status_filter == "사용전(기기대기) 🟢" and item_status != "사용전":
-                        continue
-                    elif status_filter == "폐기 🔴" and item_status != "폐기":
-                        continue
-                        
-                    # 2단계: 키워드 검색어 매칭 검사 (입력값이 있을 때만 작동)
-                    if keyword_search and keyword_search not in item["serial_no"]:
-                        continue
-                        
-                    filtered_data.append(item)
-
-                # 최종 결과물 화면 렌더링
-                if not filtered_data:
-                    st.warning("🔍 지정하신 검색 조건 및 정렬 기준에 일치하는 툴 데이터가 없습니다.")
-                else:
-                    st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
-                    
-                    for item in filtered_data:
-                        s_no = item["serial_no"]
-                        status = item.get("status", "사용전")
-                        status_badge = "🟢 [사용전]" if status == "사용전" else "🟡 [사용중]" if status == "사용중" else "🔴 [폐기]"
-                            
-                        if not item['worker'] or not item['machine_no']:
-                            expander_title = f"⚪ 기입 대기 | 🆔 {s_no} | 상태: {status_badge}"
-                        else:
-                            expander_title = f"🆔 {s_no} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
-                            
-                        with st.expander(expander_title):
-                            edit_key = f"is_editing_{s_no}"
-                            if edit_key not in st.session_state:
-                                st.session_state[edit_key] = False
-                                
-                            if st.session_state[edit_key]:
-                                st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
-                                
-                                orig_m = item.get('machine_no', '')
-                                orig_m_num = ''.join(filter(str.isdigit, orig_m))
-                                try:
-                                    def_m_int = int(orig_m_num) if orig_m_num else 4
-                                except:
-                                    def_m_int = 4
-
-                                db_start_time = item.get("start_time", "-")
-                                board_now = get_now_kst()
-                                if db_start_time != "-":
-                                    try:
-                                        parsed_dt = dt_class.strptime(db_start_time, "%Y-%m-%d %H:%M:%S")
-                                        init_date = parsed_dt.date()
-                                        init_time = parsed_dt.time()
-                                    except:
-                                        init_date = board_now.date()
-                                        init_time = board_now.time()
-                                else:
-                                    init_date = board_now.date()
-                                    init_time = board_now.time()
-
-                                st.markdown("📅 **최초 기계 장착 일시 수정**")
-                                col_be_d, col_be_t = st.columns(2)
-                                with col_be_d:
-                                    ed_date = st.date_input("장착 날짜 변경", value=init_date, key=f"dt_{s_no}")
-                                with col_be_t:
-                                    ed_time = st.time_input("장착 시간 변경", value=init_time, step=300, key=f"tm_{s_no}")
-
-                                combined_ed_dt = dt_class.combine(ed_date, ed_time)
-
-                                with st.form(key=f"board_edit_form_{s_no}"):
-                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(status) if status in ["사용전", "사용중", "폐기"] else 0, horizontal=True)
-                                    col_e1, col_e2 = st.columns(2)
-                                    with col_e1:
-                                        ed_worker = st.text_input("👷 교체 작업자 이름", value=item.get('worker', ''))
-                                    with col_e2:
-                                        ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
-                                        
-                                    st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
-                                    col_eh, col_em = st.columns(2)
-                                    with col_eh:
-                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
-                                    with col_em:
-                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
-                                        
-                                    ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
-                                    
-                                    b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
-                                    
-                                if b_submit:
-                                    waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
-                                    full_mach_name = f"{ed_machine_num}호기"
-                                    
-                                    total_mins = (ed_hours * 60) + ed_mins
-                                    if total_mins > 0 and ed_status == "사용중":
-                                        start_time_val = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
-                                        target_time_val = (combined_ed_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
-                                    else:
-                                        start_time_val = "-" if ed_status == "사용전" else item.get("start_time", "-")
-                                        target_time_val = "-"
-                                        
-                                    db_collection.update_one(
-                                        {"serial_no": s_no},
-                                        {"$set": {
-                                            "status": ed_status,
-                                            "worker": ed_worker,
-                                            "machine_no": full_mach_name,
-                                            "dressing_hours": ed_hours,
-                                            "dressing_mins": ed_mins,
-                                            "start_time": start_time_val,
-                                            "target_time": target_time_val,
-                                            "waste_date": waste_date_val,
-                                            "note": ed_note
-                                        }}
-                                    )
-                                    st.session_state[edit_key] = False
-                                    st.success(f"🎉 데이터가 성공적으로 업데이트되었습니다.")
-                                    st.rerun()
-                                    
-                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                                    
-                            else:
-                                col_x, col_y = st.columns(2)
-                                with col_x:
-                                    st.write(f"• **💎 툴 종류:** {item['tool_type']}")
-                                    st.write(f"• **📅 최초 발행일:** {item['input_date']}")
-                                    st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
-                                    st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
-                                    # 폐기 시 폐기일시 표시
-                                    if item.get("status") == "폐기":
-                                        st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
-                                with col_y:
-                                    East_mach = item['machine_no'] if item['machine_no'] else '-'
-                                    st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
-                                    st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                                    st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                                st.write(f"• **📝 현장 특이 사항:** {item['note']}")
-                                
-                                if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
-                                    st.session_state[edit_key] = True
-                                    st.rerun()
-                                
-        except Exception as e:
-            st.error(f"데이터 로드 실패: {e}")
-
-    # 4) 데이터 수정 / 삭제 / QR 재발행 창
-    elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
-        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
-        st.markdown("---")
-        
-        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
-        
-        if target_serial:
-            if len(target_serial) != 12:
-                st.warning("⚠️ 시리얼 넘버는 정확히 12자리 규격이어야 합니다.")
-            else:
-                exist_item = db_collection.find_one({"serial_no": target_serial})
-                
-                if exist_item:
-                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
-                    
-                    # QR 생성 및 인쇄 로직
-                    qr_res_bytes = generate_app_qr_bytes(target_serial)
-                    base64_qr = base64.b64encode(qr_res_bytes).decode("utf-8")
-                    
-                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
-                    
-                    # 대량 발행창의 인쇄 로직 적용
-                    html_content = f"""
-                    <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
-                        <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
-                        <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
-                    </div>
-                    """
-                    
-                    js_print_trigger = f"""
-                    <script>
-                    function executeQrPrint() {{
-                        var printWindow = window.open('', '_blank', 'width=400,height=400');
-                        printWindow.document.write('<html><head><title>QR 인쇄</title></head><body>');
-                        printWindow.document.write(`{html_content}`);
-                        printWindow.document.write('</body></html>');
-                        printWindow.document.close();
-                        setTimeout(function() {{ printWindow.print(); printWindow.close(); }}, 500);
-                    }}
-                    </script>
-                    <button onclick="executeQrPrint()" style="width:100%; padding:10px; background-color:#00B050; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
-                        🖨️ 이 QR코드 인쇄하기
-                    </button>
-                    """
-                    st.components.v1.html(js_print_trigger, height=60)
-
-                else:
-                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
-                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
-                        t_code = target_serial[:2]
-                        new_blank = {
-                            "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="001" else "레진툴" if t_code=="002" else "메탈툴",
+                        blank_doc = {
+                            "serial_no": serial_str,
+                            "tool_type": t_type,
                             "status": "사용전",
-                            "input_date": str(today),
                             "worker": "",
                             "machine_no": "",
-                            "dressing_hours": 0,
-                            "dressing_mins": 0,
-                            "start_time": "-",
-                            "target_time": "-",
-                            "use_limit": 10000,
-                            "current_use": 0,
-                            "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
+                            "start_time": None,
+                            "target_time": None,
+                            "dressing_period_minutes": 720,
+                            "limit_cnt": 5,
+                            "current_cnt": 0,
+                            "memo": "대량 선발행된 공백 데이터",
+                            "waste_date": None,
+                            "history": [{
+                                "timestamp": get_now_kst(),
+                                "action": "시스템 대량 선발행 생성",
+                                "worker": "시스템",
+                                "machine_no": "",
+                                "status": "사용전"
+                            }]
                         }
-                        db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
-                        st.rerun()
-
-    elif tool_menu == "🖥️ 실시간 기계 정보창":
-            st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
-            now_kst = get_now_kst()
-            st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+                        db_collection.insert_one(blank_doc)
+                        success_cnt += 1
+                        
+                    st.success(f"✅ 일괄 생성 완료! (신규 생성: {success_cnt}건 / 중복 패스: {skip_cnt}건)")
+                    
+        # 인쇄를 위한 리스트 업 섹션
+        st.write("---")
+        st.subheader("🖨️ 인쇄할 발행대상 조건 검색 및 라벨 출력")
+        
+        p_type = st.selectbox("출력할 툴 종류", ["전착툴", "레진툴", "메탈툴"], key="print_type")
+        p_date = st.text_input("출력 날짜 필터 (MMDD 형식)", value=mmdd)
+        
+        if st.button("🔍 인쇄 대상 조회하기"):
+            t_code = "WJ" if p_type == "전착툴" else ("RJ" if p_type == "레진툴" else "MT")
+            search_pattern = f"^{t_code}_{p_date}_"
             
-            layout = [
-                [27, 28, 29, 30, 31, 9, 8, 7],
-                [16, 17, 26, 32, 57],
-                [15, 18, 25, 33, 56],
-                [14, 19, 24, 34, 55, 6],
-                [13, 20, 35, 54, 5],
-                [12, 21, 36, 53, 4],
-                [11, 22, 37, 52, 3],
-                [10, 23, 38, 43],
-                [39, 40, 41, 42],
-                [44, 45, 46, 47, 48, 49, 50, 51]
-            ]
+            items = list(db_collection.find({"serial_no": {"$regex": search_pattern}}).sort("serial_no", 1))
+            
+            if not items:
+                st.info("조건에 일치하는 선발행 데이터가 없습니다.")
+            else:
+                st.success(f"총 {len(items)}개의 라벨을 찾았습니다. 아래 인쇄 버튼을 누르세요.")
+                
+                # HTML+JS 프린트 레이아웃 구성
+                html_cards = ""
+                for idx, item in enumerate(items):
+                    s_no = item["serial_no"]
+                    b64_img = generate_qr_base64(s_no)
+                    
+                    html_cards += f"""
+                    <div class="qr-card">
+                        <div class="title">{p_type} 관리라벨</div>
+                        <img src="data:image/png;base64,{b64_img}" />
+                        <div class="serial">{s_no}</div>
+                    </div>
+                    """
+                    if (idx + 1) % 4 == 0 and (idx + 1) < len(items):
+                        html_cards += '<div class="page-break"></div>'
+                        
+                print_template = f"""
+                <html>
+                <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; margin: 0; padding: 10px; }}
+                    .qr-grid {{ display: flex; flex-wrap: wrap; gap: 15px; justify-content: flex-start; }}
+                    .qr-card {{ width: 160px; border: 1px dashed #333; padding: 8px; text-align: center; background: #fff; }}
+                    .title {{ font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #111; }}
+                    .serial {{ font-size: 11px; font-weight: bold; margin-top: 3px; color: #444; }}
+                    img {{ width: 120px; height: 120px; }}
+                    .page-break {{ width: 100%; height: 0; page-break-after: always; }}
+                    @media print {{
+                        .no-print {{ display: none; }}
+                        .qr-card {{ border: 1px solid #000; page-break-inside: avoid; }}
+                    }}
+                </style>
+                </head>
+                <body>
+                    <div class="no-print" style="margin-bottom:20px;">
+                        <button onclick="window.print()" style="padding:10px 20px; font-size:16px; background-color:#4CAF50; color:white; border:none; cursor:pointer; border-radius:5px;">
+                            🖨️ 바코드 라벨프린터로 즉시 인쇄하기
+                        </button>
+                        <hr>
+                    </div>
+                    <div class="qr-grid">
+                        {html_cards}
+                    </div>
+                </body>
+                </html>
+                """
+                st.components.v1.html(print_template, height=500, scroller=True)
+                
+        # 마스터 수동 단일 발행 관리자 영역
+        with st.sidebar.expander("🚨 [위험] 마스터 수동 단일 발행"):
+            target_single_serial = st.text_input("수동 발행할 완벽한 시리얼넘버 입력", placeholder="WJ_0604_00001")
+            single_type = st.selectbox("타겟 종류", ["전착툴", "레진툴", "메탈툴"], key="single_s")
+            
+            if st.button("수동 강제 생성 실행"):
+                if not target_single_serial.strip():
+                    st.error("시리얼 번호를 쓰세요.")
+                # 🛠️ 버그 수정: 기존 len != 12 검사인데 문구는 11자리로 오 표기되었던 부분 수정 (12자리로 수정)
+                elif len(target_single_serial) != 12:
+                    st.error("⚠️ 시리얼 번호는 정확히 12자리여야 합니다. (예: WJ_0604_00001)")
+                else:
+                    dup = db_collection.find_one({"serial_no": target_single_serial.strip()})
+                    if dup:
+                        st.error("이미 존재하는 시리얼입니다.")
+                    else:
+                        db_collection.insert_one({
+                            "serial_no": target_single_serial.strip(),
+                            "tool_type": single_type,
+                            "status": "사용전",
+                            "worker": "", "machine_no": "", "start_time": None, "target_time": None,
+                            "dressing_period_minutes": 720, "limit_cnt": 5, "current_cnt": 0,
+                            "memo": "마스터 메뉴에서 수동 강제 단일 발행됨", "waste_date": None,
+                            "history": [{"timestamp": get_now_kst(), "action": "마스터 수동 강제 발행", "worker": "마스터", "machine_no": "", "status": "사용전"}]
+                        })
+                        st.success("강제 생성 완료!")
 
-            # 1. 하나의 기계에 여러 툴이 있을 수 있으므로 리스트로 관리
-            active_tools = list(db_collection.find({"status": "사용중"}))
-            machine_tool_map = {}
-            for t in active_tools:
-                m_no_str = str(t.get('machine_no', ''))
-                nums = re.findall(r'\d+', m_no_str)
-                if nums:
-                    m_no = int(nums[0])
-                    if m_no not in machine_tool_map:
-                        machine_tool_map[m_no] = []
-                    machine_tool_map[m_no].append(t)
+    # ------------------------------------------
+    # 메뉴 2: 실시간 툴 드레싱 알림판
+    # ------------------------------------------
+    elif menu == "⚠️ 실시간 툴 드레싱 알림판":
+        st.title("⚠️ 실시간 가동 툴 드레싱 모니터링 전광판")
+        st.write("현재 기계에 장착되어 작동 중인 툴들의 다음 드레싱 주기까지 남은 시간을 계산하여 실시간 알림을 보냅니다.")
+        
+        # 주기적 수동 동기화 유도
+        if st.button("🔄 전광판 수동 새로고침"):
+            st.rerun()
+            
+        # 가동중인 데이터 로드
+        active_tools = list(db_collection.find({"status": "사용중"}))
+        
+        if not active_tools:
+            st.info("🟢 현재 기계에 장착되어 가동 중인 툴이 없습니다. 모든 설비가 공실이거나 사용전/폐기 상태입니다.")
+        else:
+            # 상태 분류용 리스트
+            danger_list = []   # 시간 초과 (빨강)
+            warning_list = []  # 임박 1시간 미만 (노랑)
+            normal_list = []   # 정상 (녹색)
+            
+            current_time_calc = get_now_kst()
+            
+            for tool in active_tools:
+                t_time = tool.get("target_time")
+                if not t_time:
+                    # 타겟 타임이 실종된 예외 케이스 방어
+                    p_min = tool.get("dressing_period_minutes", 720)
+                    s_time = tool.get("start_time") or current_time_calc
+                    t_time = s_time + timedelta(minutes=p_min)
+                    db_collection.update_one({"_id": tool["_id"]}, {"$set": {"target_time": t_time}})
+                
+                # 남은 시간(분) 계산
+                time_diff = t_time - current_time_calc
+                diff_minutes = time_diff.total_seconds() / 60.0
+                
+                tool["diff_minutes"] = diff_minutes
+                
+                if diff_minutes < 0:
+                    danger_list.append(tool)
+                elif diff_minutes <= 60:
+                    warning_list.append(tool)
+                else:
+                    normal_list.append(tool)
+                    
+            # 🎨 시각화 레이아웃 배치
+            st.markdown(f"### 🕒 현재 기준 시간(KST): `{current_time_calc.strftime('%Y-%m-%d %H:%M:%S')}`")
+            
+            # 섹션 1: 🚨 알람 드레싱 시간 초과 (DANGER)
+            st.markdown("#### 🔴 드레싱 주기 초과 (즉시 조치 필요)")
+            if not danger_list:
+                st.write("✅ 지연된 툴이 없습니다.")
+            else:
+                cols = st.columns(3)
+                for idx, t in enumerate(danger_list):
+                    with cols[idx % 3]:
+                        over_min = abs(int(t['diff_minutes']))
+                        st.markdown(f"""
+                        <div style="background-color:#FFEBEE; padding:15px; border-radius:8px; border-left:8px solid #D32F2F; margin-bottom:10px;">
+                            <b style="font-size:16px; color:#C62828;">🚨 {t['serial_no']} ({t['tool_type']})</b><br>
+                            <b>📍 장착 설비:</b> {t['machine_no']} | <b>작업자:</b> {t['worker']}<br>
+                            <span style="color:#B71C1C; font-weight:bold;">⚠️ {over_min}분 초과 근무 중!</span><br>
+                            <small>목표시간: {str(t['target_time'])[11:16]} (누적: {t.get('current_cnt',0)}회)</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if st.button(f"🧼 드레싱 완료 처리", key=f"btn_d_{t['serial_no']}"):
+                            # 드레싱 리셋 로직
+                            up_now = get_now_kst()
+                            next_target = up_now + timedelta(minutes=t.get("dressing_period_minutes", 720))
+                            next_cnt = int(t.get("current_cnt") or 0) + 1
+                            
+                            st.write(next_cnt, t.get("limit_cnt", 5))
+                            
+                            # 한도 도달 시 자동 폐기 제안 알림 처리 유연성 유도
+                            status_action = "사용중"
+                            action_msg = "드레싱 완료 (타이머 리셋)"
+                            if next_cnt >= int(t.get("limit_cnt", 5)):
+                                status_action = "사용중" # 현장에서 직접 폐기 전환하도록 유도하거나 경고문구 추가
+                                action_msg = "드레싱 완료 [⚠️ 수명 한도 도달 경고]"
+                                
+                            db_collection.update_one(
+                                {"_id": t["_id"]},
+                                {
+                                    "$set": {"start_time": up_now, "target_time": next_target, "current_cnt": next_cnt, "status": status_action},
+                                    "$push": {"history": {"timestamp": up_now, "action": action_msg, "worker": t['worker'], "machine_no": t['machine_no'], "status": status_action}}
+                                }
+                            )
+                            st.success("완료 반영 되었습니다!")
+                            time.sleep(0.5)
+                            st.rerun()
 
-            for row in layout:
-                cols = st.columns(len(row))
-                for i, m_no in enumerate(row):
-                    with cols[i]:
-                        tools = machine_tool_map.get(m_no, [])
-                        if tools:
-                            # 🟢 툴이 있는 경우: 여러 개여도 모두 표시
-                            tool_cards = ""
-                            for t in tools:
-                                tool_cards += f"""
-                                <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
-                                    <b>ID: {t.get('serial_no', 'N/A')}</b><br>
-                                    작업자: {t.get('worker', '미지정')}<br>
-                                    장착: {str(t.get('start_time', ''))[5:16]}
-                                </div>
-                                """
-                            st.markdown(f"""
-                                <div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;">
-                                    <b style="color:#1b5e20; font-size:11px;">{m_no}호기 ({len(tools)}개)</b>
-                                    {tool_cards}
-                                </div>
-                            """, unsafe_allow_html=True)
+            # 섹션 2: 🟡 드레싱 주기 임박 (WARNING - 1시간 이내)
+            st.markdown("#### 🟡 드레싱 임박 (1시간 이내)")
+            if not warning_list:
+                st.write("🟢 1시간 이내 임박한 툴이 없습니다.")
+            else:
+                cols = st.columns(4)
+                for idx, t in enumerate(warning_list):
+                    with cols[idx % 4]:
+                        st.markdown(f"""
+                        <div style="background-color:#FFFDE7; padding:12px; border-radius:8px; border-left:6px solid #FBC02D; margin-bottom:10px;">
+                            <b style="color:#F57F17;">⚠️ {t['serial_no']}</b> [{t['machine_no']}]<br>
+                            작업자: {t['worker']} | <b>⏱️ {int(t['diff_minutes'])}분 남음</b><br>
+                            <small>목표시간: {str(t['target_time'])[11:16]} (누적: {t.get('current_cnt',0)}회)</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if st.button(f"🧼 완료", key=f"btn_w_{t['serial_no']}"):
+                            up_now = get_now_kst()
+                            next_target = up_now + timedelta(minutes=t.get("dressing_period_minutes", 720))
+                            db_collection.update_one(
+                                {"_id": t["_id"]},
+                                {
+                                    "$set": {"start_time": up_now, "target_time": next_target, "current_cnt": int(t.get("current_cnt") or 0) + 1},
+                                    "$push": {"history": {"timestamp": up_now, "action": "임박 전 사전 드레싱 완료", "worker": t['worker'], "machine_no": t['machine_no'], "status": "사용중"}}
+                                }
+                            )
+                            st.success("반영 완료")
+                            time.sleep(0.5)
+                            st.rerun()
+
+            # 섹션 3: 🟢 정상 가동 중 (NORMAL)
+            st.markdown("#### 🟢 안정 가동 중")
+            if not normal_list:
+                st.write("가동 중인 정상 안정 상태의 툴이 없습니다.")
+            else:
+                cols = st.columns(4)
+                for idx, t in enumerate(normal_list):
+                    with cols[idx % 4]:
+                        rem_hours = int(t['diff_minutes'] // 60)
+                        rem_mins = int(t['diff_minutes'] % 60)
+                        st.markdown(f"""
+                        <div style="background-color:#E8F5E9; padding:10px; border-radius:6px; border-left:5px solid #388E3C; margin-bottom:8px; font-size:13px;">
+                            <b style="color:#2E7D32;">{t['serial_no']}</b> ({t['machine_no']})<br>
+                            남은시간: <b>{rem_hours}시간 {rem_mins}분</b><br>
+                            <small>작업자: {t['worker']} | 누적 {t.get('current_cnt',0)}회</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+    # ------------------------------------------
+    # 메뉴 3: 전체 데이터 현황판 (⭐ 복합 검색 기능 강화 및 추가)
+    # ------------------------------------------
+    elif menu == "📂 전체 데이터 현황판":
+        st.title("📂 데이터 종합 조회 대시보드")
+        st.write("데이터베이스에 등록된 전체 툴의 마스터 상태 일람표입니다.")
+        
+        # 탭 구조 분할 (상태별 필터링의 직관성 유도)
+        tabs = st.tabs(["전체 테이블 보기", "사용중 툴", "사용전 대기조", "폐기 완료 이력"])
+        
+        # 공통 데이터 fetch
+        all_raw = list(db_collection.find().sort("serial_no", -1))
+        
+        # 🔍 [기능 개선] 상단 복합 검색 창 추가 (시리얼, 작업자, 기계번호 공통 인터페이스)
+        st.markdown("### 🔍 다중 조건 통합 검색 및 필터링")
+        src_col1, src_col2, src_col3 = st.columns(3)
+        
+        with src_col1:
+            search_serial = st.text_input("📦 시리얼 번호로 검색", placeholder="시리얼 번호 입력 (예: WJ_)").strip()
+        with src_col2:
+            search_worker = st.text_input("👤 작업자 성명으로 검색", placeholder="작업자 이름 입력 (예: 홍길동)").strip()
+        with src_col3:
+            search_machine = st.text_input("🖥️ 기계 번호(호기)로 검색", placeholder="기계 번호 입력 (예: 12호기)").strip()
+            
+        # 데이터 필터링 프론트엔드 파이프라인 엔진 구현
+        filtered_data = all_raw
+        
+        if search_serial:
+            filtered_data = [d for d in filtered_data if search_serial.lower() in str(d.get("serial_no", "")).lower()]
+        if search_worker:
+            filtered_data = [d for d in filtered_data if search_worker.lower() in str(d.get("worker", "")).lower()]
+        if search_machine:
+            filtered_data = [d for d in filtered_data if search_machine.lower() in str(d.get("machine_no", "")).lower()]
+            
+        def render_custom_table(data_list):
+            """정렬 및 가독성을 높인 HTML 테이블 렌더러 함수"""
+            if not data_list:
+                st.info("검색 조건과 일치하는 데이터가 데이터베이스에 없습니다.")
+                return
+                
+            table_rows = ""
+            for item in data_list:
+                s_time_str = str(item.get("start_time"))[:16] if item.get("start_time") else "-"
+                t_time_str = str(item.get("target_time"))[:16] if item.get("target_time") else "-"
+                w_time_str = str(item.get("waste_date"))[:10] if item.get("waste_date") else "-"
+                
+                # 상태별 배지 CSS 처리
+                status = item.get("status", "사용전")
+                badge_color = "#E0E0E0"
+                text_color = "#333"
+                if status == "사용중":
+                    badge_color = "#C8E6C9"; text_color = "#2E7D32"
+                elif status == "폐기":
+                    badge_color = "#FFCDD2"; text_color = "#C62828"
+                    
+                table_rows += f"""
+                <tr>
+                    <td style="font-weight:bold; font-family:monospace;">{item.get('serial_no')}</td>
+                    <td>{item.get('tool_type')}</td>
+                    <td><span style="background-color:{badge_color}; color:{text_color}; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:12px;">{status}</span></td>
+                    <td style="font-weight:bold;">{item.get('worker') or '-'}</td>
+                    <td style="color:#0D47A1; font-weight:bold;">{item.get('machine_no') or '-'}</td>
+                    <td><small>{s_time_str}</small></td>
+                    <td><small>{t_time_str}</small></td>
+                    <td style="text-align:center; font-weight:bold;">{item.get('current_cnt',0)} / {item.get('limit_cnt',5)}</td>
+                    <td><small style="color:red;">{w_time_str}</small></td>
+                    <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><small>{item.get('memo','')}</small></td>
+                </tr>
+                """
+                
+            html_table = f"""
+            <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; text-align:left;">
+                <thead>
+                    <tr style="background-color:#F5F5F5; border-bottom:2px solid #ddd; font-weight:bold;">
+                        <th style="padding:10px;">시리얼 번호</th>
+                        <th>툴 종류</th>
+                        <th>상태</th>
+                        <th>작업자</th>
+                        <th>기계번호</th>
+                        <th>장착일시</th>
+                        <th>드레싱예정</th>
+                        <th style="text-align:center;">드레싱 횟수</th>
+                        <th>폐기일자</th>
+                        <th>비고/메모</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows}
+                </tbody>
+            </table>
+            """
+            st.markdown(html_table, unsafe_allow_html=True)
+
+        # 탭 1: 전체 데이터 테이블
+        with tabs[0]:
+            st.write(f"📊 현재 조건 검색 매칭 결과: 총 **{len(filtered_data)}** 건")
+            render_custom_table(filtered_data)
+            
+        # 탭 2: 사용중인 데이터 필터링 테이블
+        with tabs[1]:
+            u_data = [d for d in filtered_data if d.get("status") == "사용중"]
+            st.write(f"🔥 매칭된 사용중인 툴: 총 **{len(u_data)}** 건")
+            render_custom_table(u_data)
+            
+        # 탭 3: 사용전 대기중 데이터 필터링 테이블
+        with tabs[2]:
+            b_data = [d for d in filtered_data if d.get("status") == "사용전"]
+            st.write(f"📦 매칭된 준비 상태 대기 툴: 총 **{len(b_data)}** 건")
+            render_custom_table(b_data)
+            
+        # 탭 4: 폐기된 데이터 필터링 테이블
+        with tabs[3]:
+            w_data = [d for d in filtered_data if d.get("status") == "폐기"]
+            st.write(f"🪓 매칭된 수명 종료 폐기 툴: 총 **{len(w_data)}** 건")
+            render_custom_table(w_data)
+
+    # ------------------------------------------
+    # 메뉴 4: 데이터 수정 / 삭제 / QR 재발행
+    # ------------------------------------------
+    elif menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
+        st.title("⚙️ 백엔드 마스터 마스터 데이터 관리 시스템")
+        st.write("오타 수정, 강제 상태 변환, 기록 삭제 및 분실된 고유 QR 코드의 개별 재발행 처리를 수행합니다.")
+        
+        target_serial = st.text_input("🔍 대상 툴의 정확한 시리얼 번호 입력", placeholder="WJ_0604_00001").strip()
+        
+        if target_serial:
+            doc = db_collection.find_one({"serial_no": target_serial})
+            
+            if not doc:
+                st.error("❌ 입력한 시리얼 번호와 일치하는 데이터가 DB에 없습니다.")
+            else:
+                st.success("툴 정보를 성공적으로 조회했습니다. 수정 후 저장을 누르세요.")
+                
+                # 레이아웃 분할 배치
+                m_col1, m_col2 = st.columns([2, 1])
+                
+                with m_col1:
+                    with st.form("master_edit_form"):
+                        st.subheader("📝 세부 필드 데이터 강제 보정")
+                        e_type = st.selectbox("툴 종류 변경", ["전착툴", "레진툴", "메탈툴"], index=["전착툴", "레진툴", "메탈툴"].index(doc.get("tool_type", "전착툴")))
+                        e_status = st.selectbox("상태 강제 변환", ["사용전", "사용중", "폐기"], index=["사용전", "사용중", "폐기"].index(doc.get("status", "사용전")))
+                        e_worker = st.text_input("작업자 명의", value=doc.get("worker", ""))
+                        e_machine = st.text_input("기계 장착 호기", value=doc.get("machine_no", ""))
+                        
+                        ec1, ec2 = st.columns(2)
+                        with ec1:
+                            e_cnt = st.number_input("현재 드레싱 카운트", min_value=0, value=int(doc.get("current_cnt") or 0))
+                        with ec2:
+                            e_limit = st.number_input("목표 한도 횟수 설정", min_value=1, value=int(doc.get("limit_cnt") or 5))
+                            
+                        e_period = st.number_input("드레싱 주기 규격 분(minutes) 단위", min_value=1, value=int(doc.get("dressing_period_minutes", 720)))
+                        e_memo = st.text_area("마스터용 비고 메모 관리", value=doc.get("memo", ""))
+                        
+                        # 체크박스를 통한 강제 시간 초기화 트릭 제공
+                        reset_timer_check = st.checkbox("🔄 저장 시 드레싱 타이머 주기를 현재 시간 기준으로 완전 리셋 재부팅")
+                        
+                        save_master = st.form_submit_button("💾 마스터 권한으로 수정사항 저장")
+                        
+                        if save_master:
+                            m_now = get_now_kst()
+                            target_t_calc = doc.get("target_time")
+                            start_t_calc = doc.get("start_time")
+                            
+                            if reset_timer_check or (doc.get("status") != "사용중" and e_status == "사용중"):
+                                start_t_calc = m_now
+                                target_t_calc = m_now + timedelta(minutes=e_period)
+                                
+                            w_date_calc = doc.get("waste_date")
+                            if e_status == "폐기" and doc.get("status") != "폐기":
+                                w_date_calc = m_now
+                            elif e_status != "폐기":
+                                w_date_calc = None
+                                
+                            db_collection.update_one(
+                                {"_id": doc["_id"]},
+                                {"$set": {
+                                    "tool_type": e_type,
+                                    "status": e_status,
+                                    "worker": e_worker.strip(),
+                                    "machine_no": e_machine.strip(),
+                                    "current_cnt": e_cnt,
+                                    "limit_cnt": e_limit,
+                                    "dressing_period_minutes": e_period,
+                                    "memo": e_memo.strip(),
+                                    "start_time": start_t_calc,
+                                    "target_time": target_t_calc,
+                                    "waste_date": w_date_calc
+                                }, "$push": {"history": {"timestamp": m_now, "action": "마스터 관리자 강제 수동 정보 수정 보정 실행", "worker": "관리자", "machine_no": e_machine.strip(), "status": e_status}}}
+                            )
+                            st.success("데이터 수정 처리가 완료되었습니다.")
+                            time.sleep(0.5)
+                            st.rerun()
+                            
+                with m_col2:
+                    st.subheader("🖨️ 고유 QR 라벨 재발행")
+                    b64_img_single = generate_qr_base64(target_serial)
+                    
+                    st.markdown(f"""
+                    <div style="border:1px solid #ccc; padding:15px; text-align:center; background:#fff; border-radius:8px;">
+                        <b style="color:#333;">{doc.get('tool_type')} 라벨</b><br><br>
+                        <img src="data:image/png;base64,{b64_img_single}" style="width:140px;" /><br>
+                        <code style="font-weight:bold; color:#000;">{target_serial}</code>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    single_print_html = f"""
+                    <html>
+                    <body>
+                    <button onclick="window.print()" style="width:100%; margin-top:10px; padding:8px; background-color:#0288D1; color:white; border:none; border-radius:4px; cursor:pointer;">
+                        🖨️ 이 라벨만 한 장 인쇄하기
+                    </button>
+                    <div style="display:none; text-align:center;" class="print-area">
+                        <h3>{doc.get('tool_type')} 재발행</h3>
+                        <img src="data:image/png;base64,{b64_img_single}" style="width:150px;"/>
+                        <p><b>{target_serial}</b></p>
+                    </div>
+                    <style>
+                        @media print {{
+                            body * {{ display:none; }}
+                            .print-area, .print-area * {{ display:block; }}
+                        }}
+                    </style>
+                    </body>
+                    </html>
+                    """
+                    st.components.v1.html(single_print_html, height=80)
+                    
+                    # 데이터 영구 영멸 삭제 스위치 섹션
+                    st.write("---")
+                    st.subheader("💥 위험 영역")
+                    confirm_delete = st.checkbox("이 데이터를 DB에서 영구 삭제하는 것에 절대 동의합니다.")
+                    if st.button("🗑️ 영구 삭제 실행"):
+                        if not confirm_delete:
+                            st.error("체크박스에 동의 후 실행해 주세요.")
                         else:
-                            # ⚪ 공실
-                            st.markdown(f"""
-                                <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;">
-                                    <br><b>{m_no}호기</b><br>대기중
-                                </div>
+                            db_collection.delete_one({"_id": doc["_id"]})
+                            st.success("DB에서 해당 툴 로그가 완전 소멸 제거 되었습니다.")
+                            time.sleep(1)
+                            st.rerun()
+
+    # ------------------------------------------
+    # 메뉴 5: 실시간 기계 정보창
+    # ------------------------------------------
+    elif menu == "🖥️ 실시간 기계 정보창":
+        st.title("🖥️ 가공 라인 기계별 배치 현황판 (Grid Layout)")
+        st.write("공장 내부의 물리 기계 배치 맵입니다. 현재 설비 호기별 장착되어 가동 중인 다이아몬드 툴의 가동 대수를 표현합니다.")
+        
+        # 가동 데이터 로드
+        all_active = list(db_collection.find({"status": "사용중"}))
+        
+        # 공장 기계 설비 맵 배열 레이아웃 구조체 선언 (예: 1호기 ~ 24호기)
+        # 현장 라인 물리 구조에 맞춰 배치 배열 수정 가능
+        machine_layout = [
+            ["1호기", "2호기", "3호기", "4호기", "5호기", "6호기"],
+            ["7호기", "8호기", "9호기", "10호기", "11호기", "12호기"],
+            ["13호기", "14호기", "15호기", "16호기", "17호기", "18호기"],
+            ["19호기", "20호기", "21호기", "22호기", "23호기", "24호기"]
+        ]
+        
+        # 주기적 자동 리프레시 유도 기능 추가 (현장 대시보드 모니터용)
+        st.sidebar.write("---")
+        auto_refresh = st.sidebar.checkbox("🖥️ 대시보드 30초 자동 리프레시 기능 활성화", value=False)
+        if auto_refresh:
+            time.sleep(30)
+            st.rerun()
+            
+        for row in machine_layout:
+            cols = st.columns(6)
+            for i, m_no in enumerate(row):
+                with cols[i]:
+                    # 해당 기기 호기에 걸려있는 툴 서칭 파싱 규칙 바인딩 정규식 매칭 처리
+                    tools = [t for t in all_active if str(m_no).replace("호기","") in str(t.get("machine_no","")) or str(m_no) in str(t.get("machine_no",""))]
+                    
+                    if tools:
+                        # 🔴 장착되어 가동중인 상태 (한 대의 기기에 여러개 연동도 배열 처리로 대응)
+                        tool_cards = ""
+                        for t in tools:
+                            tool_cards += f"""
+                            <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
+                                <b>ID: {t.get('serial_no', 'N/A')}</b><br>
+                                작업자: {t.get('worker', '미지정')}<br>
+                                장착: {str(t.get('start_time', ''))[5:16]}
+                            </div>
+                            """
+                        st.markdown(f"""
+                            <div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;">
+                                <b style="color:#1b5e20; font-size:11px;">{m_no} ({len(tools)}개)</b>
+                                {tool_cards}
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        # ⚪ 공실 상태 빈 기계 표현
+                        st.markdown(f"""
+                            <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;">
+                                <br><b>{m_no}</b><br><br><span style="color:#aaa; font-size:10px;">가동 툴 없음</span>
+                            </div>
                             """, unsafe_allow_html=True)
