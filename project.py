@@ -84,7 +84,13 @@ if qr_scanned_serial:
             with col_um:
                 u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
                 
-            u_note = st.text_area("📝 특이사항 수정", value=existing_data.get('note', ''))
+           # 수정 코드
+            default_val = existing_data.get('note', '')
+            u_note = st.text_area(
+            "📝 현장 특이사항", 
+            value="" if "QR 선발행" in default_val else default_val, # 발행 문구면 비워줌
+            placeholder=f"기존 기록: {default_val}\n여기에 내용을 입력하세요..."
+)
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if submit_u_btn:
@@ -101,23 +107,25 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
 
+            # 1. 쿼리 윗부분에 이력 생성 로직 추가
+            timestamp = get_now_kst().strftime("%m/%d %H:%M")
+            history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
+
+            # 2. 업데이트 쿼리에 $push 추가
             db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status,
-                    "current_use": u_count,
-                    "worker": u_worker,
-                    "machine_no": machine_full_name,
-                    "dressing_hours": u_hours,
-                    "dressing_mins": u_mins,
-                    "start_time": start_time_val,
-                    "target_time": target_time_val,
-                    "waste_date": waste_val,
-                    "note": u_note
-                }}
-            )
-            st.success("🎉 정보가 정상 업데이트되었습니다!")
-            st.rerun()
+              {"serial_no": qr_scanned_serial},
+              {
+                  "$set": {
+                  "status": u_status,
+                  "current_use": u_count,
+                  "worker": u_worker,
+                  "machine_no": machine_full_name,
+                  # ... (나머지 필드 동일)
+                  "note": u_note
+              },
+            "$push": {"history": history_entry} # ⬅️ 이 부분을 추가하세요!
+        }
+)
             
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
@@ -258,7 +266,7 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
-                    "note": "QR 선발행 완료 (현장 기입 대기)"
+                    "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] QR 선발행 완료 (현장 기입 대기)"
                 })
                     
             try:
