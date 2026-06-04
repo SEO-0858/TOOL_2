@@ -94,7 +94,17 @@ if qr_scanned_serial:
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if submit_u_btn:
-            waste_val = str(today) if u_status == "폐기" else existing_data.get("waste_date", "-")
+            # 💡 [수정] 폐기 상태일 때 현재 시간(날짜+시간)을 waste_date에 저장
+            current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            
+            if u_status == "폐기":
+                # 기존 폐기 날짜가 없다면 현재 시간 기록, 이미 있다면 유지
+                waste_val = existing_data.get("waste_date", "-")
+                if waste_val == "-":
+                    waste_val = current_time_str
+            else:
+                waste_val = "-" # 폐기가 아니면 "-"로 초기화
+            
             machine_full_name = f"{u_machine_num}호기"
             
             total_duration_mins = (u_hours * 60) + u_mins
@@ -120,7 +130,7 @@ if qr_scanned_serial:
                   "current_use": u_count,
                   "worker": u_worker,
                   "machine_no": machine_full_name,
-                  # ... (나머지 필드 동일)
+                  "waste_date": waste_val,
                   "note": u_note
               },
             "$push": {"history": history_entry} # ⬅️ 이 부분을 추가하세요!
