@@ -126,7 +126,10 @@ if qr_scanned_serial:
             "$push": {"history": history_entry} # ⬅️ 이 부분을 추가하세요!
         }
 )
-            
+            # 💡 아래 코드를 바로 밑에 추가하세요!
+            st.success("✅ 수정사항이 저장되었습니다!")
+            time.sleep(1) # 저장 완료를 확인하기 위해 1초 대기
+            st.rerun()    # 화면을 새로고침하여 바뀐 정보를 즉시 반영    
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
