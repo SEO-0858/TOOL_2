@@ -650,6 +650,9 @@ else:
                                     st.write(f"• **📅 최초 발행일:** {item['input_date']}")
                                     st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
                                     st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
+                                    # 폐기 시 폐기일시 표시
+                                    if item.get("status") == "폐기":
+                                        st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
                                 with col_y:
                                     East_mach = item['machine_no'] if item['machine_no'] else '-'
                                     st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
