@@ -88,9 +88,20 @@ if qr_scanned_serial:
                 u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
                 
             default_val = existing_data.get('note', '')
+            
+            # 🛠️ [해결 포인트] QR 선발행 문구만 지우고 발행 시간 대괄호 내역은 유지하기
+            display_note = default_val
+            if "QR 선발행" in default_val:
+                # 정규식을 이용해 앞의 [MM/DD HH:MM 발행] 부분만 보존하고 뒷문구 가공
+                match = re.search(r"(\[.*?\])", default_val)
+                if match:
+                    display_note = match.group(1) # "[06/04 22:23 발행]" 부분만 남김
+                else:
+                    display_note = ""
+            
             u_note = st.text_area(
                 "📝 현장 특이사항", 
-                value="" if "QR 선발행" in default_val else default_val,
+                value=display_note,
                 placeholder=f"기존 기록: {default_val}\n여기에 내용을 입력하세요..."
             )
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
@@ -110,7 +121,6 @@ if qr_scanned_serial:
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
             
-            # 사용중 혹은 재사용 상태일 때 드레싱 주기 타이머 작동 연동
             if total_duration_mins > 0 and u_status in ["사용중", "재사용"]:
                 start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
                 try:
@@ -123,11 +133,10 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
 
-            # 역사 기록 자동 조합 로그 문장 생성
             timestamp = get_now_kst().strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            # 현장 특이사항에 이력 실시간 글자 조합 및 누적
+            # 현장 특이사항(비고란) 문구 자동 조합 이력 결합
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
             final_note_val = u_note.strip() + auto_log_msg
@@ -178,7 +187,14 @@ if qr_scanned_serial:
                 dressing_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5)
                 
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
-            m_note = st.text_area("Note 📝 특이사항")
+            
+            # 🛠️ 모바일 초기 등록창 진입 시 시스템 발행 문구 가공 연동
+            init_display_note = existing_data.get('note', '') if existing_data else ""
+            if "QR 선발행" in init_display_note:
+                match_init = re.search(r"(\[.*?\])", init_display_note)
+                init_display_note = match_init.group(1) if match_init else ""
+
+            m_note = st.text_area("Note 📝 특이사항", value=init_display_note)
             
             submit_m_btn = st.form_submit_button("💾 데이터 저장 및 등록 완료")
             
@@ -198,6 +214,11 @@ if qr_scanned_serial:
                     start_time_str = "-"
                     target_time_str = "-"
                 
+                # 저장 버튼 누를 때 입력창 기록 문장 생성 연동
+                log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
+                final_m_note_val = m_note.strip() + auto_log_msg
+
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
@@ -214,7 +235,7 @@ if qr_scanned_serial:
                         "use_limit": m_limit,
                         "current_use": 0,
                         "waste_date": waste_val,
-                        "note": m_note
+                        "note": final_m_note_val
                     }},
                     upsert=True
                 )
@@ -249,7 +270,6 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
-        # 순수 12자리 숫자 프리픽스 규칙 엄격 준수 (001 + MMDD)
         prefix = f"{tool_code}{mmdd}"
         
         try:
@@ -437,7 +457,6 @@ else:
         st.markdown("---")
         
         try:
-            # 타이머 전광판 가동계열 상태 조건 업데이트 ('사용중', '재사용')
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
             if not active_tools:
                 st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
@@ -503,7 +522,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (⭐ 4분할 복합 검색 레이아웃 및 자동 이력 시스템 추가 완료)
+    # 3) 📂 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -629,7 +648,7 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
-                                    with col_em:  # ✅ 문법 오류 완벽 교정 완료
+                                    with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -648,7 +667,6 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
-                                    # [기능 반영] 저장 버튼 작동 시 특이사항 비고 칸 하단에 이력 문구 자동 연결 조립
                                     log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
@@ -788,7 +806,6 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
-            # 기계 배치 모니터링 대상 가동계열 상태 포함 연동 ('사용중', '재사용')
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
