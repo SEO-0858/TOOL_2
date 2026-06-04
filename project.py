@@ -59,7 +59,7 @@ if qr_scanned_serial:
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        current_status = existing_data.get("status", "사용전")
+        current_status = existing_data.get("status", "사용중")
         status_index = ["사용전", "사용중", "폐기"].index(current_status) if current_status in ["사용전", "사용중", "폐기"] else 1
         
         orig_machine = existing_data.get('machine_no', '')
@@ -144,7 +144,7 @@ if qr_scanned_serial:
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
         with st.form(key="mobile_input_form"):
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=1, horizontal=True)
+            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "폐기"], index=0, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름")
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
             
