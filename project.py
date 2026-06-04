@@ -406,12 +406,13 @@ else:
                         if not target_single_serial:
                             st.error("⚠️ 시리얼 번호를 입력해 주세요.")
                         elif len(target_single_serial) != 12:
-                            st.error("⚠️ 시리얼 번호는 정확히 11자리여야 합니다.")
+                            st.error("⚠️ 시리얼 번호는 정확히 12자리여야 합니다.")  # 🛠️ 기존 에러 문구 11 -> 12로 자연스럽게 수정
                         elif not understand_risk_single:
                             st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
                         else:
                             match_count = db_collection.count_documents({"serial_no": target_single_serial})
                             if match_count == 0:
+                                i = 1 # 원본구조 보존용 더미
                                 st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
                             else:
                                 db_collection.delete_one({"serial_no": target_single_serial})
@@ -490,14 +491,14 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (⭐ 상태 솔팅 및 시리얼 검색창 고도화 영역)
+    # 3) 📂 종합 현황판 창 (⭐ 기존 구조를 유지하며 작업자 및 기계 복합 검색창 구현)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.markdown("---")
         
-        # 🔍 [추가] 좌측 상단 실시간 검색 및 상태 정렬 컨트롤 보드 구조화
-        search_col1, search_col2 = st.columns([1, 1])
+        # 🔍 [수정 섹션] 기존 search_col1, search_col2 레이아웃 구조를 활용하여 입력 칸 추가 확장
+        search_col1, search_col2, search_col3, search_col4 = st.columns([1.2, 1, 1, 1])
         with search_col1:
             status_filter = st.selectbox(
                 "🔍 툴 상태별 정렬 필터", 
@@ -505,7 +506,13 @@ else:
                 index=0
             )
         with search_col2:
-            keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색 (번호 입력)", placeholder="예: 010602").strip()
+            keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색", placeholder="예: 010602").strip()
+        # 🆕 원본 코드를 건드리지 않고 추가한 작업자 검색 창
+        with search_col3:
+            worker_search = st.text_input("👷 작업자 이름으로 검색", placeholder="예: 홍길동").strip()
+        # 🆕 원본 코드를 건드리지 않고 추가한 기계 번호 검색 창
+        with search_col4:
+            machine_search = st.text_input("⚙️ 기계 번호(호기)로 검색", placeholder="예: 4호기").strip()
 
         st.markdown("---")
         
@@ -530,8 +537,16 @@ else:
                     elif status_filter == "폐기 🔴" and item_status != "폐기":
                         continue
                         
-                    # 2단계: 키워드 검색어 매칭 검사 (입력값이 있을 때만 작동)
+                    # 2단계: 기존 키워드 검색어(시리얼) 매칭 검사
                     if keyword_search and keyword_search not in item["serial_no"]:
+                        continue
+                        
+                    # 🆕 3단계: 작업자 이름 검색어 매칭 검사 (추가 반영)
+                    if worker_search and worker_search not in item.get("worker", ""):
+                        continue
+                        
+                    # 🆕 4단계: 기계 가공 호기 검색어 매칭 검사 (추가 반영)
+                    if machine_search and machine_search not in item.get("machine_no", ""):
                         continue
                         
                     filtered_data.append(item)
