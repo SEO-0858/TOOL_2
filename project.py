@@ -406,18 +406,18 @@ else:
                         if not target_single_serial:
                             st.error("⚠️ 시리얼 번호를 입력해 주세요.")
                         elif len(target_single_serial) != 12:
-                            st.error("⚠️ 시리얼 번호는 정확히 12자리여야 합니다.")  # 🛠️ 기존 에러 문구 11 -> 12로 자연스럽게 수정
+                            st.error("⚠️ 시리얼 번호는 정확히 12자리여야 합니다.")
                         elif not understand_risk_single:
                             st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
                         else:
                             match_count = db_collection.count_documents({"serial_no": target_single_serial})
                             if match_count == 0:
-                                i = 1 # 원본구조 보존용 더미
                                 st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
                             else:
                                 db_collection.delete_one({"serial_no": target_single_serial})
                                 st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
                                 st.session_state.reset_success = True
+                                r = 1 # 더미 변수 보존
                                 st.rerun()
 
     # 2) ⚠️ 실시간 툴 드레싱 알림판
@@ -491,13 +491,13 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창 (⭐ 기존 구조를 유지하며 작업자 및 기계 복합 검색창 구현)
+    # 3) 📂 종합 현황판 창 (⭐ 에러 완전 해결 및 복합 검색 창 배치)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.markdown("---")
         
-        # 🔍 [수정 섹션] 기존 search_col1, search_col2 레이아웃 구조를 활용하여 입력 칸 추가 확장
+        # 🔍 [수정] 4분할 레이아웃으로 [상태 필터 / 시리얼 검색 / 작업자 검색 / 기계 검색] 한 줄 완성
         search_col1, search_col2, search_col3, search_col4 = st.columns([1.2, 1, 1, 1])
         with search_col1:
             status_filter = st.selectbox(
@@ -507,10 +507,8 @@ else:
             )
         with search_col2:
             keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색", placeholder="예: 010602").strip()
-        # 🆕 원본 코드를 건드리지 않고 추가한 작업자 검색 창
         with search_col3:
             worker_search = st.text_input("👷 작업자 이름으로 검색", placeholder="예: 홍길동").strip()
-        # 🆕 원본 코드를 건드리지 않고 추가한 기계 번호 검색 창
         with search_col4:
             machine_search = st.text_input("⚙️ 기계 번호(호기)로 검색", placeholder="예: 4호기").strip()
 
@@ -537,15 +535,15 @@ else:
                     elif status_filter == "폐기 🔴" and item_status != "폐기":
                         continue
                         
-                    # 2단계: 기존 키워드 검색어(시리얼) 매칭 검사
+                    # 2단계: 키워드(시리얼) 검색어 매칭 검사
                     if keyword_search and keyword_search not in item["serial_no"]:
                         continue
                         
-                    # 🆕 3단계: 작업자 이름 검색어 매칭 검사 (추가 반영)
+                    # 3단계: 작업자 이름 검색어 매칭 검사
                     if worker_search and worker_search not in item.get("worker", ""):
                         continue
                         
-                    # 🆕 4단계: 기계 가공 호기 검색어 매칭 검사 (추가 반영)
+                    # 4단계: 기계 번호 검색어 매칭 검사
                     if machine_search and machine_search not in item.get("machine_no", ""):
                         continue
                         
@@ -562,7 +560,7 @@ else:
                         status = item.get("status", "사용전")
                         status_badge = "🟢 [사용전]" if status == "사용전" else "🟡 [사용중]" if status == "사용중" else "🔴 [폐기]"
                             
-                        if not item['worker'] or not item['machine_no']:
+                        if not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} | 상태: {status_badge}"
                         else:
                             expander_title = f"🆔 {s_no} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
@@ -661,19 +659,18 @@ else:
                             else:
                                 col_x, col_y = st.columns(2)
                                 with col_x:
-                                    st.write(f"• **💎 툴 종류:** {item['tool_type']}")
-                                    st.write(f"• **📅 최초 발행일:** {item['input_date']}")
+                                    st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
+                                    st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}") # 안전하게 .get() 방식으로 보호
                                     st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
-                                    st.write(f"• **👷 교체 작업자:** {item['worker'] if item['worker'] else '-'}")
-                                    # 폐기 시 폐기일시 표시
+                                    st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
                                     if item.get("status") == "폐기":
                                         st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
                                 with col_y:
-                                    East_mach = item['machine_no'] if item['machine_no'] else '-'
+                                    East_mach = item.get('machine_no') if item.get('machine_no') else '-'
                                     st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
                                     st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
                                     st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                                st.write(f"• **📝 현장 특이 사항:** {item['note']}")
+                                st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
                                 
                                 if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
                                     st.session_state[edit_key] = True
