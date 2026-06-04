@@ -660,11 +660,11 @@ else:
         st.markdown("---")
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 11자리 시리얼 번호를 정확히 입력하세요").strip()
+        target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
         
         if target_serial:
-            if len(target_serial) != 11:
-                st.warning("⚠️ 시리얼 넘버는 정확히 11자리 규격이어야 합니다.")
+            if len(target_serial) != 12:
+                st.warning("⚠️ 시리얼 넘버는 정확히 12자리 규격이어야 합니다.")
             else:
                 exist_item = db_collection.find_one({"serial_no": target_serial})
                 
@@ -708,7 +708,7 @@ else:
                         t_code = target_serial[:2]
                         new_blank = {
                             "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="01" else "레진툴" if t_code=="02" else "메탈툴",
+                            "tool_type": "전착툴" if t_code=="001" else "레진툴" if t_code=="002" else "메탈툴",
                             "status": "사용전",
                             "input_date": str(today),
                             "worker": "",
