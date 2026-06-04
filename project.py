@@ -389,7 +389,7 @@ else:
                             st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
                             
                 else:
-                    target_single_serial = st.text_input("🆔 삭제 처리할 11자리 시리얼 번호를 정확히 기입하세요 (예: 01060200001)").strip()
+                    target_single_serial = st.text_input("🆔 삭제 처리할 12자리 시리얼 번호를 정확히 기입하세요 (예: 001060200001)").strip()
                     understand_risk_single = st.checkbox("❗ 기입한 특정 시리얼 툴 데이터를 영구 삭제하는 것에 동의합니다.", key="risk_single")
                     
                     if st.button("❌ 해당 개별 시리얼 넘버 데이터 즉시 삭제", key="btn_single_del"):
