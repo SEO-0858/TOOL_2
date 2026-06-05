@@ -497,7 +497,7 @@ else:
                     if st.button("❌ 해당 개별 시리얼 넘버 데이터 즉시 삭제", key="btn_single_del"):
                         if not target_single_serial:
                             st.error("⚠️ 시리얼 번호를 입력해 주세요.")
-                        elif len(target_serial) != 12:
+                        elif len(target_single_serial) != 12:
                             st.error("⚠️ 시리얼 번호는 정확히 12자리여야 합니다.")
                         elif not understand_risk_single:
                             st.error("⚠️ 영구 삭제 동의 체크박스를 체크해 주세요.")
@@ -781,18 +781,12 @@ else:
                                     if not confirm_reset:
                                         st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
                                     else:
-                                        # 🆕 [철통 방어 메커니즘] DB에서 원본 정보를 재조회하여 글자가 수정되었더라도 최초 발행 시간 유실 원천 봉쇄
+                                        # 🔑 [근본적 버그 교정] 텍스트가 조작되더라도 변하지 않는 원본 입고 정보 고정 데이터(input_date) 강제 복구
                                         fresh_data = db_collection.find_one({"serial_no": s_no})
-                                        current_note_txt = fresh_data.get('note', '') if fresh_data else ""
                                         
-                                        clean_note = ""
-                                        match_reset = re.search(r"(\[.*?\])", current_note_txt)
-                                        if match_reset:
-                                            # 백업된 최초 발행 대괄호 마크 추출 복구
-                                            clean_note = match_reset.group(1) + " 수동 강제 공정 초기화 리셋 완료 (재가동 대기)"
-                                        else:
-                                            # 데이터가 아예 강제 파괴되었을 경우를 대비해 문서 생성 날짜 등으로 유실 차단 방어막 가동
-                                            clean_note = f"[{get_now_kst().strftime('%m/%d %H:%M')} 복구발행] 최초 발행 내역 강제 보존 리셋 완료"
+                                        # 입고 날짜 데이터를 강제 참조하여 안전 마크 생성
+                                        orig_input_date = fresh_data.get('input_date', str(today)) if fresh_data else str(today)
+                                        clean_note = f"[입고일: {orig_input_date}] 수동 강제 공정 초기화 리셋 완료 (재가동 대기)"
                                             
                                         db_collection.update_one(
                                             {"serial_no": s_no},
@@ -813,7 +807,7 @@ else:
                                                 "last_active_time": None
                                             }}
                                         )
-                                        st.success("💥 최초 입고 발행 시간을 파괴하지 않고 깨끗하게 공정 대기(사용전) 상태로 포맷되었습니다!")
+                                        st.success("💥 최초 입고 날짜를 완벽하게 유지한 채 안전하게 새 제품 상태로 포맷되었습니다!")
                                         time.sleep(1)
                                         st.rerun()
 
