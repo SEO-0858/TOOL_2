@@ -49,6 +49,57 @@ def generate_app_qr_bytes(serial_text):
     return buf.getvalue()
 
 
+# 🆕 [재사용대기 팝업 대화창 정의]
+@st.dialog("📋 재사용대기 전환 추가 정보 기입")
+def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins, combined_ed_dt):
+    st.write("🛠️ 이 툴을 보관 후 다시 사용하기 위해 기계 가공 실적을 입력해 주세요.")
+    
+    # 기본값으로 기존 가공 호기 숫자 추출 시도
+    orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
+    try:
+        def_m_val = int(orig_m_num) if orig_m_num else 4
+    except:
+        def_m_val = 4
+        
+    pop_mach_num = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val)
+    pop_count = st.number_input("📊 이번 공정에서의 가공 갯수 (개)", min_value=0, max_value=999999, value=100, step=10)
+    
+    if st.button("🚀 실적 기록 및 재사용대기 저장"):
+        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        full_mach_name = f"{ed_machine_num}호기"
+        pop_mach_name = f"{pop_mach_num}호기"
+        
+        # 특이사항 비고란에 팝업 답변 내용 조립하여 실시간 누적
+        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
+        final_note_val = orig_note.strip() + auto_log_msg
+        
+        # 몽고 DB 업데이트 실행 (history 배열에도 추가 연동)
+        timestamp = get_now_kst().strftime("%m/%d %H:%M")
+        history_entry = f"{timestamp} - 상태변환:재사용대기 ({pop_mach_name}, {pop_count}개)"
+        
+        db_collection.update_one(
+            {"serial_no": s_no},
+            {"$set": {
+                "status": "재사용대기",
+                "worker": ed_worker,
+                "machine_no": full_mach_name,
+                "dressing_hours": ed_hours,
+                "dressing_mins": ed_mins,
+                "start_time": "-",
+                "target_time": "-",
+                "waste_date": "-",
+                "note": final_note_val,
+                # 재사용대기 진입 세부 필드 데이터도 별도 아카이빙
+                "last_active_machine": pop_mach_name,
+                "last_active_count": pop_count,
+                "last_active_time": log_time_str
+            }, "$push": {"history": history_entry}}
+        )
+        st.success("🎉 재사용대기 실적이 성공적으로 누적 저장되었습니다!")
+        time.sleep(1)
+        st.rerun()
+
+
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
@@ -64,6 +115,16 @@ if qr_scanned_serial:
         # 5가지 상태 리스트 구성
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(current_status) if current_status in status_options else 1
+        
+        # 🆕 [기능 반영] 과거 이력이 있는 재사용 이력 식별 문구 표기 시스템
+        has_history_log = "상태:" in str(existing_data.get('note', '')) or "호기" in str(existing_data.get('note', ''))
+        if current_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
+            st.warning(f"""
+            ⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.**
+            * **직전 사용 장비**: {existing_data.get('last_active_machine', '기록없음')}
+            * **재사용대기 전환 시점**: {existing_data.get('last_active_time', '기록없음')}
+            * **이전 공정 가공 갯수**: {existing_data.get('last_active_count', 0)} 개
+            """)
         
         orig_machine = existing_data.get('machine_no', '')
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
@@ -89,13 +150,12 @@ if qr_scanned_serial:
                 
             default_val = existing_data.get('note', '')
             
-            # 🛠️ [해결 포인트] QR 선발행 문구만 지우고 발행 시간 대괄호 내역은 유지하기
+            # QR 선발행 안내 글자만 자르고 최초 발행 시각인 대괄호 내역은 보존
             display_note = default_val
             if "QR 선발행" in default_val:
-                # 정규식을 이용해 앞의 [MM/DD HH:MM 발행] 부분만 보존하고 뒷문구 가공
                 match = re.search(r"(\[.*?\])", default_val)
                 if match:
-                    display_note = match.group(1) # "[06/04 22:23 발행]" 부분만 남김
+                    display_note = match.group(1)
                 else:
                     display_note = ""
             
@@ -106,20 +166,26 @@ if qr_scanned_serial:
             )
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
+        # 🆕 [기능 반영] 과거 가동 이력이 없는데 '재사용'을 선택했을 때 화면 경고문 노출 안전장치
+        if u_status == "재사용" and not has_history_log:
+            st.error("⚠️ 특이사항에 과거 가동 이력이 없는 완전히 새로운 툴입니다. 왜 '재사용' 항목을 클릭하셨나요? 처음 장착하여 돌리는 툴이라면 '사용중'을 선택해야 합니다. 다시 확인해 보세요!")
+
         if submit_u_btn:
-            current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            
-            if u_status == "폐기":
-                waste_val = existing_data.get("waste_date", "-")
-                if waste_val == "-":
-                    waste_val = current_time_str
-            else:
-                waste_val = "-"
-            
+            # 과거 가동 이력 없는 새 제품에 재사용 입력 차단 방어막 활성화
+            if u_status == "재사용" and not has_history_log:
+                st.stop()
+                
             machine_full_name = f"{u_machine_num}호기"
-            
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
+            
+            # 🆕 [재사용대기 전환 흐름 바인딩] 모바일창 대응
+            if u_status == "재사용대기":
+                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins, current_now)
+                st.stop()
+
+            current_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
+            waste_val = current_time_str if u_status == "폐기" else "-"
             
             if total_duration_mins > 0 and u_status in ["사용중", "재사용"]:
                 start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
@@ -133,11 +199,11 @@ if qr_scanned_serial:
                 start_time_val = existing_data.get("start_time", "-")
                 target_time_val = existing_data.get("target_time", "-")
 
-            timestamp = get_now_kst().strftime("%m/%d %H:%M")
+            timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            # 현장 특이사항(비고란) 문구 자동 조합 이력 결합
-            log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            # 현장 특이사항 문구 자동 조합 이력 결합
+            log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
             auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
             final_note_val = u_note.strip() + auto_log_msg
 
@@ -188,7 +254,6 @@ if qr_scanned_serial:
                 
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
             
-            # 🛠️ 모바일 초기 등록창 진입 시 시스템 발행 문구 가공 연동
             init_display_note = existing_data.get('note', '') if existing_data else ""
             if "QR 선발행" in init_display_note:
                 match_init = re.search(r"(\[.*?\])", init_display_note)
@@ -214,7 +279,6 @@ if qr_scanned_serial:
                     start_time_str = "-"
                     target_time_str = "-"
                 
-                # 저장 버튼 누를 때 입력창 기록 문장 생성 연동
                 log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
                 final_m_note_val = m_note.strip() + auto_log_msg
@@ -522,7 +586,7 @@ else:
         except Exception as e:
             st.error(f"알림판 연동 오류: {e}")
 
-    # 3) 📂 종합 현황판 창
+    # 3) 📂 종합 현황판 창 (⭐ 팝업 시스템 및 완전 초기화 이중 안전장치 가동)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -603,6 +667,11 @@ else:
                             if st.session_state[edit_key]:
                                 st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
                                 
+                                # 🆕 [기능 반영] 과거 이력이 식별되는 재사용 유도 경고 보드 상단 배치
+                                has_history_log = "상태:" in str(item.get('note', '')) or "호기" in str(item.get('note', ''))
+                                if status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
+                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
+
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
                                 try:
@@ -655,7 +724,19 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
+                                # 🆕 [기능 반영] 과거 이력이 없는데 착각하여 재사용을 누르면 저장 전 실시간 주의문 표기 안전장치
+                                if ed_status == "재사용" and not has_history_log:
+                                    st.error("⚠️ 특이사항에 과거 가동 이력이 없는 완전히 새로운 툴입니다. 왜 '재사용' 항목을 클릭하셨나요? 처음 장착하여 돌리는 툴이라면 '사용중'을 선택해야 합니다. 다시 확인해 보세요!")
+
                                 if b_submit:
+                                    if ed_status == "재사용" and not has_history_log:
+                                        st.stop()
+                                        
+                                    # 🆕 [재사용대기 전환 흐름 바인딩] PC 현황판 창 대응 (다이얼로그 팝업 가동)
+                                    if ed_status == "재사용대기":
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins, board_now)
+                                        st.stop()
+                                        
                                     waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
                                     full_mach_name = f"{ed_machine_num}호기"
                                     
@@ -690,6 +771,48 @@ else:
                                     time.sleep(0.5)
                                     st.rerun()
                                     
+                                # 🆕 [기능 반영] 사용전 완전 복구용 초기화 시스템 배치 (이중 안전장치 구동)
+                                st.markdown("---")
+                                st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
+                                st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
+                                
+                                confirm_reset = st.checkbox(f"❗ [{s_no}] 번호의 가동 내역을 파괴하고 최초 발행 마크만 남긴 채 사용전으로 리셋하는 것에 절대 동의합니다.", key=f"risk_reset_{s_no}")
+                                if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
+                                    if not confirm_reset:
+                                        st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
+                                    else:
+                                        # 비고란 문자열 텍스트 가공: 최초 발행 시간대 대괄호 내용만 싹 발라내기
+                                        clean_note = ""
+                                        current_note_txt = item.get('note', '')
+                                        match_reset = re.search(r"(\[.*?\])", current_note_txt)
+                                        if match_reset:
+                                            clean_note = match_reset.group(1) + " 수동 강제 공정 초기화 리셋 완료 (재가동 대기)"
+                                        else:
+                                            clean_note = f"[{get_now_kst().strftime('%m/%d %H:%M')} 리셋] 최초 발행 내역 유실로 신규 발행 마크 대체"
+                                            
+                                        db_collection.update_one(
+                                            {"serial_no": s_no},
+                                            {"$set": {
+                                                "status": "사용전",
+                                                "worker": "",
+                                                "machine_no": "",
+                                                "dressing_hours": 0,
+                                                "dressing_mins": 0,
+                                                "start_time": "-",
+                                                "target_time": "-",
+                                                "waste_date": "-",
+                                                "current_use": 0,
+                                                "note": clean_note,
+                                                "history": [], # 이력 배열도 초기화 복구
+                                                "last_active_machine": None,
+                                                "last_active_count": None,
+                                                "last_active_time": None
+                                            }}
+                                        )
+                                        st.success("💥 해당 툴이 깨끗한 최초 발행 대기(사용전) 상태로 완벽히 포맷되었습니다!")
+                                        time.sleep(1)
+                                        st.rerun()
+
                                 if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
                                     st.session_state[edit_key] = False
                                     st.rerun()
