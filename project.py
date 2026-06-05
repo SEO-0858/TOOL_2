@@ -141,7 +141,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
-        history_entry = f".{timestamp} - 상태변환:폐기 (작업자:{ed_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
+        history_entry = f"{timestamp} - 상태변환:폐기 (작업자:{ed_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
         
         db_collection.update_one(
             {"serial_no": s_no},
@@ -222,7 +222,7 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 📱 모바일 실시간 흐름 차단 엔진
+        # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
         
         if db_status_mob == "폐기" and u_status != "폐기":
@@ -814,14 +814,8 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
-                                    with col_em = col_em = st.columns(2)[1] if False else None: # dummy to keep layout same or sth
-                                        pass
-                                    # Fix layout reference
-                                    with col_em if 'col_em' in locals() and col_em else st.empty():
-                                        pass
-                                    
-                                    # structural layout alignment
-                                    ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
+                                    with col_em:
+                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -833,7 +827,6 @@ else:
                                 
                                 if db_current_status == "폐기" and ed_status != "폐기":
                                     flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌려 재사용하는 것은 안전 및 논리상 절대 불가능합니다!"
-                                # 🛡️ [핵심 보완 방어막] 재사용대기 상태에서 불법적으로 사용중/사용전 점프 원천 금지
                                 elif db_current_status == "재사용대기" and ed_status in ["사용전", "사용중"]:
                                     flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
                                 elif db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
