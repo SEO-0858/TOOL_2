@@ -522,18 +522,26 @@ else:
             html_printable_content += "</div>"
             st.markdown("---")
             
+            # [최종 수정] 팝업 없는 직접 인쇄 방식
             if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
-                # 아래 코드는 인쇄 전용 CSS와 출력 로직을 결합한 방식입니다.
+                # 인쇄용 CSS를 포함한 HTML 구조
+                print_style = """
+                <style>
+                    @media print {
+                        .no-print { display: none; }
+                        .print-only { display: block; }
+                    }
+                </style>
+                """
+                # 인쇄 내용을 감싸는 HTML
+                print_body = f"<div class='print-only'>{html_printable_content}</div>"
+                
+                # HTML 렌더링 후 자동으로 브라우저 인쇄 함수를 호출
                 st.components.v1.html(f"""
-                    <div id="print-content" style="display:none;">{html_printable_content}</div>
+                    {print_style}
+                    {print_body}
                     <script>
-                        // 인쇄 전용 영역을 만들어 화면에 보이지 않게 숨기고 내용만 출력합니다.
-                        var content = document.getElementById('print-content').innerHTML;
-                        var printWindow = window.open('', '_blank', 'width=800,height=600');
-                        printWindow.document.write('<html><body>' + content + '</body></html>');
-                        printWindow.document.close();
-                        printWindow.print();
-                        printWindow.close();
+                        window.print();
                     </script>
                 """, height=0)
             
