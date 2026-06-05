@@ -68,11 +68,12 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         full_mach_name = f"{ed_machine_num}호기"
         pop_mach_name = f"{pop_mach_num}호기"
         
-        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
+        # 🆕 [기능 보완] 재사용대기 이력 문장에 처리 작업자(ed_worker) 정보를 명확하게 포함
+        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = get_now_kst().strftime("%m/%d %H:%M")
-        history_entry = f"{timestamp} - 상태변환:재사용대기 ({pop_mach_name}, {pop_count}개)"
+        history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{ed_worker}, {pop_mach_name}, {pop_count}개)"
         
         db_collection.update_one(
             {"serial_no": s_no},
@@ -114,7 +115,7 @@ if qr_scanned_serial:
         # 특이사항 내역의 글자를 정밀 추적하여 공정 판단분기 수립
         note_content = str(existing_data.get('note', ''))
         has_history_log = "상태:" in note_content or "호기" in note_content
-        has_pending_log = "상태: 재사용대기" in note_content  # 🆕 재사용대기 이력이 실재하는지 검증
+        has_pending_log = "상태: 재사용대기" in note_content
         
         if current_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
             st.warning(f"""
@@ -163,14 +164,12 @@ if qr_scanned_serial:
             )
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 🆕 [논리적 방어막] 이치에 맞지 않는 공정 흐름 차단 인터페이스 피드백
         if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
             st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다!")
         elif u_status == "재사용" and has_history_log and not has_pending_log:
             st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
         if submit_u_btn:
-            # 예외 에러 오작동 원천 차단
             if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                 st.stop()
             if u_status == "재사용" and has_history_log and not has_pending_log:
@@ -666,10 +665,9 @@ else:
                             if st.session_state[edit_key]:
                                 st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
                                 
-                                # 과거 가동 실적 로그 내역 존재 검출
                                 note_content = str(item.get('note', ''))
                                 has_history_log = "상태:" in note_content or "호기" in note_content
-                                has_pending_log = "상태: 재사용대기" in note_content  # 🆕 재사용대기 이력이 실재하는지 검증
+                                has_pending_log = "상태: 재사용대기" in note_content
                                 
                                 if status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
                                     st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
@@ -726,14 +724,12 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # 🆕 [정밀 오류 교정 방어막] 이치에 맞지 않는 조건 분기를 2단계로 쪼개어 차단알림 처리
                                 if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                     st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다!")
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # 비정상 공정 락(Lock) 검증 후 실행 차단
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                         st.stop()
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
@@ -755,6 +751,8 @@ else:
                                         target_time_val = "-"
                                         
                                     log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                                    
+                                    # 🆕 [기능 통일] 일반 상태 변경 저장 시에도 작업자 정보가 특이사항 로그에 확실하게 포함
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
                                         
