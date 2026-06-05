@@ -19,11 +19,28 @@ def get_database():
         client = MongoClient(MONGO_URI)
         db = client["dashboard_db"]
         return db["tools_management"]
+    
+
     except Exception as e:
         st.error(f"🌐 데이터베이스 통신 오류: {e}")
         return None
 
 db_collection = get_database()
+
+# --- [공정 흐름 제어 검문소] ---
+def validate_process(current_status, next_status):
+    # 각 상태에서 넘어갈 수 있는 다음 단계 정의
+    allowed = {
+        "사용전": ["사용중"],
+        "사용중": ["재사용대기", "폐기"],
+        "재사용대기": ["재사용", "폐기"],
+        "재사용": ["재사용대기", "폐기"],
+        "폐기": []
+    }
+    # 현재 상태가 규칙에 있고, 선택한 상태가 허용 목록에 있는지 확인
+    if current_status in allowed and next_status not in allowed[current_status]:
+        return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
+    return True, ""
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
@@ -246,7 +263,14 @@ if qr_scanned_serial:
         if u_submit_form_btn:
             if flow_error_msg:
                 st.stop()
-                
+
+            # [2단계: 모바일 검문소 설치]
+        # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
+        is_valid, msg = validate_process(db_status_mob, u_status)
+        if not is_valid:
+            st.error(msg)
+            st.stop()
+
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
@@ -853,6 +877,13 @@ else:
                                         st.stop()
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
                                         st.stop()
+                                    # --- [2단계: PC 검문소 설치] ---
+                                    is_valid, msg = validate_process(db_current_status, ed_status)
+                                    if not is_valid:
+                                        st.error(msg)
+                                        st.stop()
+                                    # -------------------------------
+
                                         
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
