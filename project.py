@@ -125,7 +125,8 @@ if qr_scanned_serial:
         orig_machine = existing_data.get('machine_no', '')
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
         try:
-            default_machine_int = int(orig_machine_num) if orig_machine_num else 0
+            # 🛠️ 모바일에서도 저장이 끝난 활성 데이터 수정 시에는 새 입력을 유도하기 위해 빈값화 적용
+            default_machine_int = 0
         except:
             default_machine_int = 0
 
@@ -134,16 +135,17 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
-            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', '')).strip()
+            # 🛠️ 저장이 끝난 창을 다시 열 때는 공백으로 청소 노출
+            u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
             st.markdown("---")
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
             col_uh, col_um = st.columns(2)
             with col_uh:
-                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=int(existing_data.get('dressing_hours', 0)), step=1, key="uh")
+                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
             with col_um:
-                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
+                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
                 
             default_val = existing_data.get('note', '')
             display_note = default_val
@@ -155,7 +157,6 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 📱 모바일 공정 흐름 제어 및 경고 시스템 가동
         flow_error_msg = ""
         if db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
             flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
@@ -689,11 +690,15 @@ else:
 
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
-                                try:
-                                    # ⚙️ 사용전 빈 제품 데이터는 무조건 0으로 띄워 수동 지정을 강제 유도합니다.
-                                    def_m_int = int(orig_m_num) if orig_m_num else 0
-                                except:
+                                
+                                # 🛠️ [화면 청소 대책 적용] 이미 저장이 끝난 가동 상태의 툴들은 화면 수정창을 다시 열 때 0호기 대기로 표시
+                                if db_current_status in ["사용중", "재사용", "재사용대기", "폐기"]:
                                     def_m_int = 0
+                                else:
+                                    try:
+                                        def_m_int = int(orig_m_num) if orig_m_num else 0
+                                    except:
+                                        def_m_int = 0
 
                                 db_start_time = item.get("start_time", "-")
                                 board_now = get_now_kst()
@@ -723,25 +728,28 @@ else:
                                     
                                     col_e1, col_e2 = st.columns(2)
                                     with col_e1:
-                                        default_worker_view = "" if item.get('status') == "사용전" else item.get('worker', '')
-                                        ed_worker = st.text_input("👷 교체 작업자 이름", value=default_worker_view).strip()
+                                        # 🛠️ [화면 청소 대책 적용] 이미 저장이 완료된 안착 상태의 툴들은 화면 수정창 입력란을 깔끔한 공백("")으로 비웁니다.
+                                        if db_current_status in ["사용중", "재사용", "재사용대기", "폐기"]:
+                                            default_worker_view = ""
+                                        else:
+                                            default_worker_view = item.get('worker', '')
+                                        ed_worker = st.text_input("👷 교체 작업자 이름 기입", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
-                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
+                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
                                     with col_em:
-                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
+                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
-                                        
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # 💻 [PC 종합 통제 엔진 방어막 수립]
+                                # 💻 PC 종합 통제 엔진 방어막
                                 flow_error_msg = ""
                                 if db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
                                     flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
@@ -761,7 +769,6 @@ else:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # 공정 필터 위반 감지 시 즉각 락(Lock)
                                     if flow_error_msg:
                                         st.stop()
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
@@ -955,7 +962,7 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
+                            "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] 현장 입고일 완료 (관리자 강제 재발행)"
                         }
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
