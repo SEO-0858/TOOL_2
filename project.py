@@ -111,8 +111,11 @@ if qr_scanned_serial:
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(current_status) if current_status in status_options else 1
         
-        # 과거 사용 내역 유무 정밀 판독 (상태 변경 로그 글자 추적)
-        has_history_log = "상태:" in str(existing_data.get('note', '')) or "호기" in str(existing_data.get('note', ''))
+        # 특이사항 내역의 글자를 정밀 추적하여 공정 판단분기 수립
+        note_content = str(existing_data.get('note', ''))
+        has_history_log = "상태:" in note_content or "호기" in note_content
+        has_pending_log = "상태: 재사용대기" in note_content  # 🆕 재사용대기 이력이 실재하는지 검증
+        
         if current_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
             st.warning(f"""
             ⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.**
@@ -160,20 +163,23 @@ if qr_scanned_serial:
             )
             submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 🆕 [오류 교정] 사용 기록이 전혀 없는 새 제품에 재사용/재사용대기/폐기 클릭 시 경고 강제 노출
+        # 🆕 [논리적 방어막] 이치에 맞지 않는 공정 흐름 차단 인터페이스 피드백
         if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-            st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다! 처음 가동 장착하는 경우라면 '사용중'을 선택하고 데이터를 다시 확인해 주세요.")
+            st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다!")
+        elif u_status == "재사용" and has_history_log and not has_pending_log:
+            st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
         if submit_u_btn:
-            # 과거 이력이 없는 새 툴의 비정상 저장 동작 원천 차단(Stop)
+            # 예외 에러 오작동 원천 차단
             if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
+                st.stop()
+            if u_status == "재사용" and has_history_log and not has_pending_log:
                 st.stop()
                 
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
             
-            # 과거 기록이 존재하는 안전 조건일 때만 실적 입력 팝업 활성화
             if u_status == "재사용대기":
                 show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins, current_now)
                 st.stop()
@@ -661,7 +667,10 @@ else:
                                 st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
                                 
                                 # 과거 가동 실적 로그 내역 존재 검출
-                                has_history_log = "상태:" in str(item.get('note', '')) or "호기" in str(item.get('note', ''))
+                                note_content = str(item.get('note', ''))
+                                has_history_log = "상태:" in note_content or "호기" in note_content
+                                has_pending_log = "상태: 재사용대기" in note_content  # 🆕 재사용대기 이력이 실재하는지 검증
+                                
                                 if status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
                                     st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
 
@@ -717,16 +726,19 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # 🆕 [오류 교정 방어막] 새 제품에 재사용/재사용대기/폐기 클릭 시 PC 현황판에서도 강력 알림 레이아웃 적용
+                                # 🆕 [정밀 오류 교정 방어막] 이치에 맞지 않는 조건 분기를 2단계로 쪼개어 차단알림 처리
                                 if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                    st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다! 처음 가동 장착하는 경우라면 '사용중'을 선택하고 데이터를 다시 확인해 주세요.")
+                                    st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다!")
+                                elif ed_status == "재사용" and has_history_log and not has_pending_log:
+                                    st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # 과거 가동 실적 문구 대조 후 조건 미충달 시 팝업 및 DB 락(Lock) 차단
+                                    # 비정상 공정 락(Lock) 검증 후 실행 차단
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                         st.stop()
+                                    if ed_status == "재사용" and has_history_log and not has_pending_log:
+                                        st.stop()
                                         
-                                    # 🆕 [순서 교정] 가동 실적이 명확히 확인되었을 때만 팝업창을 가동하도록 조건문 아래로 강제 이동
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins, board_now)
                                         st.stop()
