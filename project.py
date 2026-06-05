@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 from pymongo import MongoClient
 import datetime
 from datetime import timedelta, datetime as dt_class
@@ -77,8 +77,8 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
             {"serial_no": s_no},
             {"$set": {
                 "status": "재사용대기",
-                "worker": "",  # 🆕 다음 공정을 위해 작업자 필드 초기화 청소
-                "machine_no": "",  # 기계 배치 대기 상태로 복구
+                "worker": "",  
+                "machine_no": "",  
                 "dressing_hours": 0,
                 "dressing_mins": 0,
                 "start_time": "-",
@@ -194,9 +194,8 @@ if qr_scanned_serial:
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            # 🆕 [방어막 1, 3] 아무것도 안 바꾸고 그대로 저장을 연타했을 때 문장 무한 누적 원천 차단
             if u_status == db_status:
-                final_note_val = u_note.strip()  # 문구 생성 생략하고 기존 입력 내용만 매칭
+                final_note_val = u_note.strip()  
             else:
                 log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
@@ -208,7 +207,7 @@ if qr_scanned_serial:
                     "$set": {
                         "status": u_status,
                         "current_use": u_count,
-                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, # 🆕 상태 이탈 시 작업자 자동 정리
+                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
                         "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
                         "waste_date": waste_val,
                         "note": final_note_val,
@@ -218,7 +217,7 @@ if qr_scanned_serial:
                     "$push": {"history": history_entry} if u_status != db_status else {"$each": []}
                 }
             )
-            st.success("✅ 수정사항이 안전하게 저장되었습니다!")
+            st.success("✅ 수정사항이 저장되었습니다!")
             time.sleep(1)
             st.rerun()    
     else:
@@ -761,7 +760,6 @@ else:
                                         
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     
-                                    # 🆕 [방어막 1, 3] PC 현황판에서도 동일 상태 무한 연타 시 텍스트 복사 증식 원천 방지
                                     if ed_status == status:
                                         final_note_val = ed_note.strip()
                                     else:
@@ -772,7 +770,7 @@ else:
                                         {"serial_no": s_no},
                                         {"$set": {
                                             "status": ed_status,
-                                            "worker": "" if ed_status in ["사용전", "폐기"] else ed_worker, # 🆕 상태 초기화 시 필드 클리어
+                                            "worker": "" if ed_status in ["사용전", "폐기"] else ed_worker, 
                                             "machine_no": "" if ed_status in ["사용전", "폐기"] else full_mach_name,
                                             "dressing_hours": ed_hours,
                                             "dressing_mins": ed_mins,
