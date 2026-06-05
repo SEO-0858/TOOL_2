@@ -51,7 +51,7 @@ def generate_app_qr_bytes(serial_text):
 
 # 🟣 [재사용대기 팝업 대화창 정의]
 @st.dialog("📋 재사용대기 전환 추가 정보 기입")
-def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins, combined_ed_dt):
+def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins):
     st.write("🛠️ 이 툴을 보관 후 다시 사용하기 위해 기계 가공 실적을 입력해 주세요.")
     
     orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
@@ -64,13 +64,14 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
     pop_count = st.number_input("📊 이번 공정에서의 가공 갯수 (개)", min_value=0, max_value=999999, value=100, step=10, key=f"pop_count_pending_{s_no}")
     
     if st.button("🚀 실적 기록 및 재사용대기 저장"):
-        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        log_now = get_now_kst()
+        log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         pop_mach_name = f"{pop_mach_num}호기"
         
         auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
-        timestamp = get_now_kst().strftime("%m/%d %H:%M")
+        timestamp = log_now.strftime("%m/%d %H:%M")
         history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{ed_worker}, {pop_mach_name}, {pop_count}개)"
         
         db_collection.update_one(
@@ -132,13 +133,14 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             st.error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
             st.stop()
             
-        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        log_now = get_now_kst()
+        log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
         
         auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 폐기사유: {final_reason_text}"
         final_note_val = orig_note.strip() + auto_log_msg
         
-        timestamp = get_now_kst().strftime("%m/%d %H:%M")
+        timestamp = log_now.strftime("%m/%d %H:%M")
         history_entry = f"{timestamp} - 상태변환:폐기 (작업자:{ed_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
         
         db_collection.update_one(
@@ -220,12 +222,10 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
         
-        # 🛡️ [방어장치] 이미 폐기 완료된 제품 오작동 역행 원천 봉쇄
         if db_status_mob == "폐기" and u_status != "폐기":
-            flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 구조적 수정은 절대 불가능합니다!"
+            flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 것은 안전 및 논리상 절대 불가능합니다!"
         elif db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
             flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
         elif db_status_mob == "사용중" and u_status == "재사용":
@@ -251,7 +251,7 @@ if qr_scanned_serial:
             current_now = get_now_kst()
             
             if u_status == "재사용대기":
-                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins, current_now)
+                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
                 st.stop()
             
             if u_status == "폐기":
@@ -821,10 +821,8 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # PC 종합 통제 엔진 방어막 및 차단기 가동
+                                # PC 종합 통제 엔진 방어막
                                 flow_error_msg = ""
-                                
-                                # 🛡️ [방어장치] 이미 폐기 처리 완료된 내역의 공정 위반 역행 저장을 원천 차단
                                 if db_current_status == "폐기" and ed_status != "폐기":
                                     flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌려 재사용하는 것은 안전 및 논리상 절대 불가능합니다!"
                                 elif db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
@@ -853,7 +851,7 @@ else:
                                         st.stop()
                                         
                                     if ed_status == "재사용대기":
-                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins, board_now)
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
                                         st.stop()
                                         
                                     if ed_status == "폐기":
@@ -874,7 +872,9 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
-                                    log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
+                                    # 🛠️ [시간 역행 버그 완전 해결] 수정창을 켠 과거 시간 대신, 실제 저장 버튼을 누른 1초의 오차도 없는 실시간 현재 시각 획득
+                                    real_now_kst = get_now_kst()
+                                    log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
                                     
                                     if ed_status == item.get('status', '사용전'):
                                         final_note_val = ed_note.strip()
@@ -1024,7 +1024,7 @@ else:
                         🖨️ 이 QR코드 인쇄하기
                     </button>
                     """
-                    st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
+                    st.components.v1.html(js_print_trigger, height=60)
 
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
