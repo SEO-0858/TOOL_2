@@ -148,7 +148,8 @@ if qr_scanned_serial:
             default_val = existing_data.get('note', '')
             
             display_note = default_val
-            if "QR 선발행" in default_val:
+            # 🛠️ [문구 변경 동기화] "QR 선발행" ➡️ "현장 입고일" 검출 추적문 변경
+            if "현장 입고일" in default_val or "QR 선발행" in default_val:
                 match = re.search(r"(\[.*?\])", default_val)
                 if match:
                     display_note = match.group(1)
@@ -252,7 +253,8 @@ if qr_scanned_serial:
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
             
             init_display_note = existing_data.get('note', '') if existing_data else ""
-            if "QR 선발행" in init_display_note:
+            # 🛠️ [문구 변경 동기화] 모바일 등록창 진입 시에도 동일 필터 적용
+            if "현장 입고일" in init_display_note or "QR 선발행" in init_display_note:
                 match_init = re.search(r"(\[.*?\])", init_display_note)
                 init_display_note = match_init.group(1) if match_init else ""
 
@@ -381,7 +383,8 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
-                    "note": f"[{display_mmdd_hhmm} 발행] QR 선발행 완료 (현장 기입 대기)"
+                    # 🛠️ [요청 반영 완료] 최초 선발행 출력 문구를 "현장 입고일"로 전격 교체
+                    "note": f"[{display_mmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
             try:
@@ -728,7 +731,6 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
-                                    # 🆕 [버그 완벽 해결] PC 현황판에도 사용 한도 횟수(Limit)를 기입할 수 있는 입력 상자 전격 추가 연동
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
                                         
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -765,7 +767,6 @@ else:
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
                                         
-                                    # DB 업데이트 대상에 use_limit 매칭 추가 완료
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -774,7 +775,7 @@ else:
                                             "machine_no": full_mach_name,
                                             "dressing_hours": ed_hours,
                                             "dressing_mins": ed_mins,
-                                            "use_limit": ed_limit,  # 🆕 수정된 한도 횟수 DB 저장 동기화
+                                            "use_limit": ed_limit,  
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
@@ -811,7 +812,8 @@ else:
                                             formatted_date = get_now_kst().strftime("%m/%d")
                                             formatted_time = get_now_kst().strftime("%H:%M")
                                             
-                                        clean_note = f"[{formatted_date} {formatted_time} 발행] 수동 강제 공정 초기화 리셋 완료 (재가동 대기)"
+                                        # 🛠️ [문구 변경 동기화] 위험영역 리셋 시 생성 구문도 동일 가공 연동
+                                        clean_note = f"[{formatted_date} {formatted_time} 발행] 현장 입고일 완료 (수동 강제 공정 초기화 리셋)"
                                             
                                         db_collection.update_one(
                                             {"serial_no": s_no},
@@ -929,7 +931,8 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
+                            # 🛠️ [문구 변경 동기화] 개별 유실 강제 발행창에도 매칭 적용
+                            "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] 현장 입고일 완료 (관리자 강제 재발행)"
                         }
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
