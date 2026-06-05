@@ -522,45 +522,16 @@ else:
             html_printable_content += "</div>"
             st.markdown("---")
             
-            js_print_trigger = f"""
-            <script>
-            function executeQrPrint() {{
-                var printWindow = window.open('', '_blank', 'width=900,height=700');
-                printWindow.document.write('<html><head><title>KKQ 4파트 QR코드 라벨 인쇄</title>');
-                printWindow.document.write('<style>body {{ margin: 10px; padding: 0; background: #fff; }} @page {{ size: auto; margin: 5mm; }}</style>');
-                printWindow.document.write('</head><body>');
-                printWindow.document.write(`{html_printable_content}`);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.focus();
-                setTimeout(function() {{
-                    printWindow.print();
-                    printWindow.close();
-                }}, 600);
-            }}
-            </script>
-            <button onclick="executeQrPrint()" style="
-                width: 100%;
-                background-color: #00B050;
-                color: white;
-                padding: 14px 20px;
-                margin: 8px 0;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: bold;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-            ">
-                🖨️ 생성된 QR코드 전체 프린터로 인쇄하기 (라벨 발행 연동)
-            </button>
-            """
-            
-            st.markdown(js_print_trigger, unsafe_allow_html=True)
+            # 인쇄 버튼 로직
+            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
+                st.components.v1.html(f"""
+                    <script>
+                        var w = window.open('', '_blank');
+                        w.document.write('{html_printable_content}');
+                        w.document.close();
+                        w.print();
+                    </script>
+                """, height=0)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
