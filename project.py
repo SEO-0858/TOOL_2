@@ -105,16 +105,16 @@ if qr_scanned_serial:
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        db_status = existing_data.get("status", "사용중")
+        db_status_mob = existing_data.get("status", "사용중")
         
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-        status_index = status_options.index(db_status) if db_status in status_options else 1
+        status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
         
         note_content = str(existing_data.get('note', ''))
         has_history_log = "상태:" in note_content or "호기" in note_content
         has_pending_log = "상태: 재사용대기" in note_content
         
-        if db_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
+        if db_status_mob == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
             st.warning(f"""
             ⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.**
             * **직전 사용 장비**: {existing_data.get('last_active_machine', '기록없음')}
@@ -194,7 +194,8 @@ if qr_scanned_serial:
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            if u_status == db_status:
+            # 🛠️ 원본 DB 상태와 정밀 대조하여 중복 로깅 원천 제거
+            if u_status == db_status_mob:
                 final_note_val = u_note.strip()  
             else:
                 log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
@@ -214,7 +215,7 @@ if qr_scanned_serial:
                         "start_time": start_time_val,
                         "target_time": target_time_val
                     },
-                    "$push": {"history": history_entry} if u_status != db_status else {"$each": []}
+                    "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
                 }
             )
             st.success("✅ 수정사항이 저장되었습니다!")
@@ -760,7 +761,8 @@ else:
                                         
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     
-                                    if ed_status == status:
+                                    # 🛠️ [버그 해결 핵심 마크] 원본 DB 데이터인 item['status']와 대조 처리하여 로그 누락 완전 봉쇄
+                                    if ed_status == item.get('status', '사용전'):
                                         final_note_val = ed_note.strip()
                                     else:
                                         auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
