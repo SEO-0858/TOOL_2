@@ -560,7 +560,7 @@ else:
             </button>
             """
             
-            st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
+            st.markdown(js_print_trigger, unsafe_allow_html=True)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
