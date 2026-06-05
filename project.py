@@ -275,19 +275,22 @@ if qr_scanned_serial:
                     start_time_str = "-"
                     target_time_str = "-"
                 
-                log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                # 🛠️ [버그 해결] 현재 컴퓨터 시각으로 덮어쓰던 오작동을 차단하고, 화면에 입력된 chosen_time으로 강제 연동
+                init_time_only = chosen_time.strftime("%H:%M")
+                
+                # 특이사항 로그 시간도 화면 기입 시간 조건에 완벽 조율
+                log_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
                 final_m_note_val = m_note.strip() + auto_log_msg
 
-                init_time_only = get_now_kst().strftime("%H:%M")
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
                         "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                         "status": m_status,
-                        "input_date": str(today),
-                        "init_time": init_time_only,
+                        "input_date": str(chosen_date), # 입력된 날짜 반영
+                        "init_time": init_time_only,  # 🛠️ 버그 교정 완료 (입력한 시:분 저장)
                         "worker": m_worker,
                         "machine_no": machine_full_name,
                         "dressing_hours": dressing_hours,
@@ -720,7 +723,6 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
-                                    # 🆕 [문법 에러 완벽 해결] invalid syntax를 유발한 대입 연산자(=) 오류를 표준 컬럼 레이아웃으로 변경
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
@@ -757,7 +759,8 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
-                                    log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                                    # [기능 보완] 수정 완료 시에도 작업자가 기입한 날짜/시간 포맷으로 특이사항 로그 생성
+                                    log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
                                         
@@ -775,7 +778,6 @@ else:
                                             "note": final_note_val
                                         }}
                                     )
-                                    st.sidebar.success("💡 수정이 완료되었습니다.")
                                     st.session_state[edit_key] = False
                                     st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
                                     time.sleep(0.5)
