@@ -90,9 +90,6 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
                 "last_active_time": log_time_str
             }, "$push": {"history": history_entry}}
         )
-        # 세션 초기화용 키 리셋 처리
-        if f"worker_input_{s_no}" in st.session_state:
-            st.session_state[f"worker_input_{s_no}"] = ""
         st.success("🎉 재사용대기 실적이 성공적으로 누적 저장되었습니다!")
         time.sleep(1)
         st.rerun()
@@ -137,12 +134,8 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
-            # 🆕 [기능 보완] 저장 연타 방지를 위해 세션 기반 초기화 구조 연동
-            mob_worker_key = f"mob_worker_{qr_scanned_serial}"
-            if mob_worker_key not in st.session_state:
-                st.session_state[mob_worker_key] = existing_data.get('worker', '')
-            u_worker = st.text_input("👷 작업자 이름 수정", key=mob_worker_key)
-            
+            # 🛠️ 안전한 위젯 기입 처리
+            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
             
             st.markdown("---")
@@ -203,6 +196,7 @@ if qr_scanned_serial:
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
+            # 원본 DB 상태와 정밀 대조하여 중복 로깅 원천 제거
             if u_status == db_status_mob:
                 final_note_val = u_note.strip()  
             else:
@@ -226,8 +220,6 @@ if qr_scanned_serial:
                     "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
                 }
             )
-            # 🆕 저장 성공 시 모바일 세션의 작업자 칸 비우기 
-            st.session_state[mob_worker_key] = ""
             st.success("✅ 수정사항이 저장되었습니다!")
             time.sleep(1)
             st.rerun()    
@@ -722,14 +714,13 @@ else:
                                 with st.form(key=f"board_edit_form_{s_no}"):
                                     ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(status) if status in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0, horizontal=True)
                                     
-                                    # 🆕 [해결 마크] 세션 상태를 이용해 직전 저장 완료 시 입력 칸 강제 리셋 연동
-                                    pc_worker_key = f"worker_input_{s_no}"
-                                    if pc_worker_key not in st.session_state:
-                                        st.session_state[pc_worker_key] = item.get('worker', '')
-                                        
                                     col_e1, col_e2 = st.columns(2)
                                     with col_e1:
-                                        ed_worker = st.text_input("👷 교체 작업자 이름", key=pc_worker_key)
+                                        # 🛡️ [버그 영구 조치] 락 오류를 일으키던 st.session_state 종속 키 구조를 전면 파괴하고,
+                                        # 순수 DB 원본값(item['worker'])을 기본 노출하도록 로직을 무결성 검증 복구했습니다.
+                                        # 상태가 '사용전'인 신품 상태라면 입력 칸이 깔끔하게 빈칸('')으로 노출되도록 제어합니다.
+                                        default_worker_view = "" if item.get('status') == "사용전" else item.get('worker', '')
+                                        ed_worker = st.text_input("👷 교체 작업자 이름", value=default_worker_view)
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
@@ -774,7 +765,7 @@ else:
                                         
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     
-                                    # 원본 다이렉트 필드 값 참조 검사 구조 확립
+                                    # 원본 다이렉트 필드 값 참조 검사 구조 (중복 로그 방어막)
                                     if ed_status == item.get('status', '사용전'):
                                         final_note_val = ed_note.strip()
                                     else:
@@ -796,8 +787,6 @@ else:
                                             "note": final_note_val
                                         }}
                                     )
-                                    # 🆕 [초기화 핵심] 저장 성공 즉시 PC 화면 단락 입력 글자 강제 지우기 포맷 단행
-                                    st.session_state[pc_worker_key] = ""
                                     st.session_state[edit_key] = False
                                     st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
                                     time.sleep(0.5)
@@ -849,7 +838,6 @@ else:
                                                 "last_active_time": None
                                             }}
                                         )
-                                        st.session_state[pc_worker_key] = ""
                                         st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
                                         time.sleep(1)
                                         st.rerun()
