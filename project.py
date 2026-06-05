@@ -522,14 +522,17 @@ else:
             html_printable_content += "</div>"
             st.markdown("---")
             
-            # 인쇄 버튼 로직
             if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
                 st.components.v1.html(f"""
                     <script>
                         var w = window.open('', '_blank');
                         w.document.write('{html_printable_content}');
                         w.document.close();
-                        w.print();
+                        // 0.5초 기다린 후 인쇄 창 호출
+                        setTimeout(function() {{
+                            w.print();
+                            w.close();
+                        }}, 500);
                     </script>
                 """, height=0)
             
