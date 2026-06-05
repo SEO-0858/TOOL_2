@@ -134,8 +134,7 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
-            # 🛠️ 안전한 위젯 기입 처리
-            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', ''))
+            u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', '')).strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
             
             st.markdown("---")
@@ -159,15 +158,20 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-            st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다!")
-        elif u_status == "재사용" and has_history_log and not has_pending_log:
-            st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
+        # 🆕 [모바일 방어막] 필수 기입값 미지정 시 이벤트 알림 경고 표시
+        if u_status in ["사용중", "재사용", "재사용대기", "폐기"] and not u_worker:
+            st.error("⚠️ [데이터 누락 경고] '사용전' 대기 상태를 제외한 공정 변환 시에는 [교체 작업자 이름]을 반드시 입력해야 저장이 가능합니다!")
 
         if u_submit_form_btn:
+            # 작업자 공백 시 저장 실행 락(Lock) 제어
+            if u_status in ["사용중", "재사용", "재사용대기", "폐기"] and not u_worker:
+                st.stop()
+                
             if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
+                st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 새 제품 상태입니다!")
                 st.stop()
             if u_status == "재사용" and has_history_log and not has_pending_log:
+                st.error("⚠️ 공정 흐름 오류: '재사용대기' 이력이 유실되었습니다!")
                 st.stop()
                 
             machine_full_name = f"{u_machine_num}호기"
@@ -196,7 +200,6 @@ if qr_scanned_serial:
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            # 원본 DB 상태와 정밀 대조하여 중복 로깅 원천 제거
             if u_status == db_status_mob:
                 final_note_val = u_note.strip()  
             else:
@@ -239,7 +242,7 @@ if qr_scanned_serial:
         
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
-            m_worker = st.text_input("Worker 👷 교체 작업자 이름")
+            m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
             
             st.markdown("---")
@@ -716,11 +719,8 @@ else:
                                     
                                     col_e1, col_e2 = st.columns(2)
                                     with col_e1:
-                                        # 🛡️ [버그 영구 조치] 락 오류를 일으키던 st.session_state 종속 키 구조를 전면 파괴하고,
-                                        # 순수 DB 원본값(item['worker'])을 기본 노출하도록 로직을 무결성 검증 복구했습니다.
-                                        # 상태가 '사용전'인 신품 상태라면 입력 칸이 깔끔하게 빈칸('')으로 노출되도록 제어합니다.
                                         default_worker_view = "" if item.get('status') == "사용전" else item.get('worker', '')
-                                        ed_worker = st.text_input("👷 교체 작업자 이름", value=default_worker_view)
+                                        ed_worker = st.text_input("👷 교체 작업자 이름", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
@@ -737,12 +737,20 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
+                                # 🆕 [PC 방어막] 필수 기입값 미지정 시 이벤트 알림 경고 표시
+                                if ed_status in ["사용중", "재사용", "재사용대기", "폐기"] and not ed_worker:
+                                    st.error("⚠️ [데이터 누락 경고] '사용전' 대기 상태를 제외한 모든 단계에서는 [교체 작업자 이름]을 반드시 입력해야 저장이 가능합니다!")
+
                                 if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                     st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다!")
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
+                                    # 🛠️ 작업자 누락 시 에러 연타 무한 차단 락(Lock)
+                                    if ed_status in ["사용중", "재사용", "재사용대기", "폐기"] and not ed_worker:
+                                        st.stop()
+                                        
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                         st.stop()
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
@@ -765,7 +773,6 @@ else:
                                         
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     
-                                    # 원본 다이렉트 필드 값 참조 검사 구조 (중복 로그 방어막)
                                     if ed_status == item.get('status', '사용전'):
                                         final_note_val = ed_note.strip()
                                     else:
