@@ -141,7 +141,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
-        history_entry = f"{timestamp} - 상태변환:폐기 (작업자:{ed_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
+        history_entry = f".{timestamp} - 상태변환:폐기 (작업자:{ed_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
         
         db_collection.update_one(
             {"serial_no": s_no},
@@ -222,18 +222,19 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
+        # 📱 모바일 실시간 흐름 차단 엔진
         flow_error_msg = ""
         
         if db_status_mob == "폐기" and u_status != "폐기":
             flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 것은 안전 및 논리상 절대 불가능합니다!"
+        elif db_status_mob == "재사용대기" and u_status in ["사용전", "사용중"]:
+            flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
         elif db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
             flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
         elif db_status_mob == "사용중" and u_status == "재사용":
             flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
-        elif db_status_mob == "사용중" and u_status == "사용전":
-            flow_error_msg = "⚠️ [공정 흐름 오류] 이미 가동 장착된 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
         elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
-            flow_error_msg = "⚠️ [공정 흐름 오류] 가동 연혁이 존재하는 툴은 '사용전'으로 돌아갈 수 없습니다."
+            flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
         elif u_status in ["사용중", "재사용", "재사용대기"] and (not u_worker or u_machine_num == 0):
             flow_error_msg = "⚠️ [데이터 누락] 가동/보관 단계 저장 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 입력해야 합니다!"
         elif u_status == "폐기" and not u_worker:
@@ -813,18 +814,28 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
-                                    with col_em:
-                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
+                                    with col_em = col_em = st.columns(2)[1] if False else None: # dummy to keep layout same or sth
+                                        pass
+                                    # Fix layout reference
+                                    with col_em if 'col_em' in locals() and col_em else st.empty():
+                                        pass
+                                    
+                                    # structural layout alignment
+                                    ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # PC 종합 통제 엔진 방어막
+                                # PC 종합 통제 엔진 방어막 및 차단기 가동
                                 flow_error_msg = ""
+                                
                                 if db_current_status == "폐기" and ed_status != "폐기":
                                     flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌려 재사용하는 것은 안전 및 논리상 절대 불가능합니다!"
+                                # 🛡️ [핵심 보완 방어막] 재사용대기 상태에서 불법적으로 사용중/사용전 점프 원천 금지
+                                elif db_current_status == "재사용대기" and ed_status in ["사용전", "사용중"]:
+                                    flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
                                 elif db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
                                     flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
                                 elif db_current_status == "사용중" and ed_status == "재사용":
@@ -872,7 +883,6 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
-                                    # 🛠️ [시간 역행 버그 완전 해결] 수정창을 켠 과거 시간 대신, 실제 저장 버튼을 누른 1초의 오차도 없는 실시간 현재 시각 획득
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
                                     
@@ -1024,7 +1034,7 @@ else:
                         🖨️ 이 QR코드 인쇄하기
                     </button>
                     """
-                    st.components.v1.html(js_print_trigger, height=60)
+                    st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
 
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
