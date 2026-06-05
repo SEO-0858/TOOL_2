@@ -165,7 +165,7 @@ if qr_scanned_serial:
         if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
             st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다!")
         elif u_status == "재사용" and has_history_log and not has_pending_log:
-            st.error("⚠️ 공정 흐름 오류: 특이사항 내능에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
+            st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
         if u_submit_form_btn:
             if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
@@ -228,7 +228,6 @@ if qr_scanned_serial:
         st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
         current_now = get_now_kst()
         
-        # 🛠️ [기능 제어 핵심 교정] st.session_state 기반 고정식 컴포넌트 설계 유도 (핸드폰 시간 자동 복구 버그 원천 파괴)
         col_date, col_time = st.columns(2)
         with col_date:
             chosen_date = st.date_input("장착 날짜 선택", value=current_now.date(), key="m_chosen_date")
@@ -277,7 +276,6 @@ if qr_scanned_serial:
                     start_time_str = "-"
                     target_time_str = "-"
                 
-                # 🛠️ 작업자가 화면에서 선택한 시간이 지워지지 않고 100% 매칭 적용
                 init_time_only = chosen_time.strftime("%H:%M")
                 
                 log_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -730,6 +728,9 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
+                                    # 🆕 [버그 완벽 해결] PC 현황판에도 사용 한도 횟수(Limit)를 기입할 수 있는 입력 상자 전격 추가 연동
+                                    ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
+                                        
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
@@ -764,6 +765,7 @@ else:
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
                                         
+                                    # DB 업데이트 대상에 use_limit 매칭 추가 완료
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -772,6 +774,7 @@ else:
                                             "machine_no": full_mach_name,
                                             "dressing_hours": ed_hours,
                                             "dressing_mins": ed_mins,
+                                            "use_limit": ed_limit,  # 🆕 수정된 한도 횟수 DB 저장 동기화
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
@@ -850,6 +853,7 @@ else:
                                     East_mach = item.get('machine_no') if item.get('machine_no') else '-'
                                     st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
                                     st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                                    st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
                                     st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
                                 st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
                                 
