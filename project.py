@@ -523,16 +523,17 @@ else:
             st.markdown("---")
             
             if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
+                # 아래 코드는 인쇄 전용 CSS와 출력 로직을 결합한 방식입니다.
                 st.components.v1.html(f"""
+                    <div id="print-content" style="display:none;">{html_printable_content}</div>
                     <script>
-                        var w = window.open('', '_blank');
-                        w.document.write('{html_printable_content}');
-                        w.document.close();
-                        // 0.5초 기다린 후 인쇄 창 호출
-                        setTimeout(function() {{
-                            w.print();
-                            w.close();
-                        }}, 500);
+                        // 인쇄 전용 영역을 만들어 화면에 보이지 않게 숨기고 내용만 출력합니다.
+                        var content = document.getElementById('print-content').innerHTML;
+                        var printWindow = window.open('', '_blank', 'width=800,height=600');
+                        printWindow.document.write('<html><body>' + content + '</body></html>');
+                        printWindow.document.close();
+                        printWindow.print();
+                        printWindow.close();
                     </script>
                 """, height=0)
             
