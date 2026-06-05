@@ -160,14 +160,14 @@ if qr_scanned_serial:
                 value=display_note,
                 placeholder=f"기존 기록: {default_val}\n여기에 내용을 입력하세요..."
             )
-            submit_u_btn = st.form_submit_button("🔄 수정사항 저장하기")
+            u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
             st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{u_status}' 항목을 선택할 수 없습니다!")
         elif u_status == "재사용" and has_history_log and not has_pending_log:
-            st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
+            st.error("⚠️ 공정 흐름 오류: 특이사항 내능에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
-        if submit_u_btn:
+        if u_submit_form_btn:
             if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                 st.stop()
             if u_status == "재사용" and has_history_log and not has_pending_log:
@@ -228,11 +228,13 @@ if qr_scanned_serial:
         st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
         current_now = get_now_kst()
         
+        # 🛠️ [기능 제어 핵심 교정] st.session_state 기반 고정식 컴포넌트 설계 유도 (핸드폰 시간 자동 복구 버그 원천 파괴)
         col_date, col_time = st.columns(2)
         with col_date:
-            chosen_date = st.date_input("장착 날짜 선택", value=current_now.date())
+            chosen_date = st.date_input("장착 날짜 선택", value=current_now.date(), key="m_chosen_date")
         with col_time:
-            chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300)
+            chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300, key="m_chosen_time")
+            
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
         with st.form(key="mobile_input_form"):
@@ -275,10 +277,9 @@ if qr_scanned_serial:
                     start_time_str = "-"
                     target_time_str = "-"
                 
-                # 🛠️ [버그 해결] 현재 컴퓨터 시각으로 덮어쓰던 오작동을 차단하고, 화면에 입력된 chosen_time으로 강제 연동
+                # 🛠️ 작업자가 화면에서 선택한 시간이 지워지지 않고 100% 매칭 적용
                 init_time_only = chosen_time.strftime("%H:%M")
                 
-                # 특이사항 로그 시간도 화면 기입 시간 조건에 완벽 조율
                 log_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
                 final_m_note_val = m_note.strip() + auto_log_msg
@@ -289,8 +290,8 @@ if qr_scanned_serial:
                         "serial_no": qr_scanned_serial,
                         "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                         "status": m_status,
-                        "input_date": str(chosen_date), # 입력된 날짜 반영
-                        "init_time": init_time_only,  # 🛠️ 버그 교정 완료 (입력한 시:분 저장)
+                        "input_date": str(chosen_date), 
+                        "init_time": init_time_only,  
                         "worker": m_worker,
                         "machine_no": machine_full_name,
                         "dressing_hours": dressing_hours,
@@ -759,7 +760,6 @@ else:
                                         start_time_val = "-" if ed_status in ["사용전", "재사용대기"] else item.get("start_time", "-")
                                         target_time_val = "-"
                                         
-                                    # [기능 보완] 수정 완료 시에도 작업자가 기입한 날짜/시간 포맷으로 특이사항 로그 생성
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
                                     auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val = ed_note.strip() + auto_log_msg
