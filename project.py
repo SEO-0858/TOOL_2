@@ -56,11 +56,11 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
     
     orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
     try:
-        def_m_val = int(orig_m_num) if orig_m_num else 4
+        def_m_val = int(orig_m_num) if orig_m_num else 0
     except:
-        def_m_val = 4
+        def_m_val = 0
         
-    pop_mach_num = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val)
+    pop_mach_num = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val if def_m_val > 0 else 1)
     pop_count = st.number_input("📊 이번 공정에서의 가공 갯수 (개)", min_value=0, max_value=999999, value=100, step=10)
     
     if st.button("🚀 실적 기록 및 재사용대기 저장"):
@@ -125,9 +125,9 @@ if qr_scanned_serial:
         orig_machine = existing_data.get('machine_no', '')
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
         try:
-            default_machine_int = int(orig_machine_num) if orig_machine_num else 1
+            default_machine_int = int(orig_machine_num) if orig_machine_num else 0
         except:
-            default_machine_int = 1
+            default_machine_int = 0
 
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
@@ -135,7 +135,7 @@ if qr_scanned_serial:
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
             u_worker = st.text_input("👷 작업자 이름 수정", value=existing_data.get('worker', '')).strip()
-            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=1, max_value=200, value=default_machine_int, step=1)
+            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
             st.markdown("---")
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
@@ -146,32 +146,33 @@ if qr_scanned_serial:
                 u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5, key="um")
                 
             default_val = existing_data.get('note', '')
-            
             display_note = default_val
             if "현장 입고일" in default_val or "QR 선발행" in default_val:
                 match = re.search(r"(\[.*?\])", default_val)
-                if match:
-                    display_note = match.group(1)
-                else:
-                    display_note = ""
+                if match: display_note = match.group(1)
+                else: display_note = ""
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
-        # 🆕 [모바일 방어막] 필수 기입값 미지정 시 이벤트 알림 경고 표시
-        if u_status in ["사용중", "재사용", "재사용대기", "폐기"] and not u_worker:
-            st.error("⚠️ [데이터 누락 경고] '사용전' 대기 상태를 제외한 공정 변환 시에는 [교체 작업자 이름]을 반드시 입력해야 저장이 가능합니다!")
+        # 📱 모바일 공정 흐름 제어 및 경고 시스템 가동
+        flow_error_msg = ""
+        if db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
+            flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
+        elif db_status_mob == "사용중" and u_status == "재사용":
+            flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
+        elif db_status_mob == "사용중" and u_status == "사용전":
+            flow_error_msg = "⚠️ [공정 흐름 오류] 이미 가동 장착된 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
+        elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
+            flow_error_msg = "⚠️ [공정 흐름 오류] 가동 연혁이 존재하는 툴은 '사용전'으로 돌아갈 수 없습니다."
+        elif u_status in ["사용중", "재사용", "재사용대기", "폐기"] and (not u_worker or u_machine_num == 0):
+            flow_error_msg = "⚠️ [데이터 누락] 가동/보관/폐기 단계 저장 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 입력해야 합니다!"
+
+        if flow_error_msg:
+            st.error(flow_error_msg)
 
         if u_submit_form_btn:
-            # 작업자 공백 시 저장 실행 락(Lock) 제어
-            if u_status in ["사용중", "재사용", "재사용대기", "폐기"] and not u_worker:
-                st.stop()
-                
-            if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 새 제품 상태입니다!")
-                st.stop()
-            if u_status == "재사용" and has_history_log and not has_pending_log:
-                st.error("⚠️ 공정 흐름 오류: '재사용대기' 이력이 유실되었습니다!")
+            if flow_error_msg:
                 st.stop()
                 
             machine_full_name = f"{u_machine_num}호기"
@@ -243,7 +244,7 @@ if qr_scanned_serial:
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
-            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=1, max_value=200, value=4, step=1)
+            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
             
             st.markdown("---")
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
@@ -267,6 +268,8 @@ if qr_scanned_serial:
         if submit_m_btn:
             if not m_worker:
                 st.error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
+            elif m_machine_num == 0:
+                st.error("⚠️ 장착 가공할 정확한 기계 호기 번호를 기입해 주세요!")
             else:
                 tool_code = qr_scanned_serial[:3]
                 waste_val = str(today) if m_status == "폐기" else "-"
@@ -457,7 +460,7 @@ else:
             </button>
             """
             
-            st.components.v1.html(js_print_trigger, height=75)
+            st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
@@ -656,12 +659,12 @@ else:
                     
                     for item in filtered_data:
                         s_no = item["serial_no"]
-                        status = item.get("status", "사용전")
+                        db_current_status = item.get("status", "사용전")
                         
-                        if status == "사용전": status_badge = "🟢 [사용전]"
-                        elif status == "사용중": status_badge = "🟡 [사용중]"
-                        elif status == "재사용": status_badge = "🔵 [재사용]"
-                        elif status == "재사용대기": status_badge = "🟣 [재사용대기]"
+                        if db_current_status == "사용전": status_badge = "🟢 [사용전]"
+                        elif db_current_status == "사용중": status_badge = "🟡 [사용중]"
+                        elif db_current_status == "재사용": status_badge = "🔵 [재사용]"
+                        elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
                         if not item.get('worker') or not item.get('machine_no'):
@@ -681,15 +684,16 @@ else:
                                 has_history_log = "상태:" in note_content or "호기" in note_content
                                 has_pending_log = "상태: 재사용대기" in note_content
                                 
-                                if status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
+                                if db_current_status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
                                     st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
 
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
                                 try:
-                                    def_m_int = int(orig_m_num) if orig_m_num else 4
+                                    # ⚙️ 사용전 빈 제품 데이터는 무조건 0으로 띄워 수동 지정을 강제 유도합니다.
+                                    def_m_int = int(orig_m_num) if orig_m_num else 0
                                 except:
-                                    def_m_int = 4
+                                    def_m_int = 0
 
                                 db_start_time = item.get("start_time", "-")
                                 board_now = get_now_kst()
@@ -715,14 +719,14 @@ else:
                                 combined_ed_dt = dt_class.combine(ed_date, ed_time)
 
                                 with st.form(key=f"board_edit_form_{s_no}"):
-                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(status) if status in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0, horizontal=True)
+                                    ed_status = st.radio("🔄 툴 상태 변경", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(db_current_status) if db_current_status in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0, horizontal=True)
                                     
                                     col_e1, col_e2 = st.columns(2)
                                     with col_e1:
                                         default_worker_view = "" if item.get('status') == "사용전" else item.get('worker', '')
                                         ed_worker = st.text_input("👷 교체 작업자 이름", value=default_worker_view).strip()
                                     with col_e2:
-                                        ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
+                                        ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
@@ -737,9 +741,19 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # 🆕 [PC 방어막] 필수 기입값 미지정 시 이벤트 알림 경고 표시
-                                if ed_status in ["사용중", "재사용", "재사용대기", "폐기"] and not ed_worker:
-                                    st.error("⚠️ [데이터 누락 경고] '사용전' 대기 상태를 제외한 모든 단계에서는 [교체 작업자 이름]을 반드시 입력해야 저장이 가능합니다!")
+                                # 💻 [PC 종합 통제 엔진 방어막 수립]
+                                flow_error_msg = ""
+                                if db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
+                                    flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
+                                elif db_current_status == "사용중" and ed_status == "재사용":
+                                    flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
+                                elif db_current_status in ["사용중", "재사용", "재사용대기"] and ed_status == "사용전":
+                                    flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하고 리셋하려면 하단의 [위험 영역: 가동 중단 및 완전 초기화] 기능을 이용하세요."
+                                elif ed_status in ["사용중", "재사용", "재사용대기", "폐기"] and (not ed_worker or ed_machine_num == 0):
+                                    flow_error_msg = "⚠️ [데이터 누락 방지] '사용전' 대기 상태를 제외한 가동/보관/폐기 데이터 등록 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 완벽하게 기입해야 합니다!"
+
+                                if flow_error_msg:
+                                    st.error(flow_error_msg)
 
                                 if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                     st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다!")
@@ -747,10 +761,9 @@ else:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # 🛠️ 작업자 누락 시 에러 연타 무한 차단 락(Lock)
-                                    if ed_status in ["사용중", "재사용", "재사용대기", "폐기"] and not ed_worker:
+                                    # 공정 필터 위반 감지 시 즉각 락(Lock)
+                                    if flow_error_msg:
                                         st.stop()
-                                        
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                         st.stop()
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
@@ -921,7 +934,7 @@ else:
                         🖨️ 이 QR코드 인쇄하기
                     </button>
                     """
-                    st.components.v1.html(js_print_trigger, height=60)
+                    st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
 
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
@@ -942,7 +955,7 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] 현장 입고일 완료 (관리자 강제 재발행)"
+                            "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
