@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 from pymongo import MongoClient
 import datetime
 from datetime import timedelta, datetime as dt_class
@@ -65,7 +65,6 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
     
     if st.button("🚀 실적 기록 및 재사용대기 저장"):
         log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-        full_mach_name = f"{ed_machine_num}호기"
         pop_mach_name = f"{pop_mach_num}호기"
         
         auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
@@ -78,10 +77,10 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
             {"serial_no": s_no},
             {"$set": {
                 "status": "재사용대기",
-                "worker": ed_worker,
-                "machine_no": full_mach_name,
-                "dressing_hours": ed_hours,
-                "dressing_mins": ed_mins,
+                "worker": "",  # 🆕 다음 공정을 위해 작업자 필드 초기화 청소
+                "machine_no": "",  # 기계 배치 대기 상태로 복구
+                "dressing_hours": 0,
+                "dressing_mins": 0,
                 "start_time": "-",
                 "target_time": "-",
                 "waste_date": "-",
@@ -106,16 +105,16 @@ if qr_scanned_serial:
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        current_status = existing_data.get("status", "사용중")
+        db_status = existing_data.get("status", "사용중")
         
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-        status_index = status_options.index(current_status) if current_status in status_options else 1
+        status_index = status_options.index(db_status) if db_status in status_options else 1
         
         note_content = str(existing_data.get('note', ''))
         has_history_log = "상태:" in note_content or "호기" in note_content
         has_pending_log = "상태: 재사용대기" in note_content
         
-        if current_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
+        if db_status == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
             st.warning(f"""
             ⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.**
             * **직전 사용 장비**: {existing_data.get('last_active_machine', '기록없음')}
@@ -148,7 +147,6 @@ if qr_scanned_serial:
             default_val = existing_data.get('note', '')
             
             display_note = default_val
-            # 🛠️ [문구 변경 동기화] "QR 선발행" ➡️ "현장 입고일" 검출 추적문 변경
             if "현장 입고일" in default_val or "QR 선발행" in default_val:
                 match = re.search(r"(\[.*?\])", default_val)
                 if match:
@@ -156,11 +154,7 @@ if qr_scanned_serial:
                 else:
                     display_note = ""
             
-            u_note = st.text_area(
-                "📝 현장 특이사항", 
-                value=display_note,
-                placeholder=f"기존 기록: {default_val}\n여기에 내용을 입력하세요..."
-            )
+            u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         if u_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
@@ -200,9 +194,13 @@ if qr_scanned_serial:
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
-            log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
-            auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
-            final_note_val = u_note.strip() + auto_log_msg
+            # 🆕 [방어막 1, 3] 아무것도 안 바꾸고 그대로 저장을 연타했을 때 문장 무한 누적 원천 차단
+            if u_status == db_status:
+                final_note_val = u_note.strip()  # 문구 생성 생략하고 기존 입력 내용만 매칭
+            else:
+                log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
+                auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
+                final_note_val = u_note.strip() + auto_log_msg
 
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
@@ -210,17 +208,17 @@ if qr_scanned_serial:
                     "$set": {
                         "status": u_status,
                         "current_use": u_count,
-                        "worker": u_worker,
-                        "machine_no": machine_full_name,
+                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, # 🆕 상태 이탈 시 작업자 자동 정리
+                        "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
                         "waste_date": waste_val,
                         "note": final_note_val,
                         "start_time": start_time_val,
                         "target_time": target_time_val
                     },
-                    "$push": {"history": history_entry}
+                    "$push": {"history": history_entry} if u_status != db_status else {"$each": []}
                 }
             )
-            st.success("✅ 수정사항이 저장되었습니다!")
+            st.success("✅ 수정사항이 안전하게 저장되었습니다!")
             time.sleep(1)
             st.rerun()    
     else:
@@ -253,7 +251,6 @@ if qr_scanned_serial:
             m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
             
             init_display_note = existing_data.get('note', '') if existing_data else ""
-            # 🛠️ [문구 변경 동기화] 모바일 등록창 진입 시에도 동일 필터 적용
             if "현장 입고일" in init_display_note or "QR 선발행" in init_display_note:
                 match_init = re.search(r"(\[.*?\])", init_display_note)
                 init_display_note = match_init.group(1) if match_init else ""
@@ -383,7 +380,6 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
-                    # 🛠️ [요청 반영 완료] 최초 선발행 출력 문구를 "현장 입고일"로 전격 교체
                     "note": f"[{display_mmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
@@ -764,15 +760,20 @@ else:
                                         target_time_val = "-"
                                         
                                     log_time_str = combined_ed_dt.strftime("%Y-%m-%d %H:%M:%S")
-                                    auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
-                                    final_note_val = ed_note.strip() + auto_log_msg
+                                    
+                                    # 🆕 [방어막 1, 3] PC 현황판에서도 동일 상태 무한 연타 시 텍스트 복사 증식 원천 방지
+                                    if ed_status == status:
+                                        final_note_val = ed_note.strip()
+                                    else:
+                                        auto_log_msg = f"\n[{log_time_str}] 상태: {ed_status}, 작업자: {ed_worker}, 기계: {full_mach_name}"
+                                        final_note_val = ed_note.strip() + auto_log_msg
                                         
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
                                             "status": ed_status,
-                                            "worker": ed_worker,
-                                            "machine_no": full_mach_name,
+                                            "worker": "" if ed_status in ["사용전", "폐기"] else ed_worker, # 🆕 상태 초기화 시 필드 클리어
+                                            "machine_no": "" if ed_status in ["사용전", "폐기"] else full_mach_name,
                                             "dressing_hours": ed_hours,
                                             "dressing_mins": ed_mins,
                                             "use_limit": ed_limit,  
@@ -812,7 +813,6 @@ else:
                                             formatted_date = get_now_kst().strftime("%m/%d")
                                             formatted_time = get_now_kst().strftime("%H:%M")
                                             
-                                        # 🛠️ [문구 변경 동기화] 위험영역 리셋 시 생성 구문도 동일 가공 연동
                                         clean_note = f"[{formatted_date} {formatted_time} 발행] 현장 입고일 완료 (수동 강제 공정 초기화 리셋)"
                                             
                                         db_collection.update_one(
@@ -931,7 +931,6 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            # 🛠️ [문구 변경 동기화] 개별 유실 강제 발행창에도 매칭 적용
                             "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] 현장 입고일 완료 (관리자 강제 재발행)"
                         }
                         db_collection.insert_one(new_blank)
