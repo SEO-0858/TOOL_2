@@ -100,7 +100,6 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
 def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     st.markdown("### 🗑️ 이 툴을 현장 폐기 처리합니다. 아래 정보를 입력하세요.")
     
-    # 🆕 [보관 중 폐기 예외 처리 핵심 제어]
     is_stored_waste = (from_status == "재사용대기")
     
     if is_stored_waste:
@@ -136,7 +135,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
         
-        # 가공기계 자리에 숫자 대신 '보관' 문구를 깔끔하게 매칭 조립
         auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 폐기사유: {final_reason_text}"
         final_note_val = orig_note.strip() + auto_log_msg
         
@@ -222,8 +220,13 @@ if qr_scanned_serial:
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
+        # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
-        if db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
+        
+        # 🛡️ [방어장치] 이미 폐기 완료된 제품 오작동 역행 원천 봉쇄
+        if db_status_mob == "폐기" and u_status != "폐기":
+            flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 구조적 수정은 절대 불가능합니다!"
+        elif db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
             flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
         elif db_status_mob == "사용중" and u_status == "재사용":
             flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
@@ -231,7 +234,6 @@ if qr_scanned_serial:
             flow_error_msg = "⚠️ [공정 흐름 오류] 이미 가동 장착된 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
         elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
             flow_error_msg = "⚠️ [공정 흐름 오류] 가동 연혁이 존재하는 툴은 '사용전'으로 돌아갈 수 없습니다."
-        # ⚠️ 재사용 대기중 폐기로 바로 갈 때는 기계 호기 번호 0번 락 예외 허용 처리
         elif u_status in ["사용중", "재사용", "재사용대기"] and (not u_worker or u_machine_num == 0):
             flow_error_msg = "⚠️ [데이터 누락] 가동/보관 단계 저장 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 입력해야 합니다!"
         elif u_status == "폐기" and not u_worker:
@@ -819,15 +821,18 @@ else:
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
                                     
-                                # PC 종합 통제 엔진 방어막
+                                # PC 종합 통제 엔진 방어막 및 차단기 가동
                                 flow_error_msg = ""
-                                if db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
+                                
+                                # 🛡️ [방어장치] 이미 폐기 처리 완료된 내역의 공정 위반 역행 저장을 원천 차단
+                                if db_current_status == "폐기" and ed_status != "폐기":
+                                    flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌려 재사용하는 것은 안전 및 논리상 절대 불가능합니다!"
+                                elif db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
                                     flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
                                 elif db_current_status == "사용중" and ed_status == "재사용":
                                     flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
                                 elif db_current_status in ["사용중", "재사용", "재사용대기"] and ed_status == "사용전":
                                     flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하고 리셋하려면 하단의 [위험 영역: 가동 중단 및 완전 초기화] 기능을 이용하세요."
-                                # ⚠️ 재사용대기에서 바로 폐기로 가는 특수 상황을 위해 락 조건 분기 세분화
                                 elif ed_status in ["사용중", "재사용", "재사용대기"] and (not ed_worker or ed_machine_num == 0):
                                     flow_error_msg = "⚠️ [데이터 누락 방지] '사용전' 대기 상태를 제외한 가동/보관 데이터 등록 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 완벽하게 기입해야 합니다!"
 
@@ -851,12 +856,10 @@ else:
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins, board_now)
                                         st.stop()
                                         
-                                    # 폐기 라디오 선택 시 사유 선택 드롭다운 팝업창 가동
                                     if ed_status == "폐기":
                                         if not ed_worker:
                                             st.error("⚠️ [작업자 이름 누락] 툴 폐기 처리를 시작하려면 폼 양식의 [교체 작업자 이름] 칸을 먼저 기입한 뒤 저장을 눌러주세요!")
                                             st.stop()
-                                        # 🆕 현재 상태 정보(db_current_status)를 팝업창으로 정밀 전송
                                         show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
                                         st.stop()
                                         
