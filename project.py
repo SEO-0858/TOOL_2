@@ -279,7 +279,6 @@ if qr_scanned_serial:
                 auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
                 final_m_note_val = m_note.strip() + auto_log_msg
 
-                # 🆕 신규 등록 시에도 고정 입고 일시 아카이브 필드 심어두기
                 init_time_only = get_now_kst().strftime("%H:%M")
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
@@ -288,7 +287,7 @@ if qr_scanned_serial:
                         "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                         "status": m_status,
                         "input_date": str(today),
-                        "init_time": init_time_only,  # 고정 시 분 정보 영구화
+                        "init_time": init_time_only,
                         "worker": m_worker,
                         "machine_no": machine_full_name,
                         "dressing_hours": dressing_hours,
@@ -355,7 +354,6 @@ else:
             blank_records = []
             generated_serials = []
             
-            # 🆕 선발행을 누르는 순간의 고정 시간 획득
             fixed_now_kst = get_now_kst()
             fixed_date_str = fixed_now_kst.strftime("%Y-%m-%d")
             fixed_time_str = fixed_now_kst.strftime("%H:%M")
@@ -371,7 +369,7 @@ else:
                     "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
                     "status": "사용전",
                     "input_date": fixed_date_str,
-                    "init_time": fixed_time_str,  # 🆕 비고란과 별개로 DB 고정 필드로 박아버림 (보호 제어 목적)
+                    "init_time": fixed_time_str,
                     "worker": "",
                     "machine_no": "",
                     "dressing_hours": 0,
@@ -722,10 +720,11 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                         
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
+                                    # 🆕 [문법 에러 완벽 해결] invalid syntax를 유발한 대입 연산자(=) 오류를 표준 컬럼 레이아웃으로 변경
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=int(item.get('dressing_hours', 0)), step=1, key=f"eh_{s_no}")
-                                    with col_em = st.columns(2):
+                                    with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=int(item.get('dressing_mins', 0)), step=5, key=f"em_{s_no}")
                                         
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
@@ -776,6 +775,7 @@ else:
                                             "note": final_note_val
                                         }}
                                     )
+                                    st.sidebar.success("💡 수정이 완료되었습니다.")
                                     st.session_state[edit_key] = False
                                     st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
                                     time.sleep(0.5)
@@ -791,11 +791,9 @@ else:
                                     if not confirm_reset:
                                         st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
                                     else:
-                                        # 🔑 [최종 솔루션] DB 내부의 고정 아카이브 날짜(input_date)와 시:분(init_time)을 획득
                                         fresh_data = db_collection.find_one({"serial_no": s_no})
                                         
                                         if fresh_data:
-                                            # 날짜 파싱 포맷 보정 (년-월-일에서 월/일만 추출)
                                             raw_date = fresh_data.get('input_date', str(today))
                                             try:
                                                 date_obj = dt_class.strptime(raw_date, "%Y-%m-%d")
@@ -803,13 +801,11 @@ else:
                                             except:
                                                 formatted_date = raw_date[-5:].replace("-", "/")
                                                 
-                                            # 고정 필드 시간 로드
                                             formatted_time = fresh_data.get('init_time', get_now_kst().strftime("%H:%M"))
                                         else:
                                             formatted_date = get_now_kst().strftime("%m/%d")
                                             formatted_time = get_now_kst().strftime("%H:%M")
                                             
-                                        # 🎯 텍스트 변동의 위험 없이 [MM/DD HH:MM 발행] 규격을 소수점 1초도 틀리지 않고 100% 복구 조립
                                         clean_note = f"[{formatted_date} {formatted_time} 발행] 수동 강제 공정 초기화 리셋 완료 (재가동 대기)"
                                             
                                         db_collection.update_one(
@@ -927,7 +923,7 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            "note": f"[{get_now_kst().strftime('%m/%d %H:%M')} 발행] 누락 번호 관리자 강제 재발행 완료"
+                            "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
