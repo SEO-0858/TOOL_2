@@ -828,6 +828,18 @@ else:
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
+
+                                    # [사용중 툴 폐기 시 경고 및 사유 입력]
+                                    if ed_status == "폐기" and db_current_status == "사용중":
+                                        st.warning("⚠️ 경고: 현재 [사용중]인 툴을 폐기하려 합니다. 정말 진행하시겠습니까?")
+                                        confirm_waste = st.checkbox("위 내용을 확인했으며, 사용 중인 툴을 폐기하겠습니다.", key=f"confirm_{s_no}")
+                                        
+                                        if confirm_waste:
+                                            waste_reason = st.text_input("필수: 폐기 사유를 입력하세요", key=f"reason_{s_no}")
+                                            st.session_state[f"temp_reason_{s_no}"] = waste_reason
+                                        else:
+                                            st.info("폐기를 진행하려면 위 확인란을 체크하세요.")
+                                            st.stop()
                                     
                                 # PC 종합 통제 엔진 방어막 및 차단기 가동
                                 flow_error_msg = ""
@@ -854,28 +866,35 @@ else:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
+                                    # [3단계] 폐기 사유 확인
+                                    if ed_status == "폐기" and db_current_status == "사용중":
+                                        if not st.session_state.get(f"temp_reason_{s_no}"):
+                                            st.error("❌ 오류: 폐기 사유가 입력되지 않았습니다!")
+                                            st.stop()
+                                    
                                     if flow_error_msg:
                                         st.stop()
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
                                         st.stop()
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
                                         st.stop()
-                                    # --- [2단계: PC 검문소 설치] ---
+
+                                    # [2단계: PC 검문소 설치]
                                     is_valid, msg = validate_process(db_current_status, ed_status)
                                     if not is_valid:
                                         st.error(msg)
                                         st.stop()
-                                    # -------------------------------
 
-                                        
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
                                         st.stop()
-                                        
+                                    
                                     if ed_status == "폐기":
-                                        if not ed_worker:
-                                            st.error("⚠️ [작업자 이름 누락] 툴 폐기 처리를 시작하려면 폼 양식의 [교체 작업자 이름] 칸을 먼저 기입한 뒤 저장을 눌러주세요!")
-                                            st.stop()
+                                        # [4단계] 폐기 시 사유 기록 추가
+                                        if db_current_status == "사용중":
+                                            reason = st.session_state.get(f"temp_reason_{s_no}")
+                                            ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
+                                        
                                         show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
                                         st.stop()
                                         
