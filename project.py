@@ -29,7 +29,10 @@ db_collection = get_database()
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
-    # 각 상태에서 넘어갈 수 있는 다음 단계 정의
+    # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
+    if current_status == "사용전" and next_status == "폐기":
+        return True, ""
+        
     allowed = {
         "사용전": ["사용중"],
         "사용중": ["재사용대기", "폐기"],
@@ -37,7 +40,6 @@ def validate_process(current_status, next_status):
         "재사용": ["재사용대기", "폐기"],
         "폐기": []
     }
-    # 현재 상태가 규칙에 있고, 선택한 상태가 허용 목록에 있는지 확인
     if current_status in allowed and next_status not in allowed[current_status]:
         return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
     return True, ""
@@ -867,11 +869,13 @@ else:
 
                                 if b_submit:
                                     # [3단계] 폐기 사유 확인
-                                    if ed_status == "폐기" and db_current_status == "사용중":
+                                    # [3단계] 폐기 사유 확인 (사용전 툴 예외 포함)
+                                    if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
                                             st.error("❌ 오류: 폐기 사유가 입력되지 않았습니다!")
                                             st.stop()
                                     
+                                    # 기존 검문소 로직들
                                     if flow_error_msg:
                                         st.stop()
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
@@ -882,16 +886,18 @@ else:
                                     # [2단계: PC 검문소 설치]
                                     is_valid, msg = validate_process(db_current_status, ed_status)
                                     if not is_valid:
-                                        st.error(msg)
-                                        st.stop()
+                                        # 예외 허용: 사용전 툴이 폐기될 때는 검문소 에러를 무시
+                                        if not (db_current_status == "사용전" and ed_status == "폐기"):
+                                            st.error(msg)
+                                            st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
                                         st.stop()
                                     
                                     if ed_status == "폐기":
-                                        # [4단계] 폐기 시 사유 기록 추가
-                                        if db_current_status == "사용중":
+                                        # [4단계] 폐기 시 사유 기록 추가 (사용전 툴도 포함)
+                                        if db_current_status in ["사용중", "사용전"]:
                                             reason = st.session_state.get(f"temp_reason_{s_no}")
                                             ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
                                         
