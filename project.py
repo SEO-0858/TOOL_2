@@ -910,7 +910,10 @@ else:
                                     if ed_status == "폐기":
                                         if db_current_status in ["사용중", "사용전"]:
                                             reason = st.session_state.get(f"temp_reason_{s_no}")
-                                            ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
+                                            if db_current_status == "사용전":
+                                                ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason} | 장착 기계: 없음"
+                                            else:
+                                                ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
                                         show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
                                         st.stop()
                                         
