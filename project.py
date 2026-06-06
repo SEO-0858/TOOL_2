@@ -354,7 +354,7 @@ if qr_scanned_serial:
             with col_m:
                 dressing_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5)
                 
-            m_limit = st.number_input("Limit 사용 한도 횟수", value=10000, step=1000)
+            m_limit = st.number_input("Limit 사용 한도 횟수",min_value=0, value=10000, step=1000)
             
             init_display_note = existing_data.get('note', '') if existing_data else ""
             if "현장 입고일" in init_display_note or "QR 선발행" in init_display_note:
@@ -824,7 +824,7 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
-                                    ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정", value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
+                                    ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정",min_value=0 ,value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
