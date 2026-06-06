@@ -11,6 +11,7 @@ import time
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
 
+
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
 def get_database():
@@ -1025,22 +1026,25 @@ else:
                     </div>
                     """
                     
-                    js_print_trigger = f"""
-                    <script>
-                    function executeQrPrint() {{
-                        var printWindow = window.open('', '_blank', 'width=400,height=400');
-                        printWindow.document.write('<html><head><title>QR 인쇄</title></head><body>');
-                        printWindow.document.write(`{html_content}`);
-                        printWindow.document.write('</body></html>');
-                        printWindow.document.close();
-                        setTimeout(function() {{ printWindow.print(); printWindow.close(); }}, 500);
-                    }}
-                    </script>
-                    <button onclick="executeQrPrint()" style="width:100%; padding:10px; background-color:#00B050; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
-                        🖨️ 이 QR코드 인쇄하기
-                    </button>
-                    """
-                    st.sidebar.markdown(js_print_trigger, unsafe_allow_html=True)
+                    # [최종 수정] 팝업 없이 깔끔하게 인쇄하는 방식
+                    if st.button("🖨️ 이 QR코드 인쇄하기"):
+                        # 인쇄 내용을 감싸는 HTML
+                        print_body = f"""
+                        <div id='print-area' style='text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;'>
+                            <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
+                            <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
+                        </div>
+                        <style>
+                            @media print {{ body * {{ visibility: hidden; }} #print-area {{ visibility: visible; position: absolute; left: 0; top: 0; }} }}
+                        </style>
+                        """
+                        # HTML 렌더링 후 자동으로 브라우저 인쇄 함수를 호출
+                        st.components.v1.html(f"""
+                            {print_body}
+                            <script>
+                                window.print();
+                            </script>
+                        """, height=0)
 
                 else:
                     st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
