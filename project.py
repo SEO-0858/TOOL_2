@@ -997,7 +997,7 @@ else:
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
-# 4) 데이터 수정 / 삭제 / QR 재발행 창
+    # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
         st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
         st.markdown("---")
@@ -1011,7 +1011,6 @@ else:
             else:
                 exist_item = db_collection.find_one({"serial_no": target_serial})
                 
-                # 데이터 유무에 따른 인쇄/생성 로직 분리
                 if exist_item:
                     st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
                     
@@ -1020,7 +1019,14 @@ else:
                     
                     st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
                     
-                    # 팝업 없는 직접 인쇄 버튼
+                    html_content = f"""
+                    <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
+                        <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
+                        <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
+                    </div>
+                    """
+                    
+                    # [최종 수정] 팝업 없는 직접 인쇄 버튼
                     if st.button("🖨️ 이 QR코드 인쇄하기"):
                         print_body = f"""
                         <div id='print-area' style='text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;'>
@@ -1028,12 +1034,22 @@ else:
                             <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
                         </div>
                         <style>
-                            @media print {{ body * {{ visibility: hidden; }} #print-area {{ visibility: visible; position: absolute; left: 0; top: 0; }} }}
+                            @media print {{
+                                body * {{ visibility: hidden; }}
+                                #print-area, #print-area * {{ visibility: visible; }}
+                                #print-area {{ position: absolute; left: 0; top: 0; }}
+                            }}
                         </style>
                         """
-                        st.components.v1.html(f"{print_body}<script>window.print();</script>", height=0)
+                        st.components.v1.html(f"""
+                            {print_body}
+                            <script>
+                                setTimeout(function() {{ window.print(); }}, 500);
+                            </script>
+                        """, height=0)
+
                 else:
-                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 누락된 번호입니다.")
+                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
                     if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
                         t_code = target_serial[:3]
                         new_blank = {
@@ -1054,7 +1070,7 @@ else:
                             "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 검색해 주세요.")
+                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
                         st.rerun()
 
     # 5) 🖥️ 실시간 기계 정보창 (Grid Layout)
