@@ -550,7 +550,7 @@ else:
                 st.session_state.current_view_serials = []
                 st.rerun()
 
-        st.markdown("<br><br><br>-----------", unsafe_allow_html=True)
+        st.markdown("<br><br><br>⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️⚠️ 🚨 ⚠️ 🚨 ⚠️", unsafe_allow_html=True)
         st.subheader("🚨 시스템 마스터 관리자 영역")
         
         if "reset_success" not in st.session_state:
