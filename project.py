@@ -14,13 +14,12 @@ st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="w
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
 def get_database():
-    MONGO_URI = "mongodb+srv://sspon1270_db_user:wXA7NGCMjjTiTG5w@cluster0.1ectnsv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    # 이제 secrets.toml 금고에서 비밀번호를 꺼냅니다. (이 줄만 있으면 됩니다!)
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
     try:
-        client = MongoClient(MONGO_URI)
+        client = MongoClient(mongo_uri)
         db = client["dashboard_db"]
         return db["tools_management"]
-    
-
     except Exception as e:
         st.error(f"🌐 데이터베이스 통신 오류: {e}")
         return None
