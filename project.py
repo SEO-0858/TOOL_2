@@ -266,9 +266,16 @@ if qr_scanned_serial:
             if flow_error_msg:
                 st.stop()
 
-            # [2단계: 모바일 검문소 설치]
+    
         # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
+        # [2단계: 모바일 검문소 설치]
         is_valid, msg = validate_process(db_status_mob, u_status)
+        
+        # [수정] 사용전 툴 폐기는 모바일에서도 예외적으로 통과시킴
+        if not is_valid:
+            if db_status_mob == "사용전" and u_status == "폐기":
+                is_valid = True
+                
         if not is_valid:
             st.error(msg)
             st.stop()
@@ -862,8 +869,11 @@ else:
                                 if flow_error_msg:
                                     st.error(flow_error_msg)
 
+                                # [수정] 폐기는 가동 이력이 없어도 '사용전'에서 넘어올 때는 예외 허용
                                 if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                    st.error(f"⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다. 아직 가동 전이므로 '{ed_status}' 항목을 선택할 수 없습니다!")
+                                    if not (ed_status == "폐기" and db_current_status == "사용전"):
+                                        st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
+                                        st.stop()
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
