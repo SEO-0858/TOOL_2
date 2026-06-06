@@ -869,39 +869,36 @@ else:
                                 if flow_error_msg:
                                     st.error(flow_error_msg)
 
-                                # [수정] 폐기는 가동 이력이 없어도 '사용전'에서 넘어올 때는 예외 허용
-                                if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                    if not (ed_status == "폐기" and db_current_status == "사용전"):
+                                # [최종 수정] 사용전에서 넘어온 '폐기'는 이 차단막을 아예 건드리지 않음
+                                if ed_status in ["재사용", "재사용대기"]:
+                                    if not has_history_log:
                                         st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
                                         st.stop()
+                                
+                                    # '폐기'는 이 경고창 로직 자체를 아예 안 타도록 합니다.
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # [3단계] 폐기 사유 확인
-                                    # [3단계] 폐기 사유 확인 (사용전 툴 예외 포함)
+                                    # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
                                             st.error("❌ 오류: 폐기 사유가 입력되지 않았습니다!")
                                             st.stop()
                                     
-                                    # 기존 검문소 로직들
-                                    if flow_error_msg:
-                                        st.stop()
+                                    # 새 제품(사용전)일 때 폐기는 경고 예외 처리
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                        st.stop()
+                                        if not (ed_status == "폐기" and db_current_status == "사용전"):
+                                            st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
+                                            st.stop()
+
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
                                         st.stop()
 
-                                    # [2단계: PC 검문소 설치 - 폐기 예외 처리 포함]
+                                    # [2단계: PC 검문소 설치]
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                    
-                                    # 사용전 툴의 폐기는 검문소 오류가 나도 강제 통과
-                                    if not is_valid:
-                                        if db_current_status == "사용전" and ed_status == "폐기":
-                                            is_valid = True 
-                                    
-                                    if not is_valid:
+                                    # 사용전 툴 폐기는 검문소 통과
+                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
                                         st.error(msg)
                                         st.stop()
 
@@ -910,11 +907,9 @@ else:
                                         st.stop()
                                     
                                     if ed_status == "폐기":
-                                        # [4단계] 폐기 시 사유 기록 추가 (사용전 툴도 포함)
                                         if db_current_status in ["사용중", "사용전"]:
                                             reason = st.session_state.get(f"temp_reason_{s_no}")
                                             ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
-                                        
                                         show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
                                         st.stop()
                                         
