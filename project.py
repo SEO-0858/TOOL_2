@@ -158,6 +158,13 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         pop_mach_name = f"{pop_waste_mach}호기"
         final_worker = ed_worker # 기존 방식
     pop_use_count = st.number_input("🔢 폐기 시점까지의 사용 갯수", min_value=0, value=0, key=f"pop_use_count_{s_no}")
+    
+    # [1단계] 입력창 추가 (팝업이 뜨면 바로 보입니다)
+    # 작업자 이름과 사용 갯수를 여기서 입력받습니다.
+    pop_worker_name = st.text_input("👤 폐기 처리 작업자 성명", value=ed_worker, key=f"pop_worker_{s_no}")
+    pop_use_count = st.number_input("🔢 폐기 시점까지의 사용 갯수", min_value=0, value=0, key=f"pop_use_count_{s_no}")
+
+
     waste_options = [
         "1. 한도수량 (팁2mm이하)",
         "2. 다이아팁 파손, 툴형상변화",
@@ -180,7 +187,8 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
         
-        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {final_worker}, 가공기계: {pop_mach_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}"
+        
+        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {pop_worker_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
@@ -191,7 +199,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             {"$set": {
                 "status": "폐기",
                 # [수정된 부분] 여기서 final_worker 변수를 사용해야 합니다!
-                "worker": final_worker, 
+                "worker": pop_worker_name,
                 "machine_no": pop_mach_name,
                 "use_count": pop_use_count,
                 "dressing_hours": 0,
