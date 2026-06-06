@@ -122,9 +122,13 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     
     is_stored_waste = (from_status == "재사용대기")
     
-    if is_stored_waste:
+# [수정된 부분] 
+    if from_status == "재사용대기":
         st.info("📦 이 툴은 현재 보관 중인 [재사용대기] 상태이므로 기계 가공 호기가 '보관'으로 자동 지정됩니다.")
         pop_mach_name = "보관"
+    elif from_status == "사용전":
+        st.info("🆕 이 툴은 [사용전] 상태이므로 기계 가공 호기가 '없음'으로 자동 지정됩니다.")
+        pop_mach_name = "없음"
     else:
         orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
         try:
