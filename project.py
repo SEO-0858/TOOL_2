@@ -187,7 +187,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
         
         
-        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {pop_worker_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}"
+        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
