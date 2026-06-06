@@ -157,7 +157,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         pop_waste_mach = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val if def_m_val > 0 else 1, key=f"pop_mach_waste_{s_no}")
         pop_mach_name = f"{pop_waste_mach}호기"
         final_worker = ed_worker # 기존 방식
-    pop_use_count = st.number_input("🔢 폐기 시점까지의 사용 갯수", min_value=0, value=0, key=f"pop_use_count_{s_no}")
     
     # [1단계] 입력창 추가 (팝업이 뜨면 바로 보입니다)
     # 작업자 이름과 사용 갯수를 여기서 입력받습니다.
