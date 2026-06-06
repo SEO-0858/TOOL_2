@@ -176,8 +176,9 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             {"serial_no": s_no},
             {"$set": {
                 "status": "폐기",
-                "worker": "",
-                "machine_no": "",
+                # [수정된 부분] 여기서 final_worker 변수를 사용해야 합니다!
+                "worker": final_worker, 
+                "machine_no": pop_mach_name,
                 "dressing_hours": 0,
                 "dressing_mins": 0,
                 "start_time": "-",
