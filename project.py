@@ -7,10 +7,24 @@ from io import BytesIO
 import base64
 import re
 import time
+if 'sidebar_errors' not in st.session_state:
+    st.session_state.sidebar_errors = []
 
+def add_error(msg):
+    st.session_state.sidebar_errors.append(msg)
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
-
+# [2단계: 사이드바 오류 표시 영역]
+with st.sidebar:
+    st.subheader("⚠️ 시스템 통합 알림")
+    if st.session_state.sidebar_errors:
+        for err in st.session_state.sidebar_errors:
+            st.error(err)
+        
+        # 버튼을 누르면 오류 초기화
+        if st.button("🚫 모든 오류 확인 및 초기화"):
+            st.session_state.sidebar_errors = []
+            st.rerun()
 
 # 🔒 2. 데이터베이스 연결
 @st.cache_resource
@@ -159,7 +173,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         
     if st.button("💾 실적 기록 및 폐기 저장", type="primary"):
         if chosen_reason == "5. 기타 (직접기입)" and not detail_reason:
-            st.error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
+            add_error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
             st.stop()
             
         log_now = get_now_kst()
@@ -387,9 +401,9 @@ if qr_scanned_serial:
             
         if submit_m_btn:
             if not m_worker:
-                st.error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
+                add_error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
             elif m_machine_num == 0:
-                st.error("⚠️ 장착 가공할 정확한 기계 호기 번호를 기입해 주세요!")
+                add_error("⚠️ 장착 가공할 정확한 기계 호기 번호를 기입해 주세요!")
             else:
                 tool_code = qr_scanned_serial[:3]
                 waste_val = str(today) if m_status == "폐기" else "-"
