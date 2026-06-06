@@ -883,13 +883,17 @@ else:
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
                                         st.stop()
 
-                                    # [2단계: PC 검문소 설치]
+                                    # [2단계: PC 검문소 설치 - 폐기 예외 처리 포함]
                                     is_valid, msg = validate_process(db_current_status, ed_status)
+                                    
+                                    # 사용전 툴의 폐기는 검문소 오류가 나도 강제 통과
                                     if not is_valid:
-                                        # 예외 허용: 사용전 툴이 폐기될 때는 검문소 에러를 무시
-                                        if not (db_current_status == "사용전" and ed_status == "폐기"):
-                                            st.error(msg)
-                                            st.stop()
+                                        if db_current_status == "사용전" and ed_status == "폐기":
+                                            is_valid = True 
+                                    
+                                    if not is_valid:
+                                        st.error(msg)
+                                        st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
