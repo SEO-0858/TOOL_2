@@ -884,8 +884,8 @@ else:
                                     # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
-                                            st.error("❌ 오류: 폐기 사유가 입력되지 않았습니다!")
-                                            st.stop()
+                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
+                                           st.stop()
                                     
                                     # 새 제품(사용전)일 때 폐기는 경고 예외 처리
                                     if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
