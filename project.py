@@ -183,7 +183,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
-    st.markdown("---")
+    st.write("<br>", unsafe_allow_html=True)
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
@@ -221,7 +221,7 @@ if qr_scanned_serial:
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
-            st.markdown("---")
+            st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
             col_uh, col_um = st.columns(2)
             with col_uh:
@@ -346,7 +346,7 @@ if qr_scanned_serial:
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
             
-            st.markdown("---")
+            st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
             col_h, col_m = st.columns(2)
             with col_h:
@@ -433,7 +433,7 @@ else:
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
         st.title("🖨️ 현장 부착용 빈데이터 QR코드 대량 연속 발행 (5자리 순번 버전)")
-        st.markdown("---")
+        st.write("<br>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         with c1:
@@ -500,7 +500,7 @@ else:
                 st.error(f"오류 발생: {e}")
 
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
-            st.markdown("---")
+            st.write("<br>", unsafe_allow_html=True)
             
             html_printable_content = "<div id='print-target-area' style='display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; padding: 10px;'>"
             
@@ -520,7 +520,7 @@ else:
                 </div>
                 """
             html_printable_content += "</div>"
-            st.markdown("---")
+            st.write("<br>", unsafe_allow_html=True)
             
             # [최종 수정] 팝업 없는 직접 인쇄 방식
             if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
@@ -614,7 +614,7 @@ else:
     # 2) ⚠️ 실시간 툴 드레싱 알림판
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
         st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
-        st.markdown("---")
+        st.write("<br>", unsafe_allow_html=True)
         
         try:
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
@@ -686,7 +686,7 @@ else:
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
-        st.markdown("---")
+        st.write("<br>", unsafe_allow_html=True)
         
         search_col1, search_col2, search_col3, search_col4 = st.columns([1.5, 1, 1, 1])
         with search_col1:
@@ -702,7 +702,7 @@ else:
         with search_col4:
             machine_search = st.text_input("⚙️ 기계 번호(호기)로 검색", placeholder="예: 4호기").strip()
 
-        st.markdown("---")
+        st.write("<br>", unsafe_allow_html=True)
         
         try:
             all_data = list(db_collection.find({}).sort("serial_no", -1))
@@ -920,7 +920,7 @@ else:
                                     st.rerun()
                                     
                                 # 사용전 완전 복구용 초기화 시스템 배치
-                                st.markdown("---")
+                                st.write("<br>", unsafe_allow_html=True)
                                 st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
                                 st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
                                 
@@ -1000,7 +1000,7 @@ else:
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
         st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
-        st.markdown("---")
+        st.write("<br>", unsafe_allow_html=True)
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
         target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
