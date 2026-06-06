@@ -858,7 +858,8 @@ else:
                                 elif db_current_status == "재사용대기" and ed_status in ["사용전", "사용중"]:
                                     flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
                                 elif db_current_status == "사용전" and ed_status in ["재사용", "재사용대기", "폐기"]:
-                                    flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
+                                    if not (ed_status == "폐기"):
+                                        flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{ed_status}' 상태로 건너뛸 수 없습니다!"
                                 elif db_current_status == "사용중" and ed_status == "재사용":
                                     flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
                                 elif db_current_status in ["사용중", "재사용", "재사용대기"] and ed_status == "사용전":
