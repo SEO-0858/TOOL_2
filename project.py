@@ -294,15 +294,14 @@ if qr_scanned_serial:
         elif u_status == "폐기" and not u_worker:
             flow_error_msg = "⚠️ [데이터 누락] 툴 폐기 처리를 하려면 [교체 작업자 이름]을 반드시 입력해야 합니다!"
 
-        if flow_error_msg:
-            if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
-                add_error(flow_error_msg)
 
         if u_submit_form_btn:
             if flow_error_msg:
                 st.stop()
-
-    
+            if flow_error_msg:
+                if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
+                    add_error(flow_error_msg)
+        
         # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
         # [2단계: 모바일 검문소 설치]
         is_valid, msg = validate_process(db_status_mob, u_status)
