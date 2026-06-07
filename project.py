@@ -1198,6 +1198,8 @@ else:
             ]
 
 
+
+
             # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
@@ -1214,24 +1216,26 @@ else:
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
                         
-                        # 굵은 검은색 테두리 + 연한 녹색 바탕 스타일 적용
-                        style_str = "border: 3px solid black; background-color: #E8F5E9; padding: 10px; border-radius: 5px;"
+                        # [핵심] 기존 카드 형태를 유지하기 위한 스타일
+                        # border: 3px solid black (굵은 테두리)
+                        # background-color: #E8F5E9 (연한 녹색 바탕)
+                        st.markdown(f"""
+                            <div style="border: 3px solid black; background-color: #E8F5E9; 
+                                        padding: 10px; border-radius: 5px; height: 140px; margin-bottom: 10px;">
+                                <div style="font-weight:bold; font-size:14px; margin-bottom:5px;">{m_no}호기</div>
+                        """, unsafe_allow_html=True)
                         
-                        with st.container(border=False):
-                            st.markdown(f'<div style="{style_str}">', unsafe_allow_html=True)
-                            st.write(f"**{m_no}호기**")
-                            
-                            if tools:
-                                with st.popover("상세보기"):
-                                    for t in tools:
-                                        elapsed = get_elapsed_time_str(t.get('start_time'))
-                                        st.write(f"ID: {t.get('serial_no', 'N/A')}")
-                                        st.caption(f"작업자: {t.get('worker', '미지정')}")
-                                        st.caption(f"장착: {str(t.get('start_time', '-'))[5:16]}")
-                                        st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
-                                        st.divider()
-                                st.caption(f"{len(tools)}개 작업중")
-                            else:
-                                st.caption("대기중")
-                            
-                            st.markdown('</div>', unsafe_allow_html=True)
+                        if tools:
+                            with st.popover("상세보기"):
+                                for t in tools:
+                                    elapsed = get_elapsed_time_str(t.get('start_time'))
+                                    st.write(f"ID: {t.get('serial_no', 'N/A')}")
+                                    st.caption(f"작업자: {t.get('worker', '미지정')}")
+                                    st.caption(f"장착: {str(t.get('start_time', '-'))[5:16]}")
+                                    st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
+                                    st.divider()
+                            st.caption(f"{len(tools)}개 작업중")
+                        else:
+                            st.caption("대기중")
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
