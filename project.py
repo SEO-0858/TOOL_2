@@ -1196,9 +1196,7 @@ else:
                 [39, 40, 41, 42],
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
-
-
-            
+          
 
 
 
@@ -1218,18 +1216,21 @@ else:
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
                         
-                        # [안전 제일] CSS 주입 대신 Markdown으로 직접 색상 입히기
-                        # 테두리(border)와 배경(background)을 HTML 스타일로 확실하게 정의
-                        card_style = "border: 4px solid black; background-color: #C8E6C9; padding: 10px; border-radius: 5px; height: 140px; color: black;"
-                        
-                        st.markdown(f'<div style="{card_style}">', unsafe_allow_html=True)
-                        st.write(f"**{m_no}호기**")
-                        
-                        if tools:
-                            for t in tools:
-                                # 내용을 카드 안으로 강제 진입
-                                st.markdown(f"<div style='font-size:10px; font-weight:bold; color:black;'>ID: {t.get('serial_no', 'N/A')}</div>", unsafe_allow_html=True)
-                        else:
-                            st.markdown("<div style='color:black;'>대기중</div>", unsafe_allow_html=True)
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        # 컨테이너 높이를 160으로 늘려 충분한 공간 확보
+                        with st.container(border=True, height=160):
+                            st.markdown(f"<div style='font-weight:bold; color:black;'>{m_no}호기</div>", unsafe_allow_html=True)
+                            
+                            if tools:
+                                for t in tools:
+                                    elapsed = get_elapsed_time_str(t.get('start_time'))
+                                    # 모든 정보를 한 줄씩 깔끔하게 카드 내부에 배치
+                                    st.markdown(f"""
+                                    <div style='font-size:9px; color:black; line-height:1.2; margin-top:2px;'>
+                                        <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
+                                        <b>작업자:</b> {t.get('worker', '미지정')}<br>
+                                        <b>장착:</b> {str(t.get('start_time', '-'))[5:16]}<br>
+                                        <span style='color:red;'>{elapsed}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            else:
+                                st.markdown("<div style='color:black; font-size:11px;'>대기중</div>", unsafe_allow_html=True)
