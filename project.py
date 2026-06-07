@@ -1196,25 +1196,12 @@ else:
                             for t in tools:
                                 st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
                                 # 1197번 줄부터 아래 내용을 그대로 복사해서 덮어쓰세요
-                    # 1197번 줄부터 덮어쓰기
+                    # 1197번 줄부터 아래 코드로 덮어쓰기
                     start_val_str = t.get('start_time', '')
-                    elapsed_str = ""
                     
-                    if start_val_str and start_val_str != "-":
-                        # 단순히 문자열의 앞자리 시간 정보만 잘라서 보여주기 (계산 오류 원천 차단)
-                        # 혹시라도 계산이 필요하면 여기서 아주 단순하게만 처리합니다.
-                        try:
-                            # 2026-06-07 13:43:00 이런 형식에서 시간 정보만 가져옵니다
-                            h_part = start_val_str[11:13]
-                            m_part = start_val_str[14:16]
-                            elapsed_str = f'<br><span style="color:red; font-size:9px;">(시작: {h_part}시 {m_part}분)</span>'
-                        except:
-                            elapsed_str = ""
-
-                    tool_cards += f"""
-                    <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
-                        <b>ID: {t.get('serial_no', 'N/A')}</b> <span style="color:blue;">[{st_txt}]</span><br>
-                        작업자: {t.get('worker', '미지정')}<br>
-                        장착: {start_val_str[5:16]} {elapsed_str}
-                    </div>
-                    """
+                    # 에러 방지를 위해 모든 계산 로직을 제거하고 단순히 문자열만 연결합니다.
+                    tool_cards += f'<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
+                    tool_cards += f'<b>ID: {t.get("serial_no", "N/A")}</b> <span style="color:blue;">[{st_txt}]</span><br>'
+                    tool_cards += f'작업자: {t.get("worker", "미지정")}<br>'
+                    tool_cards += f'장착: {str(start_val_str)[5:16]}'
+                    tool_cards += f'</div>'
