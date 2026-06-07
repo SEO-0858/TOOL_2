@@ -828,10 +828,12 @@ else:
                         elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
+                        spec_info = item.get('detail_spec', '스펙없음') # DB에서 상세스펙을 가져옴
+                        
                         if not item.get('worker') or not item.get('machine_no'):
-                            expander_title = f"⚪ 기입 대기 | 🆔 {s_no} | 상태: {status_badge}"
+                            expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
-                            expander_title = f"🆔 {s_no} | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
+                            expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
                             
                         with st.expander(expander_title):
                             edit_key = f"is_editing_{s_no}"
@@ -839,7 +841,9 @@ else:
                                 st.session_state[edit_key] = False
                                 
                             if st.session_state[edit_key]:
-                                st.markdown(f"### ✏️ 시리얼 `{s_no}` 정보 실시간 수정 폼")
+                               
+                                spec_info = item.get('detail_spec', '스펙없음')
+                                st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
                                 
                                 note_content = str(item.get('note', ''))
                                 has_history_log = "상태:" in note_content or "호기" in note_content
