@@ -147,7 +147,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         st.info("🆕 이 툴은 [사용전] 새 제품입니다. 작업자와 기계 번호를 직접 입력하세요.")
         pop_mach_name = "없음"
         # 사용전 툴은 작업자를 직접 입력받음
-        final_worker = ed_worker("👤 폐기 처리 작업자 성명", value="", placeholder="예: 홍길동")
+        final_worker = ed_worker
     else:
         # 기존 방식
         orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
