@@ -11,6 +11,28 @@ from datetime import datetime as dt_datetime
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
+# 파일 최상단 import 아래에 이 함수를 추가하세요
+def get_elapsed_time_str(start_time_val):
+    try:
+        # 데이터가 없으면 빈 문자열 반환
+        if not start_time_val or start_time_val == "-":
+            return ""
+        
+        # 문자열을 datetime 객체로 변환 (기존에 이미 dt_class를 사용 중이므로 안전합니다)
+        # 만약 start_time_val이 이미 datetime 객체라면 바로 사용
+        start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
+        
+        # 현재 시간과 차이 계산 (UTC+9 적용)
+        now_kst = dt_class.utcnow() + timedelta(hours=9)
+        diff = now_kst - start_dt
+        
+        hours = int(diff.total_seconds() // 3600)
+        minutes = int((diff.total_seconds() % 3600) // 60)
+        
+        return f'<br><span style="color:red; font-size:9px;">({hours}시간 {minutes}분 경과)</span>'
+    except:
+        return "" # 어떤 에러가 나도 조용히 빈 값 반환
+
 def add_error(msg):
     st.session_state.sidebar_errors.append(msg)
 # 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
@@ -1194,16 +1216,15 @@ else:
                         
                         tool_display = ""
                         for t in tools:
-                            # 장착 시간 정보를 가져옵니다 (기존 데이터 유지)
+                            elapsed = get_elapsed_time_str(t.get('start_time'))
+                            st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
                             start_time_info = str(t.get('start_time', '-'))
                             display_time = start_time_info[5:16] if len(start_time_info) > 10 else start_time_info
                             
                             tool_display += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
                             tool_display += '<b>ID:' + str(t.get('serial_no', 'N/A')) + '</b><br>'
                             tool_display += '작업자:' + str(t.get('worker', '미지정')) + '<br>'
-                            # 여기서 장착 시간을 다시 명확하게 넣어줍니다!
-                            tool_display += '장착:' + display_time + '</div>'
-
+                            tool_display += '장착:' + str(t.get('start_time', '-'))[5:16] + elapsed + '</div>'
                         if tool_display:
                             st.markdown(f'<div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;"><b>{m_no}호기</b>{tool_display}</div>', unsafe_allow_html=True)
                         else:
