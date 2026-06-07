@@ -1199,7 +1199,10 @@ else:
 
 
             
-            # 1187번 줄부터 끝까지 덮어쓰기
+
+
+
+            # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
@@ -1214,13 +1217,18 @@ else:
                 for i, m_no in enumerate(row):
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
-                        if tools:
-                            with st.container(border=True): # Streamlit 기본 테두리 기능
-                                st.write(f"**{m_no}호기**")
+                        # 박스 모양을 통일하기 위해 st.container 사용
+                        with st.container(border=True, height=150):
+                            st.write(f"**{m_no}호기**")
+                            if tools:
                                 for t in tools:
                                     elapsed = get_elapsed_time_str(t.get('start_time'))
-                                    st.caption(f"ID:{t.get('serial_no', 'N/A')} / {t.get('worker', '미지정')}")
-                                    st.caption(f"장착:{str(t.get('start_time', '-'))[5:16]}")
-                                    st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
-                        else:
-                            st.info(f"{m_no}호기\n대기중")
+                                    st.markdown(f"""
+                                    <div style="font-size:10px; border-bottom:1px solid #ccc; margin-bottom:5px;">
+                                        ID:{t.get('serial_no', 'N/A')} / {t.get('worker', '미지정')}<br>
+                                        장착:{str(t.get('start_time', '-'))[5:16]} 
+                                        <span style='color:red;'>{elapsed}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            else:
+                                st.caption("대기중")
