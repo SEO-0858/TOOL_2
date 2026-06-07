@@ -297,10 +297,9 @@ if qr_scanned_serial:
 
         if u_submit_form_btn:
             if flow_error_msg:
-                st.stop()
-            if flow_error_msg:
-                if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
+                if flow_error_msg not in st.session_state.sidebar_errors:
                     add_error(flow_error_msg)
+                st.stop()
         
         # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
         # [2단계: 모바일 검문소 설치]
