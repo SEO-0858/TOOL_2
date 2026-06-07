@@ -1200,6 +1200,8 @@ else:
 
             
 
+
+
             # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
@@ -1210,27 +1212,24 @@ else:
                     if m_no not in machine_tool_map: machine_tool_map[m_no] = []
                     machine_tool_map[m_no].append(t)
 
-            # [스타일 핵심] 녹색 바탕 + 굵은 검은색 테두리를 위한 CSS 주입
-            st.markdown("""
-                <style>
-                div[data-testid="stVerticalBlockBorderWrapper"] {
-                    border: 3px solid #000000 !important;
-                    background-color: #C8E6C9 !important;
-                    color: #000000 !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-
             for row in layout:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
-                        with st.container(border=True, height=140):
-                            st.markdown(f"<div style='color:black;'><b>{m_no}호기</b></div>", unsafe_allow_html=True)
-                            if tools:
-                                # 정보가 있으면 진한 검은색 글씨로 표시
-                                for t in tools:
-                                    st.markdown(f"<div style='color:black; font-size:11px;'>ID:{t.get('serial_no', 'N/A')}</div>", unsafe_allow_html=True)
-                            else:
-                                st.markdown("<div style='color:black;'>대기중</div>", unsafe_allow_html=True)
+                        
+                        # [안전 제일] CSS 주입 대신 Markdown으로 직접 색상 입히기
+                        # 테두리(border)와 배경(background)을 HTML 스타일로 확실하게 정의
+                        card_style = "border: 4px solid black; background-color: #C8E6C9; padding: 10px; border-radius: 5px; height: 140px; color: black;"
+                        
+                        st.markdown(f'<div style="{card_style}">', unsafe_allow_html=True)
+                        st.write(f"**{m_no}호기**")
+                        
+                        if tools:
+                            for t in tools:
+                                # 내용을 카드 안으로 강제 진입
+                                st.markdown(f"<div style='font-size:10px; font-weight:bold; color:black;'>ID: {t.get('serial_no', 'N/A')}</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown("<div style='color:black;'>대기중</div>", unsafe_allow_html=True)
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
