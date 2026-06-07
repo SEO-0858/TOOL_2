@@ -147,7 +147,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         st.info("🆕 이 툴은 [사용전] 새 제품입니다. 작업자와 기계 번호를 직접 입력하세요.")
         pop_mach_name = "없음"
         # 사용전 툴은 작업자를 직접 입력받음
-        final_worker = st.text_input("👤 폐기 처리 작업자 성명", value="", placeholder="예: 홍길동")
+        final_worker = ed_worker("👤 폐기 처리 작업자 성명", value="", placeholder="예: 홍길동")
     else:
         # 기존 방식
         orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
@@ -157,7 +157,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             def_m_val = 0
         pop_waste_mach = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val if def_m_val > 0 else 1, key=f"pop_mach_waste_{s_no}")
         pop_mach_name = f"{pop_waste_mach}호기"
-        final_worker = ed_worker # 기존 방식
+      
     
     # [1단계] 입력창 추가 (팝업이 뜨면 바로 보입니다)
     # 작업자 이름과 사용 갯수를 여기서 입력받습니다.
@@ -198,7 +198,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             {"serial_no": s_no},
             {"$set": {
                 "status": "폐기",
-                # [수정된 부분] 여기서 final_worker 변수를 사용해야 합니다!
                 "worker": pop_worker_name,
                 "machine_no": pop_mach_name,
                 "use_count": pop_use_count,
