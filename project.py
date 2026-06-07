@@ -347,7 +347,7 @@ if qr_scanned_serial:
             st.rerun()    
     else:
          # 신규 등록 모드 (else 부분)
-         with st.form(key="mobile_update_form"):
+        with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
             
