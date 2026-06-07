@@ -1198,7 +1198,7 @@ else:
             ]
 
 
-
+            
 
             # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
@@ -1210,28 +1210,27 @@ else:
                     if m_no not in machine_tool_map: machine_tool_map[m_no] = []
                     machine_tool_map[m_no].append(t)
 
+            # [스타일 핵심] 녹색 바탕 + 굵은 검은색 테두리를 위한 CSS 주입
+            st.markdown("""
+                <style>
+                div[data-testid="stVerticalBlockBorderWrapper"] {
+                    border: 3px solid #000000 !important;
+                    background-color: #C8E6C9 !important;
+                    color: #000000 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
             for row in layout:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
-                        
-                        # 카드 디자인 (테두리 굵은 검은색, 배경 연한 녹색)
-                        with st.container(border=True, height=200):
-                            st.markdown(f"<div style='border:2px solid black; background-color:#E8F5E9; padding:5px; border-radius:5px;'>", unsafe_allow_html=True)
-                            st.write(f"**{m_no}호기**")
-                            
+                        with st.container(border=True, height=140):
+                            st.markdown(f"<div style='color:black;'><b>{m_no}호기</b></div>", unsafe_allow_html=True)
                             if tools:
+                                # 정보가 있으면 진한 검은색 글씨로 표시
                                 for t in tools:
-                                    elapsed = get_elapsed_time_str(t.get('start_time'))
-                                    st.markdown(f"""
-                                    <div style='font-size:10px; margin-bottom:5px;'>
-                                        ID: {t.get('serial_no', 'N/A')}<br>
-                                        작업자: {t.get('worker', '미지정')}<br>
-                                        <span style='color:red;'>{elapsed}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    st.markdown(f"<div style='color:black; font-size:11px;'>ID:{t.get('serial_no', 'N/A')}</div>", unsafe_allow_html=True)
                             else:
-                                st.caption("대기중")
-                            st.markdown("</div>", unsafe_allow_html=True)
-            
+                                st.markdown("<div style='color:black;'>대기중</div>", unsafe_allow_html=True)
