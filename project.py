@@ -1190,18 +1190,21 @@ else:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
-                        # 데이터 유무와 상관없이 무조건 카드를 그립니다.
                         tools = machine_tool_map.get(m_no, [])
                         
                         tool_display = ""
                         for t in tools:
-                            st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
-                            # 에러 방지를 위해 간단한 문자열 연결만 사용
+                            # 장착 시간 정보를 가져옵니다 (기존 데이터 유지)
+                            start_time_info = str(t.get('start_time', '-'))
+                            display_time = start_time_info[5:16] if len(start_time_info) > 10 else start_time_info
+                            
                             tool_display += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
                             tool_display += '<b>ID:' + str(t.get('serial_no', 'N/A')) + '</b><br>'
-                            tool_display += '작업자:' + str(t.get('worker', '미지정')) + '</div>'
+                            tool_display += '작업자:' + str(t.get('worker', '미지정')) + '<br>'
+                            # 여기서 장착 시간을 다시 명확하게 넣어줍니다!
+                            tool_display += '장착:' + display_time + '</div>'
 
                         if tool_display:
                             st.markdown(f'<div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;"><b>{m_no}호기</b>{tool_display}</div>', unsafe_allow_html=True)
                         else:
-                            st.markdown(f'<div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;"><br><b>{m_no}호기</b><br>대기중</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;"><br><b>{m_no}호기</b><br>대기중</div>', unsafe_allow_html=True)          
