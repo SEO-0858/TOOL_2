@@ -894,7 +894,11 @@ else:
                                         ed_worker = st.text_input("👷 교체 작업자 이름 기입", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
-                                        
+                                    # 상세 스펙 선택창 추가
+                                    st.markdown("🛠 **상세 스펙 선택**")
+                                    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
@@ -1016,7 +1020,8 @@ else:
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
-                                            "note": final_note_val
+                                            "note": final_note_val,
+                                            "detail_spec": ed_spec
                                         }}
                                     )
                                     st.session_state[edit_key] = False
