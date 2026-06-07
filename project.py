@@ -24,7 +24,7 @@ with st.sidebar:
         # 버튼을 누르면 오류 초기화
         if st.button("🚫 모든 오류 확인 및 초기화"):
             st.session_state.sidebar_errors = []
-            st.session_state.sidebar_choice = "📊 빈데이터 QR코드 대량 선발행"
+            #st.session_state.sidebar_choice = "📊 빈데이터 QR코드 대량 선발행"
             st.rerun()
 
 # 🔒 2. 데이터베이스 연결
