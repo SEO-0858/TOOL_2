@@ -467,14 +467,10 @@ if qr_scanned_serial:
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    tool_menu = st.sidebar.radio("하위 목록", [
-        "📊 빈데이터 QR코드 대량 선발행", 
-        "⚠️ 실시간 툴 드레싱 알림판", 
-        "📂 전체 데이터 현황판", 
-        "⚙️ 데이터 수정 / 삭제 / QR 재발행",
-        "🖥️ 실시간 기계 정보창"
-        
-    ],key="sidebar_choice")
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창"]
+    idx = menu_options.index(st.session_state.get("sidebar_choice", menu_options[0])) if st.session_state.get("sidebar_choice") in menu_options else 0
+    tool_menu = st.sidebar.radio("하위 목록", menu_options, index=idx, key="sidebar_choice")
+    
     
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
