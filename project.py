@@ -1006,7 +1006,7 @@ else:
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
 
-                                    old_spec = item.get('detail_spec', '스펙없음')
+                                    old_spec = item.get('detail_spec', ' ')
                                     if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
                                     else:
