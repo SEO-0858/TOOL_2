@@ -1192,16 +1192,14 @@ else:
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
                         if tools:
-                            tool_cards = ""
+                    # [핵심] 여기서 tool_cards를 먼저 반드시 정의해야 합니다!
+                            tool_cards = "" 
                             for t in tools:
                                 st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
-                                # 1197번 줄부터 아래 내용을 그대로 복사해서 덮어쓰세요
-                    # 1197번 줄부터 아래 코드로 덮어쓰기
-                    start_val_str = t.get('start_time', '')
-                    
-                    # 에러 방지를 위해 모든 계산 로직을 제거하고 단순히 문자열만 연결합니다.
-                    tool_cards += f'<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
-                    tool_cards += f'<b>ID: {t.get("serial_no", "N/A")}</b> <span style="color:blue;">[{st_txt}]</span><br>'
-                    tool_cards += f'작업자: {t.get("worker", "미지정")}<br>'
-                    tool_cards += f'장착: {str(start_val_str)[5:16]}'
-                    tool_cards += f'</div>'
+                                
+                                # 문자열 연결 방식을 가장 단순하게 바꿨습니다.
+                                tool_cards += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
+                                tool_cards += '<b>ID: ' + str(t.get("serial_no", "N/A")) + '</b> <span style="color:blue;">[' + st_txt + ']</span><br>'
+                                tool_cards += '작업자: ' + str(t.get("worker", "미지정")) + '<br>'
+                                tool_cards += '장착: ' + str(t.get("start_time", "-"))[5:16]
+                                tool_cards += '</div>'
