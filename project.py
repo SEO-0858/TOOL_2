@@ -1196,19 +1196,28 @@ else:
                             for t in tools:
                                 st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
                                 # 1197번 줄부터 아래 내용을 그대로 복사해서 덮어쓰세요
-                    # 1197번 줄부터 덮어쓰기
+                    # 1197번 줄부터 아래 코드로 덮어쓰기 (모듈 의존성 제거)
                     start_val_str = t.get('start_time', '')
                     elapsed_str = ""
+                    
                     if start_val_str and start_val_str != "-":
                         try:
-                            # 1. 파일 상단에 정의된 dt_class를 사용합니다 (에러 안 남!)
-                            start_dt = dt_class.strptime(start_val_str, "%Y-%m-%d %H:%M:%S")
-                            # 2. 현재 시간도 dt_class를 사용합니다
-                            now_kst = dt_class.utcnow() + timedelta(hours=9)
-                            diff = now_kst - start_dt
-                            hours = int(diff.total_seconds() // 3600)
-                            minutes = int((diff.total_seconds() % 3600) // 60)
-                            elapsed_str = f'<br><span style="color:red; font-weight:bold;">({hours}시간 {minutes}분 경과)</span>'
+                            # 문자열을 시간 차이로 계산 (파이썬 내장 구조 활용)
+                            # "YYYY-MM-DD HH:MM:SS" 형식에서 시간 추출
+                            y, m, d, hh, mm, ss = map(int, re.findall(r'\d+', start_val_str))
+                            
+                            # 현재 시간과 비교를 위해 분 단위 차이 계산
+                            import time
+                            now_ts = time.time()
+                            start_ts = time.mktime((y, m, d, hh, mm, ss, 0, 0, -1))
+                            
+                            # UTC+9 보정 (32400초 = 9시간)
+                            diff_seconds = int(now_ts - start_ts - 32400)
+                            
+                            if diff_seconds > 0:
+                                hours = diff_seconds // 3600
+                                minutes = (diff_seconds % 3600) // 60
+                                elapsed_str = f'<br><span style="color:red; font-weight:bold;">({hours}시간 {minutes}분 경과)</span>'
                         except:
                             elapsed_str = ""
 
