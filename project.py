@@ -88,6 +88,8 @@ def generate_app_qr_bytes(serial_text):
 def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins):
     st.write("🛠️ 이 툴을 보관 후 다시 사용하기 위해 기계 가공 실적을 입력해 주세요.")
     
+    pop_worker_name = st.text_input("👤 보관 처리 작업자 성명", value=ed_worker, key=f"pop_worker_reuse_{s_no}")
+    
     orig_m_num = ''.join(filter(str.isdigit, str(current_mach)))
     try:
         def_m_val = int(orig_m_num) if orig_m_num else 0
@@ -102,18 +104,19 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         pop_mach_name = f"{pop_mach_num}호기"
         
-        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {ed_worker}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
+        # [2단계 수정] 작업자 이름 부분에 pop_worker_name 사용
+        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
-        history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{ed_worker}, {pop_mach_name}, {pop_count}개)"
+        history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{pop_worker_name}, {pop_mach_name}, {pop_count}개)"
         
         db_collection.update_one(
             {"serial_no": s_no},
             {"$set": {
                 "status": "재사용대기",
-                "worker": "",  
-                "machine_no": "",  
+                "worker": pop_worker_name,  # [2단계 추가] DB에도 작업자 저장
+                "machine_no": pop_mach_name,
                 "dressing_hours": 0,
                 "dressing_mins": 0,
                 "start_time": "-",
