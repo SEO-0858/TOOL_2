@@ -346,39 +346,29 @@ if qr_scanned_serial:
             st.success("✅ 수정사항이 저장되었습니다!")
             st.rerun()    
     else:
-         # 신규 등록 모드 (else 부분)
+         # 수정 모드 (위쪽 부분 생략하고 349행부터)
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            
-            # 상세 스펙 선택
-            current_s = existing_data.get('detail_spec', spec_options[0])
-            u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, index=spec_options.index(current_s) if current_s in spec_options else 0)
-            
+            u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, index=spec_options.index(existing_data.get('detail_spec', spec_options[0])) if existing_data.get('detail_spec') in spec_options else 0)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, value=default_machine_int, step=1)
-            
-            # 입력창 (여기서 내용을 수정하면 그 내용이 u_note에 담깁니다)
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
-            
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
-            
+
+        # [중요] form 밖으로 나왔으므로 줄이 끊겨야 정상입니다!
         if u_submit_form_btn:
-            # 1. 변경 이력 로직 (필수!)
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             old_spec = existing_data.get('detail_spec', '스펙없음')
             
-            # '기존 특이사항 내용' + '새로 생성된 로그'를 합칩니다.
-            # display_note는 원래 있던 내용입니다.
             new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
             if old_spec != u_spec:
                 new_log += f", 스펙:{old_spec}→{u_spec}"
             new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
             
-            final_note_val = u_note.strip() + new_log # 사용자가 수정창에 쓴 글 + 자동로그
-
-            # 2. DB 업데이트
+            final_note_val = u_note.strip() + new_log
+            
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -388,9 +378,10 @@ if qr_scanned_serial:
                     "worker": u_worker,
                     "machine_no": f"{u_machine_num}호기",
                     "note": final_note_val
-                }}
+                }},
+                upsert=True
             )
-            st.success("✅ 저장 완료! 특이사항에 이력이 남았습니다.")
+            st.success("✅ 저장 완료!")
             st.rerun()
 # --- 💻 [PC 관리자 모드] ---
 else:
