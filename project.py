@@ -1200,9 +1200,9 @@ else:
                     if start_val_str and start_val_str != "-":
                         try:
                             # 1. 문자열을 날짜 형식으로 변환
-                            start_dt = datetime.datetime.strptime(start_val_str, "%Y-%m-%d %H:%M:%S")
+                            start_dt = dt_class.strptime(start_val_str, "%Y-%m-%d %H:%M:%S")
                             # 2. 현재 시간과 비교
-                            diff = datetime.datetime.utcnow() + timedelta(hours=9) - start_dt
+                            diff = dt_class.utcnow() + timedelta(hours=9) - start_dt
                             hours = int(diff.total_seconds() // 3600)
                             minutes = int((diff.total_seconds() % 3600) // 60)
                             elapsed_str = f'<br><span style="color:red; font-weight:bold;">({hours}시간 {minutes}분 경과)</span>'
