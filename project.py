@@ -1196,14 +1196,16 @@ else:
                             for t in tools:
                                 st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
                                 # 1197번 줄부터 아래 내용을 그대로 복사해서 덮어쓰세요
+                    # 1197번 줄부터 덮어쓰기
                     start_val_str = t.get('start_time', '')
                     elapsed_str = ""
                     if start_val_str and start_val_str != "-":
                         try:
-                            # 1. 문자열을 날짜 형식으로 변환
+                            # 1. 파일 상단에 정의된 dt_class를 사용합니다 (에러 안 남!)
                             start_dt = dt_class.strptime(start_val_str, "%Y-%m-%d %H:%M:%S")
-                            # 2. 현재 시간과 비교
-                            diff = dt_class.utcnow() + timedelta(hours=9) - start_dt
+                            # 2. 현재 시간도 dt_class를 사용합니다
+                            now_kst = dt_class.utcnow() + timedelta(hours=9)
+                            diff = now_kst - start_dt
                             hours = int(diff.total_seconds() // 3600)
                             minutes = int((diff.total_seconds() % 3600) // 60)
                             elapsed_str = f'<br><span style="color:red; font-weight:bold;">({hours}시간 {minutes}분 경과)</span>'
