@@ -293,7 +293,8 @@ if qr_scanned_serial:
             flow_error_msg = "⚠️ [데이터 누락] 툴 폐기 처리를 하려면 [교체 작업자 이름]을 반드시 입력해야 합니다!"
 
         if flow_error_msg:
-            add_error(flow_error_msg)
+            if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
+                add_error(flow_error_msg)
 
         if u_submit_form_btn:
             if flow_error_msg:
