@@ -1233,7 +1233,7 @@ else:
                                         background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; 
                                         height:150px; overflow-y:auto; transition: transform 0.2s; 
                                     }}
-                                    .custom-card:hover {{ transform: scale(1.05); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
+                                    .custom-card:hover {{ transform: scale(1.8); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
                                 </style>
                                 <div class="custom-card"><b>{m_no}호기</b>{tool_display}</div>
                             ''', unsafe_allow_html=True)
