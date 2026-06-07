@@ -1197,7 +1197,7 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
-            # 1187번 줄부터 싹 덮어쓰기
+            # 1187번 줄부터 마지막까지 싹 교체
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
@@ -1213,34 +1213,27 @@ else:
                 for i, m_no in enumerate(row):
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
-                        
                         tool_display = ""
                         for t in tools:
                             elapsed = get_elapsed_time_str(t.get('start_time'))
-                            st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
-                            start_time_info = str(t.get('start_time', '-'))
-                            display_time = start_time_info[5:16] if len(start_time_info) > 10 else start_time_info
-                            
-                            tool_display += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
-                            tool_display += '<b>ID:' + str(t.get('serial_no', 'N/A')) + '</b><br>'
-                            tool_display += '작업자:' + str(t.get('worker', '미지정')) + '<br>'
-                            tool_display += '장착:' + str(t.get('start_time', '-'))[5:16] + elapsed + '</div>'
-                        
+                            tool_display += f'''
+                            <div style="border-bottom:1px solid #c8e6c9; font-size:10px; margin-bottom:5px;">
+                                <b>ID:{t.get('serial_no', 'N/A')}</b><br>
+                                작업자:{t.get('worker', '미지정')}<br>
+                                장착:{str(t.get('start_time', '-'))[5:16]}{elapsed}
+                            </div>'''
+
                         if tool_display:
                             st.markdown(f'''
                                 <style>
-                                    .container {{ position: relative; display: inline-block; }}
-                                    .popup {{ 
-                                        visibility: hidden; width: 300px; background-color: #fff; 
-                                        border: 3px solid #2E7D32; padding: 15px; position: absolute; 
-                                        z-index: 9999; top: 0; left: 0; box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
-                                    }}
-                                    .container:hover .popup {{ visibility: visible; }}
+                                    .card {{ height:150px; background-color:#E8F5E9; padding:5px; border:2px solid #2E7D32; border-radius:6px; overflow-y:auto; }}
+                                    .card:hover {{ background-color: #dcedc8; cursor: pointer; }}
                                 </style>
-                                <div class="container">
-                                    <div style="background-color:#E8F5E9; padding:5px; border:2px solid #2E7D32; height:150px; width:100%; border-radius:6px;">
-                                        <b>{m_no}호기</b>{tool_display}
-                                    </div>
-                                    <div class="popup"><b>{m_no}호기 상세 정보</b><br>{tool_display}</div>
+                                <div class="card"><b>{m_no}호기</b>{tool_display}</div>
+                            ''', unsafe_allow_html=True)
+                        else:
+                            st.markdown(f'''
+                                <div style="height:150px; background-color:#F5F5F5; padding:8px; border:1px solid #ccc; border-radius:6px; text-align:center; color:#777; font-size:11px;">
+                                    <br><b>{m_no}호기</b><br>대기중
                                 </div>
                             ''', unsafe_allow_html=True)
