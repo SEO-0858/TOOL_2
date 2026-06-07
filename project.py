@@ -901,7 +901,7 @@ else:
                                     flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
                                 elif db_current_status in ["사용중", "재사용", "재사용대기"] and ed_status == "사용전":
                                     flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하고 리셋하려면 하단의 [위험 영역: 가동 중단 및 완전 초기화] 기능을 이용하세요."
-                                elif ed_status in ["사용중", "재사용", "재사용대기"] and (not ed_worker or ed_machine_num == 0):
+                                #elif ed_status in ["사용중", "재사용", "재사용대기"] and (not ed_worker or ed_machine_num == 0):
                                     flow_error_msg = "⚠️ [데이터 누락 방지] '사용전' 대기 상태를 제외한 가동/보관 데이터 등록 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 완벽하게 기입해야 합니다!"
 
                                 if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
