@@ -553,7 +553,7 @@ else:
                 
                 blank_records.append({
                     "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴" if tool_code=="003" else "코어툴" if tool_code=="004" else
+                    "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴" if tool_code=="003" else "코어툴",
                     "status": "사용전",
                     "input_date": fixed_date_str,
                     "init_time": fixed_time_str,
