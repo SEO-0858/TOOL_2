@@ -1229,22 +1229,18 @@ else:
                         if tool_display:
                             st.markdown(f'''
                                 <style>
-                                    .custom-card {{ 
-                                        background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; 
-                                        height:150px; overflow-y:auto; transition: transform 0.2s; 
+                                    .container {{ position: relative; display: inline-block; }}
+                                    .popup {{ 
+                                        visibility: hidden; width: 300px; background-color: #fff; 
+                                        border: 3px solid #2E7D32; padding: 15px; position: absolute; 
+                                        z-index: 9999; top: 0; left: 0; box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
                                     }}
-                                    .custom-card:hover {{ transform: scale(1.8); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
+                                    .container:hover .popup {{ visibility: visible; }}
                                 </style>
-                                <div class="custom-card"><b>{m_no}호기</b>{tool_display}</div>
-                            ''', unsafe_allow_html=True)
-                        else:
-                            st.markdown(f'''
-                                <style>
-                                    .empty-card {{ 
-                                        background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; 
-                                        font-size:11px; height:150px; text-align:center; color:#777; transition: transform 0.2s;
-                                    }}
-                                    .empty-card:hover {{ transform: scale(1.05); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
-                                </style>
-                                <div class="empty-card"><br><b>{m_no}호기</b><br>대기중</div>
+                                <div class="container">
+                                    <div style="background-color:#E8F5E9; padding:5px; border:2px solid #2E7D32; height:150px; width:100%; border-radius:6px;">
+                                        <b>{m_no}호기</b>{tool_display}
+                                    </div>
+                                    <div class="popup"><b>{m_no}호기 상세 정보</b><br>{tool_display}</div>
+                                </div>
                             ''', unsafe_allow_html=True)
