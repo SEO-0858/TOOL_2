@@ -346,31 +346,38 @@ if qr_scanned_serial:
             st.success("✅ 수정사항이 저장되었습니다!")
             st.rerun()    
     else:
-        # 신규 등록 모드 전체 포함
+         # 신규 등록 모드 (else 부분)
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
             m_spec = st.selectbox("🛠 상세 스펙 선택", spec_options)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
-            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기", min_value=0, max_value=200, value=0, step=1)
+            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=0, step=1)
+            m_note = st.text_area("Note 📝 특이사항")
             submit_m_btn = st.form_submit_button("💾 데이터 저장 및 등록 완료")
             
         if submit_m_btn:
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": m_status,
-                    "detail_spec": m_spec,
-                    "worker": m_worker,
-                    "machine_no": f"{m_machine_num}호기"
-                }, "upsert": True}
-            )
-            st.success("🎉 저장 완료!")
-            st.rerun()
-            
-    if st.button("🏠 메인 시스템으로 돌아가기"):
-        st.query_params.clear()
-        st.rerun()
-
+            # 1. 필수값 체크
+            if not m_worker:
+                add_error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
+            elif m_machine_num == 0 and m_status != "사용전":
+                add_error("⚠️ 기계 호기를 입력해 주세요!")
+            else:
+                # 2. DB 업데이트 수행
+                db_collection.update_one(
+                    {"serial_no": qr_scanned_serial},  # 조건
+                    {
+                        "$set": {
+                            "status": m_status,
+                            "detail_spec": m_spec,
+                            "worker": m_worker,
+                            "machine_no": f"{m_machine_num}호기",
+                            "note": m_note
+                        }
+                    }, 
+                    upsert=True  # 이 위치가 중요합니다!
+                )
+                st.success("🎉 저장 완료!")
+                st.rerun()
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.session_state.sidebar_errors = []
