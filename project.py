@@ -1198,9 +1198,6 @@ else:
             ]
 
 
-
-
-
             # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
@@ -1215,14 +1212,16 @@ else:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
-                        # 1. 툴 정보 가져오기
                         tools = machine_tool_map.get(m_no, [])
                         
-                        # 2. 박스 형태 설정
-                        with st.container(border=True, height=150):
+                        # 굵은 검은색 테두리 + 연한 녹색 바탕 스타일 적용
+                        style_str = "border: 3px solid black; background-color: #E8F5E9; padding: 10px; border-radius: 5px;"
+                        
+                        with st.container(border=False):
+                            st.markdown(f'<div style="{style_str}">', unsafe_allow_html=True)
+                            st.write(f"**{m_no}호기**")
+                            
                             if tools:
-                                # 3. 작업 중인 경우: 팝업 기능 사용
-                                st.write(f"**{m_no}호기**")
                                 with st.popover("상세보기"):
                                     for t in tools:
                                         elapsed = get_elapsed_time_str(t.get('start_time'))
@@ -1231,8 +1230,8 @@ else:
                                         st.caption(f"장착: {str(t.get('start_time', '-'))[5:16]}")
                                         st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
                                         st.divider()
-                                st.caption(f"{len(tools)}개 툴 작업중")
+                                st.caption(f"{len(tools)}개 작업중")
                             else:
-                                # 4. 대기 중인 경우: 단순 텍스트 표시
-                                st.write(f"**{m_no}호기**")
                                 st.caption("대기중")
+                            
+                            st.markdown('</div>', unsafe_allow_html=True)
