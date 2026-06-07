@@ -1197,12 +1197,13 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
-            # 1187번 줄부터 마지막까지 싹 교체
+
+            
+            # 1187번 줄부터 끝까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
-                m_no_str = str(t.get('machine_no', ''))
-                nums = re.findall(r'\d+', m_no_str)
+                nums = re.findall(r'\d+', str(t.get('machine_no', '')))
                 if nums:
                     m_no = int(nums[0])
                     if m_no not in machine_tool_map: machine_tool_map[m_no] = []
@@ -1213,27 +1214,13 @@ else:
                 for i, m_no in enumerate(row):
                     with cols[i]:
                         tools = machine_tool_map.get(m_no, [])
-                        tool_display = ""
-                        for t in tools:
-                            elapsed = get_elapsed_time_str(t.get('start_time'))
-                            tool_display += f'''
-                            <div style="border-bottom:1px solid #c8e6c9; font-size:10px; margin-bottom:5px;">
-                                <b>ID:{t.get('serial_no', 'N/A')}</b><br>
-                                작업자:{t.get('worker', '미지정')}<br>
-                                장착:{str(t.get('start_time', '-'))[5:16]}{elapsed}
-                            </div>'''
-
-                        if tool_display:
-                            st.markdown(f'''
-                                <style>
-                                    .card {{ height:150px; background-color:#E8F5E9; padding:5px; border:2px solid #2E7D32; border-radius:6px; overflow-y:auto; }}
-                                    .card:hover {{ background-color: #dcedc8; cursor: pointer; }}
-                                </style>
-                                <div class="card"><b>{m_no}호기</b>{tool_display}</div>
-                            ''', unsafe_allow_html=True)
+                        if tools:
+                            with st.container(border=True): # Streamlit 기본 테두리 기능
+                                st.write(f"**{m_no}호기**")
+                                for t in tools:
+                                    elapsed = get_elapsed_time_str(t.get('start_time'))
+                                    st.caption(f"ID:{t.get('serial_no', 'N/A')} / {t.get('worker', '미지정')}")
+                                    st.caption(f"장착:{str(t.get('start_time', '-'))[5:16]}")
+                                    st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
                         else:
-                            st.markdown(f'''
-                                <div style="height:150px; background-color:#F5F5F5; padding:8px; border:1px solid #ccc; border-radius:6px; text-align:center; color:#777; font-size:11px;">
-                                    <br><b>{m_no}호기</b><br>대기중
-                                </div>
-                            ''', unsafe_allow_html=True)
+                            st.info(f"{m_no}호기\n대기중")
