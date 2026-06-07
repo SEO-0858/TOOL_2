@@ -905,7 +905,7 @@ else:
                                 elif ed_status in ["사용중", "재사용", "재사용대기"] and (not ed_worker or ed_machine_num == 0):
                                     flow_error_msg = "⚠️ [데이터 누락 방지] '사용전' 대기 상태를 제외한 가동/보관 데이터 등록 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 완벽하게 기입해야 합니다!"
 
-                                if flow_error_msg:
+                                if flow_error_msg and flow_error_msg not in st.session_state.sidebar_errors:
                                     add_error(flow_error_msg)
 
                                 # [최종 수정] 사용전에서 넘어온 '폐기'는 이 차단막을 아예 건드리지 않음
