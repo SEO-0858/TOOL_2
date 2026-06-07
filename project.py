@@ -17,13 +17,22 @@ st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="w
 # [2단계: 사이드바 오류 표시 영역]
 with st.sidebar:
     st.subheader("⚠️ 시스템 통합 알림")
+    
+    # 1. 오류 표시 공간(Placeholder) 만들기
+    error_area = st.empty()
+    
+    # 2. 리스트에 오류가 있을 때만 화면에 표시
     if st.session_state.sidebar_errors:
-        for err in st.session_state.sidebar_errors:
-            st.error(err)
-        
-        # 버튼을 누르면 오류 초기화
-        if st.button("🚫 모든 오류 확인 및 초기화"):
-            st.session_state.sidebar_errors = []
+        with error_area.container():
+            for err in st.session_state.sidebar_errors:
+                st.error(err)
+    
+    # 3. 버튼 로직
+    if st.button("🚫 모든 오류 확인 및 초기화"):
+        # 리스트 비우기
+        st.session_state.sidebar_errors = []
+        # 즉시 화면의 알람 영역을 비워버림 (rerun 불필요!)
+        error_area.empty()
             
 
 # 🔒 2. 데이터베이스 연결
