@@ -1225,7 +1225,26 @@ else:
                             tool_display += '<b>ID:' + str(t.get('serial_no', 'N/A')) + '</b><br>'
                             tool_display += '작업자:' + str(t.get('worker', '미지정')) + '<br>'
                             tool_display += '장착:' + str(t.get('start_time', '-'))[5:16] + elapsed + '</div>'
+                        
                         if tool_display:
-                            st.markdown(f'<div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;"><b>{m_no}호기</b>{tool_display}</div>', unsafe_allow_html=True)
+                            st.markdown(f'''
+                                <style>
+                                    .custom-card {{ 
+                                        background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; 
+                                        height:150px; overflow-y:auto; transition: transform 0.2s; 
+                                    }}
+                                    .custom-card:hover {{ transform: scale(1.05); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
+                                </style>
+                                <div class="custom-card"><b>{m_no}호기</b>{tool_display}</div>
+                            ''', unsafe_allow_html=True)
                         else:
-                            st.markdown(f'<div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;"><br><b>{m_no}호기</b><br>대기중</div>', unsafe_allow_html=True)          
+                            st.markdown(f'''
+                                <style>
+                                    .empty-card {{ 
+                                        background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; 
+                                        font-size:11px; height:150px; text-align:center; color:#777; transition: transform 0.2s;
+                                    }}
+                                    .empty-card:hover {{ transform: scale(1.05); z-index: 100; box-shadow: 0px 5px 15px rgba(0,0,0,0.3); }}
+                                </style>
+                                <div class="empty-card"><br><b>{m_no}호기</b><br>대기중</div>
+                            ''', unsafe_allow_html=True)
