@@ -1198,7 +1198,6 @@ else:
             ]
 
 
-            
 
 
 
@@ -1216,19 +1215,24 @@ else:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
+                        # 1. 툴 정보 가져오기
                         tools = machine_tool_map.get(m_no, [])
-                        # 박스 모양을 통일하기 위해 st.container 사용
+                        
+                        # 2. 박스 형태 설정
                         with st.container(border=True, height=150):
-                            st.write(f"**{m_no}호기**")
                             if tools:
-                                for t in tools:
-                                    elapsed = get_elapsed_time_str(t.get('start_time'))
-                                    st.markdown(f"""
-                                    <div style="font-size:10px; border-bottom:1px solid #ccc; margin-bottom:5px;">
-                                        ID:{t.get('serial_no', 'N/A')} / {t.get('worker', '미지정')}<br>
-                                        장착:{str(t.get('start_time', '-'))[5:16]} 
-                                        <span style='color:red;'>{elapsed}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                # 3. 작업 중인 경우: 팝업 기능 사용
+                                st.write(f"**{m_no}호기**")
+                                with st.popover("상세보기"):
+                                    for t in tools:
+                                        elapsed = get_elapsed_time_str(t.get('start_time'))
+                                        st.write(f"ID: {t.get('serial_no', 'N/A')}")
+                                        st.caption(f"작업자: {t.get('worker', '미지정')}")
+                                        st.caption(f"장착: {str(t.get('start_time', '-'))[5:16]}")
+                                        st.markdown(f"<span style='color:red;'>{elapsed}</span>", unsafe_allow_html=True)
+                                        st.divider()
+                                st.caption(f"{len(tools)}개 툴 작업중")
                             else:
+                                # 4. 대기 중인 경우: 단순 텍스트 표시
+                                st.write(f"**{m_no}호기**")
                                 st.caption("대기중")
