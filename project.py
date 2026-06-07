@@ -1194,22 +1194,25 @@ else:
                             tool_cards = ""
                             for t in tools:
                                 st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
-                                tool_cards += f"""
-                                <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
-                                    <b>ID: {t.get('serial_no', 'N/A')}</b> <span style="color:blue;">[{st_txt}]</span><br>
-                                    작업자: {t.get('worker', '미지정')}<br>
-                                    장착: {str(t.get('start_time', ''))[5:16]}
-                                </div>
-                                """
-                            st.markdown(f"""
-                                <div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;">
-                                    <b style="color:#1b5e20; font-size:11px;">{m_no}호기 ({len(tools)}개)</b>
-                                    {tool_cards}
-                                </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                                <div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;">
-                                    <br><b>{m_no}호기</b><br>대기중
-                                </div>
-                            """, unsafe_allow_html=True)
+                                # 1197번 줄부터 아래 내용을 그대로 복사해서 덮어쓰세요
+                    start_val_str = t.get('start_time', '')
+                    elapsed_str = ""
+                    if start_val_str and start_val_str != "-":
+                        try:
+                            # 1. 문자열을 날짜 형식으로 변환
+                            start_dt = datetime.datetime.strptime(start_val_str, "%Y-%m-%d %H:%M:%S")
+                            # 2. 현재 시간과 비교
+                            diff = datetime.datetime.utcnow() + timedelta(hours=9) - start_dt
+                            hours = int(diff.total_seconds() // 3600)
+                            minutes = int((diff.total_seconds() % 3600) // 60)
+                            elapsed_str = f'<br><span style="color:red; font-weight:bold;">({hours}시간 {minutes}분 경과)</span>'
+                        except:
+                            elapsed_str = ""
+
+                    tool_cards += f"""
+                    <div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">
+                        <b>ID: {t.get('serial_no', 'N/A')}</b> <span style="color:blue;">[{st_txt}]</span><br>
+                        작업자: {t.get('worker', '미지정')}<br>
+                        장착: {start_val_str[5:16]} {elapsed_str}
+                    </div>
+                    """
