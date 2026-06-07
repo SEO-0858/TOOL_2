@@ -1175,6 +1175,7 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
 
+            # 1187번 줄부터 싹 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
             machine_tool_map = {}
             for t in active_tools:
@@ -1182,24 +1183,25 @@ else:
                 nums = re.findall(r'\d+', m_no_str)
                 if nums:
                     m_no = int(nums[0])
-                    if m_no not in machine_tool_map:
-                        machine_tool_map[m_no] = []
+                    if m_no not in machine_tool_map: machine_tool_map[m_no] = []
                     machine_tool_map[m_no].append(t)
 
             for row in layout:
                 cols = st.columns(len(row))
                 for i, m_no in enumerate(row):
                     with cols[i]:
+                        # 데이터 유무와 상관없이 무조건 카드를 그립니다.
                         tools = machine_tool_map.get(m_no, [])
-                        if tools:
-                    # [핵심] 여기서 tool_cards를 먼저 반드시 정의해야 합니다!
-                            tool_cards = "" 
-                            for t in tools:
-                                st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
-                                
-                                # 문자열 연결 방식을 가장 단순하게 바꿨습니다.
-                                tool_cards += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
-                                tool_cards += '<b>ID: ' + str(t.get("serial_no", "N/A")) + '</b> <span style="color:blue;">[' + st_txt + ']</span><br>'
-                                tool_cards += '작업자: ' + str(t.get("worker", "미지정")) + '<br>'
-                                tool_cards += '장착: ' + str(t.get("start_time", "-"))[5:16]
-                                tool_cards += '</div>'
+                        
+                        tool_display = ""
+                        for t in tools:
+                            st_txt = "재사용" if t.get('status') == "재사용" else "사용중"
+                            # 에러 방지를 위해 간단한 문자열 연결만 사용
+                            tool_display += '<div style="margin-bottom:5px; border-bottom:1px solid #c8e6c9; font-size:10px;">'
+                            tool_display += '<b>ID:' + str(t.get('serial_no', 'N/A')) + '</b><br>'
+                            tool_display += '작업자:' + str(t.get('worker', '미지정')) + '</div>'
+
+                        if tool_display:
+                            st.markdown(f'<div style="background-color:#E8F5E9; padding:5px; border-radius:6px; border:2px solid #2E7D32; height:150px; overflow-y:auto;"><b>{m_no}호기</b>{tool_display}</div>', unsafe_allow_html=True)
+                        else:
+                            st.markdown(f'<div style="background-color:#F5F5F5; padding:8px; border-radius:6px; border:1px solid #ccc; font-size:11px; height:150px; text-align:center; color:#777;"><br><b>{m_no}호기</b><br>대기중</div>', unsafe_allow_html=True)
