@@ -797,7 +797,7 @@ else:
                                     # '폐기'는 이 경고창 로직 자체를 아예 안 타도록 합니다.
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
-
+                                is_valid, msg = True, ""
                                 if b_submit:
                                     is_valid, msg = validate_process(db_current_status, ed_status)
         
