@@ -797,8 +797,8 @@ else:
                                     st.session_state[f"msg_{s_no}"] = msg
 
                                 # [3] 항상 세션에서 변수 가져오기
-                                is_valid = st.session_state[f"is_valid_{s_no}"]
-                                msg = st.session_state[f"msg_{s_no}"]
+                                is_valid = st.session_state[f"is_valid_{s_no}",True]
+                                msg = st.session_state[f"msg_{s_no}",""]
 
                                 # [4] 검증 실패 시 로직 (사용전 폐기는 통과)
                                 if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
