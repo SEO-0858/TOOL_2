@@ -383,7 +383,7 @@ if qr_scanned_serial:
             
             final_note_val = u_note.strip()
             if u_status != db_status_mob:
-            is_valid, msg = validate_process(db_status_mob, u_status)
+                is_valid, msg = validate_process(db_status_mob, u_status)
             if not is_valid and not (db_status_mob == "사용전" and u_status == "폐기"):
                 st.error(msg)
                 st.stop()
