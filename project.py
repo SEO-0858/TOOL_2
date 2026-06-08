@@ -252,56 +252,37 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
 
-# [경고 팝업 함수]
-@st.dialog("⚠️ 상태 변경 규칙 위반")
-def show_warning_dialog(message):
-    st.error(message)
-    if st.button("확인"):
-        st.rerun()
-
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     
-    # DB에서 최신 데이터 로드
+    # 1. DB 데이터 로드
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     db_status_mob = existing_data.get("status", "사용전")
     
-    # 1. [불러오기] 로직: 폼 밖에서 작동, 페이지 리로드로 최신값 반영
+    # [불러오기 버튼]
     if st.button("📥 DB 최신 특이사항 불러오기"):
-        st.toast("✅ 최신 데이터를 불러왔습니다.")
-        st.rerun()
+        st.rerun() # 단순히 페이지 새로고침하여 DB 값을 다시 읽어오게 함
 
-    # 2. [폼] 로직 (key를 사용하여 데이터 입력 고립)
-    with st.form(key="mobile_update_form", clear_on_submit=False):
-        st.markdown("### ⚡ 상태 및 데이터 수정")
-        
-        status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-        current_idx = status_options.index(db_status_mob) if db_status_mob in status_options else 0
-        
-        u_status = st.radio("🔄 상태 선택", status_options, index=current_idx, horizontal=True)
-        u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
-        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0))
-        
-        # 특이사항은 DB 값을 초기값으로 넣되, 폼 내부에서 독립적으로 입력받음
-        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''), key="note_input_field")
-        
-        u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+    # 2. [입력창] (폼을 쓰지 않고 일반 입력 필드 사용)
+    # 폼 없이 일반 필드로 구성하면 버튼 클릭 시 입력값을 무조건 읽어옵니다.
+    u_status = st.radio("🔄 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
+                       index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(db_status_mob) if db_status_mob in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0)
+    
+    u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
+    u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
+    u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0))
+    u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
 
-    # 3. [저장] 로직 (저장 버튼 클릭 시에만 DB와 통신)
-    if u_submit_form_btn:
-        # 유효성 검사 1: 사용전 상태 변경 강제
+    # 3. [저장 버튼] (폼 밖의 일반 버튼으로 변경)
+    if st.button("✅ 수정사항 저장하기"):
+        # 여기서 강제로 검증
         if db_status_mob == "사용전" and u_status == "사용전":
             st.error("🚨 '사용전' 상태입니다. 상태를 변경 후 저장해주세요!")
-        # 유효성 검사 2: 수량 입력 필수
-        elif db_status_mob == "사용중" and u_status != "사용중" and u_work_count == 0:
-            st.error("🚨 사용중에서 변경 시 가공 수량을 입력해주세요!")
         else:
-            # 최종 로그 생성
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             final_note = u_note + f"\n[{log_time_str}] 수정: 상태:{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
             
-            # DB 업데이트 (이 시점에만 반영됨)
+            # DB 업데이트 시도
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -314,8 +295,8 @@ if qr_scanned_serial:
                 }},
                 upsert=True
             )
-            st.success("✅ 저장 완료!")
-            st.rerun()
+            st.success("✅ 저장되었습니다!")
+            st.rerun() # 저장 직후 새로고침
 
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
