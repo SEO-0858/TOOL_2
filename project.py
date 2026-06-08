@@ -260,59 +260,46 @@ def show_warning_dialog(message):
         st.rerun()
 
 if qr_scanned_serial:
-    # 1. DB에서 데이터 불러오기 (초기값으로만 사용)
+    st.title("📱 현장 툴 정보 기입창")
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
-    st.title("📱 현장 툴 정보 즉시 기입창")
-    st.info(f"🆔 시리얼: `{qr_scanned_serial}` / 🛠 규격: `{existing_data.get('detail_spec', '정보없음')}`")
-    
-    # 2. [핵심] form을 사용하여 입력값 전송을 '저장 버튼'으로 완전히 격리
-    with st.form(key="final_save_form"):
+    # [입력 폼] - 여기서 모든 값을 입력받습니다. 버튼 누르기 전까지는 DB 절대 불변.
+    with st.form(key='my_form'):
         u_status = st.radio("🔄 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
-                           horizontal=True, index=0)
+                           index=0, horizontal=True)
         u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1)
         u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-        u_machine_num = st.number_input("⚙️ 기계 호기", min_value=0, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0))
-        
-        # 특이사항: DB 내용을 기본값으로만 던져주고, 수정하는 동안 DB는 전혀 모름
+        u_machine_num = st.number_input("⚙️ 기계 호기", min_value=0, value=0)
         u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
         
-        # 폼 내부의 제출 버튼
-        u_submit_form_btn = st.form_submit_button("✅ 수정사항 저장하기")
+        submit_button = st.form_submit_button(label='✅ 수정사항 저장하기')
 
-    # 3. [저장 버튼]이 눌렸을 때만 DB 로직 실행
-    if u_submit_form_btn:
-        # DB에서 최신 상태를 다시 한 번 확인 (중복 방지)
+    # [저장 로직] - 버튼이 눌린 그 순간에만 실행됨
+    if submit_button:
+        # 1. DB 최신 상태 강제 재조회 (중복/충돌 방지)
         latest_data = db_collection.find_one({"serial_no": qr_scanned_serial})
         latest_status = latest_data.get("status", "사용전")
         
-        # 상태 전이 규칙 검증
-        if latest_status != "사용전" and u_status == "사용전":
-            show_warning_dialog(f"🚨 '{latest_status}'를 '사용전'으로 되돌릴 수 없습니다!")
-            st.stop()
-        
-        # ... (기타 규칙 검증 생략) ...
-
-        # [최종 저장 반영]
-        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-        final_note = u_note + f"\n[{log_time_str}] {latest_status}→{u_status} 변경, 작업자:{u_worker}, 호기:{u_machine_num}호기"
-        
-        db_collection.update_one(
-            {"serial_no": qr_scanned_serial},
-            {"$set": {
-                "status": u_status,
-                "current_use": int(existing_data.get('current_use', 0)) + u_work_count,
-                "worker": u_worker,
-                "machine_no": f"{u_machine_num}호기",
-                "note": final_note
-            }}
-        )
-        st.success("✅ 저장 완료!")
-        st.rerun()
-
-    # 불러오기 버튼은 폼 밖에서 동작
-    if st.button("📥 DB 최신 내역 새로고침"):
-        st.rerun()
+        # 2. 상태 전이 규칙 검증
+        if latest_status == "사용전" and u_status == "사용전":
+            st.error("🚨 상태를 변경해주세요!")
+        elif latest_status != "사용전" and u_status == "사용전":
+            st.error("🚨 '사용전'으로 되돌릴 수 없습니다!")
+        else:
+            # 3. 데이터 업데이트
+            final_note = u_note + f"\n[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {latest_status}→{u_status}"
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "worker": u_worker,
+                    "note": final_note,
+                    "current_use": int(latest_data.get('current_use', 0)) + u_work_count
+                }}
+            )
+            st.success("✅ 저장 완료!")
+            # 폼 사용 시에는 여기서 rerun을 해도 입력값만 지워질 뿐 무한 루프가 안 돕니다.
+            st.rerun()
 
 
 
