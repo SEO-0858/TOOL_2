@@ -797,9 +797,6 @@ else:
                                     # [2단계: PC 검문소 설치]
                                    
                                     # 사용전 툴 폐기는 검문소 통과
-                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
-                                        st.error(msg)
-                                        st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
