@@ -306,6 +306,7 @@ if qr_scanned_serial:
                 else: display_note = ""
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
+            st.write(f"DEBUG: 입력값 - {u_note}")
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
