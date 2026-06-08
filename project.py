@@ -801,7 +801,7 @@ else:
                                 if b_submit:
                                     # [1단계] 먼저 규칙 위반 여부를 검사
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                    
+                                   
                                     # [2단계] 규칙 위반 시 '강제 저장' 버튼 노출 (기존 st.stop() 차단막 제거)
                                     if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
                                         st.warning(f"⚠️ {msg}")
@@ -830,12 +830,17 @@ else:
                                     if ed_status == "재사용" and has_history_log and not has_pending_log:
                                         st.stop()
 
-                                    # [2단계: PC 검문소 설치]
+                                    # [2단계: PC 검문소 설치]   
                                     is_valid, msg = validate_process(db_current_status, ed_status)
                                     # 사용전 툴 폐기는 검문소 통과
-                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
-                                        st.error(msg)
-                                        st.stop()
+                                    if not is_valid and not st.session_state.get(f"force_proceed_{s_no}"):
+                                        # 예외: 사용전 폐기는 강제 저장 과정 없이 통과시킴
+                                        if not (db_current_status == "사용전" and ed_status == "폐기"):
+                                            st.warning(f"⚠️ {msg}")
+                                            if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_save_{s_no}"):
+                                                st.session_state[f"force_proceed_{s_no}"] = True
+                                                st.rerun()
+                                                st.stop() # 경고/버튼만 띄우고 아래 DB 저장 로직으로 넘어가지 않음
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
@@ -905,9 +910,7 @@ else:
                                     else:
                                         # 규칙 위반 시 경고창과 함께 '강제 저장' 버튼을 보여줌
                                         st.warning(f"⚠️ {msg}")
-                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):
-                                            # 버튼을 누르면 플래그를 세우고 다시 실행(rerun)해서 
-                                            # 위쪽의 if is_valid or ... 로직으로 진입하게 함
+                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):                                          
                                             st.session_state[f"force_proceed_{s_no}"] = True
                                             st.rerun()
                                     
