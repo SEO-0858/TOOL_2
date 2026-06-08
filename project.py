@@ -313,6 +313,13 @@ if qr_scanned_serial:
         
         # [수정된 모바일 공정 흐름 실시간 검증 시스템]
         if u_submit_form_btn:
+            if u_status != db_status_mob: 
+                is_valid, msg = validate_process(db_status_mob, u_status)
+        if not is_valid:
+            # 단, 예외(사용전->폐기)는 허용
+            if not (db_status_mob == "사용전" and u_status == "폐기"):
+                st.error(msg)
+                st.stop()
             # 1. 여기서부터 검사를 시작합니다 (버튼 누를 때만!)
             flow_error_msg = ""
             
