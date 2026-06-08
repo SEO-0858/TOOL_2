@@ -388,25 +388,24 @@ if qr_scanned_serial:
                 final_note_val += auto_log_msg
 
 
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {
-                    "$set": {
-                        "status": u_status,
-                        "current_use": u_count,
-                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
-                        "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
-                        "waste_date": waste_val,
-                        "note": final_note_val,
-                        "start_time": start_time_val,
-                        "target_time": target_time_val
-                    },
-                    "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
-                }
-            )
-            st.success("✅ 수정사항이 저장되었습니다!")
-            time.sleep(1)
-            st.rerun()    
+            # 수정된 업데이트 로직
+            update_data = {
+                "status": u_status,
+                "current_use": u_count,
+                "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
+                "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                "waste_date": waste_val,
+                "note": u_note.strip(),  # 👈 핵심: u_note를 직접 넣었습니다
+                "start_time": start_time_val,
+                "target_time": target_time_val
+            }
+
+            # 1. $set 업데이트 실행
+            db_collection.update_one({"serial_no": qr_scanned_serial}, {"$set": update_data})
+
+            # 2. 상태가 변경되었을 때만 history 기록 (문법 오류 수정)
+            if u_status != db_status_mob:
+                db_collection.update_one({"serial_no": qr_scanned_serial}, {"$push": {"history": history_entry}})
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
