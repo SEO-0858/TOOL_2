@@ -253,6 +253,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 
+
 # [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
@@ -265,7 +266,16 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # [상태 전이 맵]
+    # [1] DB 불러오기 (폼 외부 배치)
+    if st.button("📥 DB 최신 특이사항 불러오기"):
+        with st.spinner('데이터베이스에서 내용을 불러오는 중...'):
+            updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+            if updated_data:
+                st.session_state['u_note_buffer'] = updated_data.get('note', '')
+                st.toast("✅ 최신 특이사항을 불러왔습니다!")
+                st.rerun()
+
+    # 상태 전이 규칙
     status_map = {
         "사용전": ["사용중", "재사용대기", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -275,30 +285,20 @@ if qr_scanned_serial:
     }
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     
-    # [1] DB 불러오기 (폼 외부 배치)
-    if st.button("📥 DB 최신 특이사항 불러오기"):
-        with st.spinner('데이터베이스에서 최신 내역을 불러오는 중...'):
-            updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-            if updated_data:
-                st.session_state['u_note_buffer'] = updated_data.get('note', '')
-                st.toast("✅ 최신 특이사항을 불러왔습니다!")
-                st.rerun()
-
     # [2] 폼 영역
     with st.form(key="mobile_update_form"):
         st.markdown("### ⚡ 상태 및 데이터 수정")
         u_status = st.radio("🔄 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
         
-        # '사용중'에서 상태 변경 시 가공 수량 입력
         is_transitioning = (db_status_mob == "사용중" and u_status != "사용중")
-        u_work_count = st.number_input("🔢 이번 작업 가공 수량 (사용중일 때 필수)", min_value=0, step=1) if is_transitioning else 0
+        u_work_count = st.number_input("🔢 이번 작업 가공 수량 (사용중일 때 필수)", min_value=0, step=1)
         
         u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
                              index=["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"].index(existing_data.get('detail_spec', "파이90-20-200메쉬")) if existing_data and existing_data.get('detail_spec') else 0)
         u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
         u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0), step=1)
         
-        # 특이사항 (버퍼 데이터 사용)
+        # 특이사항: 세션 버퍼가 없으면 DB값을 우선 사용
         if 'u_note_buffer' not in st.session_state:
             st.session_state['u_note_buffer'] = existing_data.get('note', '') if existing_data else ''
         u_note = st.text_area("📝 특이사항", value=st.session_state['u_note_buffer'])
@@ -307,26 +307,23 @@ if qr_scanned_serial:
 
     # [3] 저장 로직
     if u_submit_form_btn:
-        # 상태 변경 여부 및 데이터 변경 여부 체크
-        is_status_changed = (u_status != db_status_mob)
-        
-        # 유효성 검사 1: '사용전' 강제 변경
+        # 유효성 검사 1: '사용전' 강제 상태 변경
         if db_status_mob == "사용전" and u_status == "사용전":
             st.error("🚨 '사용전' 상태입니다. 반드시 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
         
         # 유효성 검사 2: 상태 이동 규칙
-        elif is_status_changed and u_status not in status_map.get(db_status_mob, []):
-            show_warning_dialog(f"🚨 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
+        elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
+            show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
         
         # 유효성 검사 3: 수량 필수 입력
         elif is_transitioning and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
             
         else:
-            # 최종 로그 생성
+            # 최종 로그 생성 (저장 버튼 눌렀을 때만 수행)
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            final_note = u_note
-            if is_status_changed or u_work_count > 0:
+            final_note = u_note # 화면에 표시된 내용을 그대로 사용
+            if u_status != db_status_mob or u_work_count > 0:
                 final_note += f"\n[{log_time_str}] 수정: 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
             
             # DB 업데이트
@@ -342,6 +339,7 @@ if qr_scanned_serial:
                 }},
                 upsert=True
             )
+            # 상태값 초기화
             st.session_state['u_note_buffer'] = final_note
             st.success("✅ 저장 완료!")
             st.rerun()
