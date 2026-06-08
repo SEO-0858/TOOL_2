@@ -255,6 +255,9 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # [경고 팝업 함수]
+
+
+# [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
     st.error(message)
@@ -266,80 +269,56 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # [1] DB 불러오기 (폼 외부 배치)
+    # 1. [불러오기] 로직: 폼 밖에서 작동하며, 누르는 즉시 최신본으로 리셋
     if st.button("📥 DB 최신 특이사항 불러오기"):
-        with st.spinner('데이터베이스에서 내용을 불러오는 중...'):
+        with st.spinner('데이터베이스에서 최신 내역을 불러오는 중...'):
             updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
             if updated_data:
                 st.session_state['u_note_buffer'] = updated_data.get('note', '')
                 st.toast("✅ 최신 특이사항을 불러왔습니다!")
                 st.rerun()
 
-    # 상태 전이 규칙
-    status_map = {
-        "사용전": ["사용중", "재사용대기", "폐기"],
-        "사용중": ["재사용대기", "폐기"],
-        "재사용대기": ["재사용", "폐기"],
-        "재사용": ["재사용대기", "폐기"],
-        "폐기": [] 
-    }
-    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    
-    # [2] 폼 영역
+    # 2. [폼] 로직
     with st.form(key="mobile_update_form"):
         st.markdown("### ⚡ 상태 및 데이터 수정")
-        u_status = st.radio("🔄 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
         
-        is_transitioning = (db_status_mob == "사용중" and u_status != "사용중")
-        u_work_count = st.number_input("🔢 이번 작업 가공 수량 (사용중일 때 필수)", min_value=0, step=1)
+        # 상태 선택
+        u_status = st.radio("🔄 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
+                           index=0, horizontal=True) 
         
-        u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
-                             index=["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"].index(existing_data.get('detail_spec', "파이90-20-200메쉬")) if existing_data and existing_data.get('detail_spec') else 0)
-        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0), step=1)
+        u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
+        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0))
         
-        # 특이사항: 세션 버퍼가 없으면 DB값을 우선 사용
-        if 'u_note_buffer' not in st.session_state:
-            st.session_state['u_note_buffer'] = existing_data.get('note', '') if existing_data else ''
-        u_note = st.text_area("📝 특이사항", value=st.session_state['u_note_buffer'])
+        # 특이사항 입력창 (데이터 격리 적용)
+        # 폼 내부에서는 입력값을 독립적으로 관리(key 사용)
+        u_note = st.text_area("📝 특이사항", value=st.session_state.get('u_note_buffer', existing_data.get('note', '')), key="note_input")
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
-    # [3] 저장 로직
+    # 3. [저장] 로직 (여기서만 DB와 통신)
     if u_submit_form_btn:
-        # 유효성 검사 1: '사용전' 강제 상태 변경
+        # 유효성 검사
         if db_status_mob == "사용전" and u_status == "사용전":
-            st.error("🚨 '사용전' 상태입니다. 반드시 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
-        
-        # 유효성 검사 2: 상태 이동 규칙
-        elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
-            show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
-        
-        # 유효성 검사 3: 수량 필수 입력
-        elif is_transitioning and u_work_count == 0:
-            st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
-            
+            st.error("🚨 '사용전' 상태입니다. 반드시 상태를 변경 후 저장해주세요!")
         else:
-            # 최종 로그 생성 (저장 버튼 눌렀을 때만 수행)
+            # 로그 생성 (현재 입력된 u_note와 수정사항 조합)
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            final_note = u_note # 화면에 표시된 내용을 그대로 사용
-            if u_status != db_status_mob or u_work_count > 0:
-                final_note += f"\n[{log_time_str}] 수정: 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
+            # 입력창에 적힌 내용 + 새로운 로그 조합
+            final_note = u_note + f"\n[{log_time_str}] 수정: 상태:{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
             
             # DB 업데이트
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
                     "status": u_status,
-                    "detail_spec": u_spec,
-                    "current_use": int(existing_data.get('current_use', 0)) + u_work_count,
+                    "note": final_note,
                     "worker": u_worker,
-                    "machine_no": f"{u_machine_num}호기",
-                    "note": final_note
+                    "machine_no": f"{u_machine_num}호기"
                 }},
                 upsert=True
             )
-            # 상태값 초기화
+            # 버퍼 갱신 (저장 후에만 반영)
             st.session_state['u_note_buffer'] = final_note
             st.success("✅ 저장 완료!")
             st.rerun()
