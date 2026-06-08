@@ -251,8 +251,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
-import streamlit as st
-
 # [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
@@ -268,7 +266,6 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # 2. 상태 전이 규칙 (사용전 통일 및 폐기 경로 복구)
     status_map = {
         "사용전": ["사용중", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -278,16 +275,16 @@ if qr_scanned_serial:
     }
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     
-    # 3. 폼 영역
+    # 2. 폼 영역
     with st.form(key="mobile_update_form"):
         st.markdown("### ⚡ 상태 및 데이터 수정")
         
         u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
         
-        # [조건부 필수 입력]
-        show_count_input = (db_status_mob == "사용중" and u_status in ["재사용대기", "폐기"])
+        # [필수 입력 조건]: 오직 '사용중'에서 상태를 바꿀 때만 활성화
+        is_transitioning_from_usage = (db_status_mob == "사용중" and u_status != "사용중")
         u_work_count = 0
-        if show_count_input:
+        if is_transitioning_from_usage:
             u_work_count = st.number_input("🔢 이번 작업 가공 수량 (필수입력)", min_value=1, step=1)
         
         u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
@@ -300,32 +297,31 @@ if qr_scanned_serial:
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
-    # 4. 저장 로직 (데이터 변경 감지 및 검증 포함)
+    # 3. 저장 로직
     if u_submit_form_btn:
-        # 변경사항 감지 로직
+        # 데이터 변경 및 상태 검증
         is_data_changed = (
             u_status != db_status_mob or
             u_spec != existing_data.get('detail_spec') or
             u_worker != existing_data.get('worker', '') or
             u_machine_num != int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) or
-            u_note != existing_data.get('note', '') or
-            show_count_input # 수량 입력이 발생했는지
+            u_note != existing_data.get('note', '')
         )
         
         if not is_data_changed and u_work_count == 0:
             st.warning("⚠️ 변경된 정보가 없습니다.")
         elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
-            show_warning_dialog(f"🚨 현재 '{db_status_mob}'에서는 '{u_status}'로 이동할 수 없습니다.")
-        elif show_count_input and u_work_count == 0:
+            show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
+        elif is_transitioning_from_usage and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
         else:
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            # 로그 생성: 상태가 바뀌었거나 가공 수량이 입력되었을 때 기록
+            # 로그: 기존 특이사항 보존 + 변경 사항 추가
             new_log = ""
-            if u_status != db_status_mob or show_count_input:
+            if is_data_changed:
                 new_log = f"\n[{log_time_str}] 수정:"
                 if u_status != db_status_mob: new_log += f" 상태:{db_status_mob}→{u_status}"
-                if show_count_input: new_log += f", 가공수량:{u_work_count}개"
+                if u_work_count > 0: new_log += f", 가공수량:{u_work_count}개"
                 new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
             
             final_note_val = u_note + new_log
