@@ -250,6 +250,8 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
+    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+    st.write("DEBUG: 불러온 데이터의 note 값 ->", existing_data.get('note'))
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
     st.write("<br>", unsafe_allow_html=True)
@@ -331,7 +333,7 @@ if qr_scanned_serial:
         st.rerun()
 
 
-        
+
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.session_state.sidebar_errors = []
