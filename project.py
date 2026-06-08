@@ -282,8 +282,21 @@ if qr_scanned_serial:
         log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
         old_spec = existing_data.get('detail_spec', '스펙없음') if existing_data else '신규'
         
-        # 로그 생성
-        new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
+        # 로그 생성   
+        # 1. 상태나 스펙이 바뀌었는지 체크
+        is_status_changed = (db_status_mob != u_status)
+        is_spec_changed = (old_spec != u_spec)
+        
+        # 2. 바뀐 게 하나라도 있을 때만 로그 생성
+        if is_status_changed or is_spec_changed:
+            new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
+            if is_spec_changed:
+                new_log += f", 스펙:{old_spec}→{u_spec}"
+            new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
+            final_note_val = u_note + new_log
+        else:
+            # 바뀐 게 없으면 로그를 추가하지 않고 기존 note만 그대로 저장
+            final_note_val = u_note
         if old_spec != u_spec:
             new_log += f", 스펙:{old_spec}→{u_spec}"
         new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
