@@ -259,6 +259,9 @@ def show_warning_dialog(message):
     st.error(message)
     if st.button("확인"):
         st.rerun()
+
+
+# [최종 확정된 상태 전이 규칙표]
 status_map = {
     "사용전": ["사용중", "폐기"],
     "사용중": ["재사용대기", "폐기"],
@@ -270,45 +273,45 @@ status_map = {
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     
-    # 1. 툴 데이터 불러오기 (시리얼 기반)
+    # 1. DB 최신 데이터 로드
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     current_status = existing_data.get("status", "사용전")
     
-    # 2. 툴 상세 정보 (드래그/검색 필요 없이 자동 출력)
+    # 2. 툴 상세 정보 (검색/드래그 필요 없이 자동 출력)
     st.info(f"🆔 **시리얼**: {qr_scanned_serial}")
     st.success(f"🛠 **상세 스펙**: {existing_data.get('detail_spec', '정보 없음')}")
     st.markdown("---")
 
     # 3. 입력 필드
-    # [상태 선택] - 현재 상태에 맞춰 이동 가능한 목록만 필터링해서 보여줌
-    available_next_status = status_map.get(current_status, [])
-    u_status = st.radio("🔄 상태 선택 (이동 가능)", available_next_status, horizontal=True)
+    all_status = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
+    u_status = st.radio("🔄 전체 상태 선택", all_status, horizontal=True)
     
-    # [상세 정보 입력]
-    u_machine_num = st.text_input("⚙️ 기계 호기 (예: 1호기)", value=existing_data.get('machine_no', ''))
+    u_machine_num = st.text_input("⚙️ 기계 호기", value=existing_data.get('machine_no', ''))
     u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-    
-    # [가공 수량 입력] - 사용중에서 넘어갈 때만 중요함
-    u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1, help="사용중 상태에서 이동 시 필수 입력")
-    
-    # [특이사항]
+    u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1)
     u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
 
     # 4. 저장 버튼
     if st.button("✅ 수정사항 저장하기"):
-        # [데이터 재조회] - 저장 직전 최신 상태로 최종 검증
+        # [최종 상태 재확인 - 데이터 충돌 방지]
         latest_data = db_collection.find_one({"serial_no": qr_scanned_serial})
         latest_status = latest_data.get("status", "사용전")
         
-        # [규칙 검증 필터]
+        # [규칙 검증 로직]
+        # 1. 중복 상태 차단
         if u_status == latest_status:
-            st.error("🚨 현재 상태와 동일한 상태로는 저장할 수 없습니다!")
+            st.error(f"🚨 현재 상태가 '{latest_status}'입니다. 동일한 상태로 저장할 수 없습니다!")
+        
+        # 2. 규칙표에 없는 이동 경로 차단
         elif u_status not in status_map.get(latest_status, []):
-            st.error(f"🚨 '{latest_status}'에서 '{u_status}'로는 이동할 수 없습니다!")
+            st.error(f"🚨 '{latest_status}'에서 '{u_status}'로는 이동할 수 없습니다! (규칙표 확인 요망)")
+            
+        # 3. 필수 입력 체크
         elif latest_status == "사용중" and u_work_count == 0:
-            st.error("🚨 '사용중'에서 상태 변경 시 가공 수량을 입력해주세요!")
+            st.error("🚨 '사용중' 상태에서 변경 시 가공 수량을 반드시 입력해주세요!")
+            
         else:
-            # [DB 반영]
+            # [DB 업데이트]
             log_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             final_note = f"{u_note}\n[{log_time}] {latest_status}→{u_status} / 작업자:{u_worker} / {u_machine_num} / 수량:{u_work_count}"
             
@@ -319,11 +322,13 @@ if qr_scanned_serial:
                     "machine_no": u_machine_num,
                     "worker": u_worker,
                     "note": final_note,
-                    "current_use": int(existing_data.get('current_use', 0)) + u_work_count
+                    "current_use": int(latest_data.get('current_use', 0)) + u_work_count
                 }}
             )
             st.success("✅ 저장 완료!")
+            st.rerun() # 성공 후 새로고침하여 최신 정보 반영
 
+    # 5. UI 편의 버튼
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
