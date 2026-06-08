@@ -267,6 +267,7 @@ if qr_scanned_serial:
         
         display_note = existing_data.get('note', '')
         
+        
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
@@ -274,6 +275,7 @@ if qr_scanned_serial:
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0')))) if any(map(str.isdigit, existing_data.get('machine_no', ''))) else 0, step=1)
+            st.write("DEBUG: 입력창에 들어갈 값 ->", display_note)
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
