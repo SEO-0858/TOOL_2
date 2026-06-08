@@ -248,74 +248,86 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         st.rerun()
 
 
+
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
+    st.subheader(f"🆔 시리얼: `{qr_scanned_serial}`")
     
-    # 1. DB 데이터 로드 및 초기 설정 (가장 상단에 정의)
+    # 1. DB 데이터 로드
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-    
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
-    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
     
+    # 상태 전이 규칙 정의
+    status_map = {
+        "가동전": ["사용중", "폐기"],
+        "사용중": ["재사용대기", "폐기"],
+        "재사용대기": ["재사용", "폐기"],
+        "재사용": ["재사용대기", "폐기"],
+        "폐기": [] 
+    }
+    allowed_options = status_map.get(db_status_mob, ["사용전", "사용중", "재사용", "재사용대기", "폐기"])
     spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
-    
+
     # 2. 폼 영역
     with st.form(key="mobile_update_form"):
-        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+        st.markdown("### ⚡ 상태 및 수량 수정")
         
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-        u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, 
+        u_status = st.radio("🔄 툴 현재 상태 선택", allowed_options, horizontal=True) if allowed_options else st.text("⚠️ 폐기된 툴입니다.")
+        
+        # [조건부 입력] '사용중'에서 상태 변경 시 가공 수량 필수 입력
+        show_count_input = (db_status_mob == "사용중" and u_status in ["재사용대기", "폐기"])
+        u_work_count = 0
+        if show_count_input:
+            u_work_count = st.number_input("🔢 이번 작업 가공 수량 (필수입력)", min_value=1, step=1)
+        
+        u_spec = st.selectbox("🛠 상세 스펙", spec_options, 
                              index=spec_options.index(existing_data.get('detail_spec', spec_options[0])) if existing_data and existing_data.get('detail_spec') in spec_options else 0)
-        u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
-        u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '') if existing_data else "").strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, 
+        u_count = st.number_input("📊 누적 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
+        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, 
                                        value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
-        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', '') if existing_data else "")
+        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', '') if existing_data else "")
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
-    # 3. [중요] 폼 밖에서 동작하는 저장 로직
+    # 3. 저장 로직 (검증 및 DB 반영)
     if u_submit_form_btn:
-        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-        old_spec = existing_data.get('detail_spec', '스펙없음') if existing_data else '신규'
-        
-        # 로그 생성   
-        # 1. 상태나 스펙이 바뀌었는지 체크
-        is_status_changed = (db_status_mob != u_status)
-        is_spec_changed = (old_spec != u_spec)
-        
-        # 2. 바뀐 게 하나라도 있을 때만 로그 생성
-        if is_status_changed or is_spec_changed:
-            new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
-            if is_spec_changed:
-                new_log += f", 스펙:{old_spec}→{u_spec}"
-            new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
-            final_note_val = u_note + new_log
+        if show_count_input and u_work_count == 0:
+            st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
         else:
-            # 바뀐 게 없으면 로그를 추가하지 않고 기존 note만 그대로 저장
-            final_note_val = u_note
-        
-        # DB 업데이트
-        db_collection.update_one(
-            {"serial_no": qr_scanned_serial},
-            {"$set": {
-                "status": u_status,
-                "detail_spec": u_spec,
-                "current_use": u_count,
-                "worker": u_worker,
-                "machine_no": f"{u_machine_num}호기",
-                "note": final_note_val
-            }},
-            upsert=True
-        )
-        st.success("✅ 저장 완료!")
-        st.rerun()
+            log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            is_status_changed = (db_status_mob != u_status)
+            is_spec_changed = (existing_data.get('detail_spec') != u_spec)
+            
+            # 로그 생성
+            new_log = ""
+            if is_status_changed or is_spec_changed or show_count_input:
+                new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
+                if is_spec_changed: new_log += f", 스펙:{existing_data.get('detail_spec')}→{u_spec}"
+                if show_count_input: new_log += f", 가공수량:{u_work_count}개"
+                new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
+            
+            final_note_val = (existing_data.get('note', '') if existing_data else '') + new_log
+            new_total_use = u_count + u_work_count
+            
+            # 모든 필드 복구 완료
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "detail_spec": u_spec,
+                    "current_use": new_total_use,
+                    "worker": u_worker,
+                    "machine_no": f"{u_machine_num}호기",
+                    "note": final_note_val
+                }},
+                upsert=True
+            )
+            st.success("✅ 저장 완료!")
+            st.rerun()
 
-    # 돌아가기 버튼
-    if st.button("🏠 메인 시스템으로 돌아가기"):
+    if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
 
