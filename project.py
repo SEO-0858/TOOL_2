@@ -792,7 +792,7 @@ else:
 
                                 if b_submit:
                                     # [2] 버튼 누를 때 검증 수행
-                                    is_valid, msg = validate_process(db_current_status, ed_status)
+                                    
                                     st.session_state[f"is_valid_{s_no}"] = is_valid
                                     st.session_state[f"msg_{s_no}"] = msg
 
