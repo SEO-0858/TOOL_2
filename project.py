@@ -8,15 +8,6 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
-
-@st.dialog("⚠️ 상태 변경 규칙 위반 경고")
-def show_waste_dialog_pc(s_no, data_to_save):
-    st.warning("🚨 규칙 위반입니다. 그래도 저장하시겠습니까?")
-    if st.button("⭕ 강제 저장하기"):
-        # 실제 DB 업데이트를 수행하는 함수 호출
-        db_collection.update_one({"serial_no": data_to_save['serial_no']}, {"$set": data_to_save['set_data']})
-        st.success("✅ 강제 저장 완료!")
-        st.rerun()
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
@@ -257,88 +248,76 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         st.rerun()
 
 
-
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-
-
-
-# [핵심 헌법: 상태 전이 규칙표]
-status_map = {
-    "사용전": ["사용중", "폐기"],
-    "사용중": ["재사용대기", "폐기"],
-    "재사용대기": ["재사용", "폐기"],
-    "재사용": ["재사용대기", "폐기"],
-    "폐기": [] 
-}
-
-# [경고창 및 닫기 버튼 기능 구현]
-@st.dialog("⚠️ 상태 변경 규칙 위반")
-def show_error_dialog(message):
-    st.error(message)
-    if st.button("닫기 (확인)"):
-        st.rerun()
-
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
+    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
     
-    # 1. DB 최신 데이터 로드
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
-    current_status = existing_data.get("status", "사용전")
+    # 1. DB 데이터 로드 및 초기 설정 (가장 상단에 정의)
+    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
-    # 2. 툴 상세 정보 (DB 연동 출력)
-    st.info(f"🆔 **시리얼**: {qr_scanned_serial}")
-    st.success(f"🛠 **상세 스펙**: {existing_data.get('detail_spec', '정보 없음')}")
-    st.markdown("---")
-
-    # 3. 입력 필드
-    all_status = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    u_status = st.radio("🔄 전체 상태 선택", all_status, horizontal=True)
+    db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
+    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
+    status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
     
-    u_machine_num = st.text_input("⚙️ 기계 호기", value=existing_data.get('machine_no', ''))
-    u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-    u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1)
-    u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
-
-    # 4. 저장 로직 (저장 버튼 클릭 시에만 실행)
-    if st.button("✅ 수정사항 저장하기"):
-        # [데이터 충돌 방지: 저장 직전 최신 DB 재조회]
-        latest_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-        latest_status = latest_data.get("status", "사용전")
+    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+    
+    # 2. 폼 영역
+    with st.form(key="mobile_update_form"):
+        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
         
-        # [규칙 검증 필터]
-        if u_status == latest_status:
-            show_error_dialog(f"🚨 현재 상태가 '{latest_status}'입니다. 중복 저장은 불가합니다!")
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+        u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, 
+                             index=spec_options.index(existing_data.get('detail_spec', spec_options[0])) if existing_data and existing_data.get('detail_spec') in spec_options else 0)
+        u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
+        u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '') if existing_data else "").strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, 
+                                       value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
+        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', '') if existing_data else "")
         
-        elif u_status not in status_map.get(latest_status, []):
-            show_error_dialog(f"🚨 '{latest_status}'에서 '{u_status}'로는 이동할 수 없습니다! (규칙표 확인 요망)")
-            
-        elif latest_status == "사용중" and u_work_count == 0:
-            show_error_dialog("🚨 '사용중' 상태에서 변경 시 가공 수량을 반드시 입력해주세요!")
-            
+        u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+
+    # 3. [중요] 폼 밖에서 동작하는 저장 로직
+    if u_submit_form_btn:
+        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        old_spec = existing_data.get('detail_spec', '스펙없음') if existing_data else '신규'
+        
+        # 로그 생성   
+        # 1. 상태나 스펙이 바뀌었는지 체크
+        is_status_changed = (db_status_mob != u_status)
+        is_spec_changed = (old_spec != u_spec)
+        
+        # 2. 바뀐 게 하나라도 있을 때만 로그 생성
+        if is_status_changed or is_spec_changed:
+            new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
+            if is_spec_changed:
+                new_log += f", 스펙:{old_spec}→{u_spec}"
+            new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
+            final_note_val = u_note + new_log
         else:
-            # [DB 최종 업데이트]
-            log_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            final_note = f"{u_note}\n[{log_time}] {latest_status}→{u_status} / 작업자:{u_worker} / {u_machine_num} / 수량:{u_work_count}"
-            
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status,
-                    "machine_no": u_machine_num,
-                    "worker": u_worker,
-                    "note": final_note,
-                    "current_use": int(latest_data.get('current_use', 0)) + u_work_count
-                }}
-            )
-            st.success("✅ 저장 완료!")
-            st.rerun() # 성공 시 새로고침으로 반영
-
-    # 5. 메인으로 돌아가기
-    if st.button("🏠 메인으로 돌아가기"):
-        st.query_params.clear()
+            # 바뀐 게 없으면 로그를 추가하지 않고 기존 note만 그대로 저장
+            final_note_val = u_note
+        
+        # DB 업데이트
+        db_collection.update_one(
+            {"serial_no": qr_scanned_serial},
+            {"$set": {
+                "status": u_status,
+                "detail_spec": u_spec,
+                "current_use": u_count,
+                "worker": u_worker,
+                "machine_no": f"{u_machine_num}호기",
+                "note": final_note_val
+            }},
+            upsert=True
+        )
+        st.success("✅ 저장 완료!")
         st.rerun()
 
-
+    # 돌아가기 버튼
+    if st.button("🏠 메인 시스템으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 
 # --- 💻 [PC 관리자 모드] ---
@@ -797,34 +776,29 @@ else:
                                     # '폐기'는 이 경고창 로직 자체를 아예 안 타도록 합니다.
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
-                                is_valid, msg = True, ""
+
                                 if b_submit:
-                                    is_valid, msg = validate_process(db_current_status, ed_status)
-        
-                                    # [2] 강제 저장 버튼을 눌렀는지 체크하는 변수
-                                    is_forced = st.session_state.get(f"force_proceed_{s_no}", False)
+                                    # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
+                                    if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
+                                        if not st.session_state.get(f"temp_reason_{s_no}"):
+                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
+                                           st.stop()
                                     
-                                    # [3] 정상 규칙을 통과했거나, 강제 저장을 선택했다면 저장 로직(845번 라인 이후)으로 진행
-                                    if is_valid or is_forced:
-                                        # 여기는 비워둡니다 (코드가 아래로 자연스럽게 흘러가서 845번 라인부터 실행됨)
-                                        pass 
-                                        
-                                    # [4] 규칙 위반이고 강제 저장도 안 눌렀다면 경고와 버튼만 띄우고 멈춤
-                                    else:
-                                        st.warning(f"⚠️ {msg}")
-                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):
-                                            st.session_state[f"force_proceed_{s_no}"] = True
-                                            st.rerun() # 플래그를 세우고 다시 시작하여 [3]번 조건(is_forced)을 통과하게 함
-                                        st.stop() # 경고/버튼만 띄우고 아래 DB 저장 로직으로 넘어가지 않음
+                                    # 새 제품(사용전)일 때 폐기는 경고 예외 처리
+                                    if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
+                                        if not (ed_status == "폐기" and db_current_status == "사용전"):
+                                            st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
+                                            st.stop()
+
+                                    if ed_status == "재사용" and has_history_log and not has_pending_log:
+                                        st.stop()
+
+                                    # [2단계: PC 검문소 설치]
+                                    is_valid, msg = validate_process(db_current_status, ed_status)
                                     # 사용전 툴 폐기는 검문소 통과
-                                    if not is_valid and not st.session_state.get(f"force_proceed_{s_no}"):
-                                        # 예외: 사용전 폐기는 강제 저장 과정 없이 통과시킴
-                                        if not (db_current_status == "사용전" and ed_status == "폐기"):
-                                            st.warning(f"⚠️ {msg}")
-                                            if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_save_{s_no}"):
-                                                st.session_state[f"force_proceed_{s_no}"] = True
-                                                st.rerun()
-                                                st.stop() # 경고/버튼만 띄우고 아래 DB 저장 로직으로 넘어가지 않음
+                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
+                                        st.error(msg)
+                                        st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
@@ -866,9 +840,6 @@ else:
                         
                                         auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                         final_note_val = ed_note.strip() + auto_log_msg
-                                if is_valid or st.session_state.get(f"force_proceed_{s_no}"):
-            
-                                    # DB 업데이트 시작
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -885,18 +856,10 @@ else:
                                             "detail_spec": ed_spec
                                         }}
                                     )
-                                    if f"force_proceed_{s_no}" in st.session_state:
-                                        del st.session_state[f"force_proceed_{s_no}"]
-                
-                                        st.success("✅ 저장 완료!")
-                                        st.rerun()
-            
-                                    else:
-                                        # 규칙 위반 시 경고창과 함께 '강제 저장' 버튼을 보여줌
-                                        st.warning(f"⚠️ {msg}")
-                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):                                          
-                                            st.session_state[f"force_proceed_{s_no}"] = True
-                                            st.rerun()
+                                    st.session_state[edit_key] = False
+                                    st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
+                                    time.sleep(0.5)
+                                    st.rerun()
                                     
                                 # 사용전 완전 복구용 초기화 시스템 배치
                                 st.write("<br>", unsafe_allow_html=True)
