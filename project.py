@@ -266,7 +266,7 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # 2. 상태 전이 규칙 (가동전->폐기 경로 복구 완료)
+    # 2. [검증완료] 상태 전이 규칙 (가동전->폐기 포함)
     status_map = {
         "가동전": ["사용중", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -334,6 +334,7 @@ if qr_scanned_serial:
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
+
 
 # --- 💻 [PC 관리자 모드] ---
 else:
