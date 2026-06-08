@@ -255,7 +255,7 @@ if qr_scanned_serial:
     st.write("<br>", unsafe_allow_html=True)
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-    
+    st.write(f"DEBUG: 데이터 검색 결과 - {existing_data}")
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
         db_status_mob = existing_data.get("status", "사용중")
