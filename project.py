@@ -781,7 +781,7 @@ else:
                                 if f"msg_{s_no}" not in st.session_state:
                                     st.session_state[f"msg_{s_no}"] = ""
                                 if b_submit:
-                                    # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
+                                    st.session_state[f"is_valid_{s_no}"], st.session_state[f"msg_{s_no}"] = validate_process(db_current_status, ed_status)
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
                                            show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
