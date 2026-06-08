@@ -776,10 +776,9 @@ else:
                                     # '폐기'는 이 경고창 로직 자체를 아예 안 타도록 합니다.
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
-                            
-                                msg = ""
+
                                 if b_submit:
-                                    
+                                    # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
                                            show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
@@ -795,8 +794,15 @@ else:
                                         st.stop()
 
                                     # [2단계: PC 검문소 설치]
-                                   
+                                    st.write("validate_process 실행전")
+                                    is_valid, msg = validate_process(db_current_status, ed_status)
+                                    st.write("is valide=",is_valid)
+                                    st.write("msg=",msg)
                                     # 사용전 툴 폐기는 검문소 통과
+
+                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
+                                        st.error(msg)
+                                        st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
