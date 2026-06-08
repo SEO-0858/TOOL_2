@@ -251,12 +251,20 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
+import streamlit as st
 
 # [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
     st.error(message)
     if st.button("확인"):
+        st.rerun()
+
+# DB에서 최신 데이터를 가져와 세션 상태에 저장하는 로직
+def refresh_note_from_db():
+    updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+    if updated_data:
+        st.session_state['u_note_buffer'] = updated_data.get('note', '')
         st.rerun()
 
 if qr_scanned_serial:
@@ -266,8 +274,12 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
+    # 세션에 불러오기 버퍼가 없으면 기존 데이터 사용
+    if 'u_note_buffer' not in st.session_state:
+        st.session_state['u_note_buffer'] = existing_data.get('note', '') if existing_data else ''
+    
     status_map = {
-        "사용전": ["사용중", "폐기"],
+        "사용전": ["사용중", "재사용대기", "폐기"],
         "사용중": ["재사용대기", "폐기"],
         "재사용대기": ["재사용", "폐기"],
         "재사용": ["재사용대기", "폐기"],
@@ -290,7 +302,14 @@ if qr_scanned_serial:
         u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
         u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, 
                                        value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
-        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', '') if existing_data else "")
+        
+        # [특이사항 및 불러오기 기능]
+        st.markdown("---")
+        st.warning("⚠️ 불러오기 버튼을 누르면 현재 입력 중인 내용이 삭제되고 DB 최신 내용으로 덮어씌워집니다.")
+        if st.form_submit_button("📥 DB 최신 특이사항 불러오기"):
+            refresh_note_from_db()
+            
+        u_note = st.text_area("📝 특이사항", value=st.session_state['u_note_buffer'])
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
@@ -304,18 +323,16 @@ if qr_scanned_serial:
             u_note != existing_data.get('note', '')
         )
         
-        if not is_data_changed and u_work_count == 0:
-            # 여기를 수정했습니다: 닫을 수 있는 컨테이너 형태
+        if db_status_mob == "사용전" and u_status == "사용전":
+            st.error("🚨 '사용전' 상태입니다. 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
+        elif not is_data_changed and u_work_count == 0:
             st.warning("⚠️ 변경된 정보가 없습니다.")
-            if st.button("확인 (닫기)"):
-                st.rerun()
-        
+            if st.button("확인 (닫기)"): st.rerun()
         elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
-            show_warning_dialog(f"🚨 현재 '{db_status_mob}'에서는 '{u_status}'로 이동할 수 없습니다.")
+            show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
         elif is_transitioning_from_usage and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
         else:
-            # [업데이트 로직 생략(위 코드와 동일)]
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             new_log = ""
             if is_data_changed:
@@ -324,7 +341,8 @@ if qr_scanned_serial:
                 if u_work_count > 0: new_log += f", 가공수량:{u_work_count}개"
                 new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
             
-            final_note_val = u_note + new_log
+            # 특이사항 저장 시 버퍼 초기화
+            st.session_state['u_note_buffer'] = u_note + new_log
             new_total_use = u_count + u_work_count
             
             db_collection.update_one(
@@ -335,13 +353,16 @@ if qr_scanned_serial:
                     "current_use": new_total_use,
                     "worker": u_worker,
                     "machine_no": f"{u_machine_num}호기",
-                    "note": final_note_val
+                    "note": st.session_state['u_note_buffer']
                 }},
                 upsert=True
             )
             st.success("✅ 저장 완료!")
             st.rerun()
 
+    if st.button("🏠 메인으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 # --- 💻 [PC 관리자 모드] ---
 else:
