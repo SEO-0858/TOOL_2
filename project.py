@@ -780,18 +780,31 @@ else:
                                     st.session_state[f"is_valid_{s_no}"] = True
                                 if f"msg_{s_no}" not in st.session_state:
                                     st.session_state[f"msg_{s_no}"] = ""
+
+
+                                b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
+
+                                # [1] 에러 방지: 변수 미리 선언 (버튼 클릭 전에도 존재하게 함)
+                                if f"is_valid_{s_no}" not in st.session_state:
+                                    st.session_state[f"is_valid_{s_no}"] = True
+                                if f"msg_{s_no}" not in st.session_state:
+                                    st.session_state[f"msg_{s_no}"] = ""
+
                                 if b_submit:
-                                    # 1. 여기서 검증을 딱 한 번만 수행합니다.
+                                    # [2] 버튼 누를 때 검증 수행
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                    
-                                    # 2. 세션에 결과를 저장하여 아래 로직들이 참조할 수 있게 합니다.
                                     st.session_state[f"is_valid_{s_no}"] = is_valid
                                     st.session_state[f"msg_{s_no}"] = msg
 
-                                    # 3. 규칙 위반 시 예외 처리 (사용전->폐기는 통과)
-                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
-                                        st.error(msg)
-                                        st.stop()
+                                # [3] 항상 세션에서 변수 가져오기
+                                is_valid = st.session_state[f"is_valid_{s_no}"]
+                                msg = st.session_state[f"msg_{s_no}"]
+
+                                # [4] 검증 실패 시 로직 (사용전 폐기는 통과)
+                                if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
+                                    st.error(msg)
+                                    st.stop()
+
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
                                         st.stop()
