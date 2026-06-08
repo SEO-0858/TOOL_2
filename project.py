@@ -325,6 +325,7 @@ if qr_scanned_serial:
         
         if db_status_mob == "사용전" and u_status == "사용전":
             st.error("🚨 '사용전' 상태입니다. 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
+            if st.button("확인 (닫기)"): st.rerun()
         elif not is_data_changed and u_work_count == 0:
             st.warning("⚠️ 변경된 정보가 없습니다.")
             if st.button("확인 (닫기)"): st.rerun()
