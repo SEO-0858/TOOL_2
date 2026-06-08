@@ -781,28 +781,17 @@ else:
                                 if f"msg_{s_no}" not in st.session_state:
                                     st.session_state[f"msg_{s_no}"] = ""
                                 if b_submit:
-                                    st.session_state[f"is_valid_{s_no}"], st.session_state[f"msg_{s_no}"] = validate_process(db_current_status, ed_status)
-                                    if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
-                                        if not st.session_state.get(f"temp_reason_{s_no}"):
-                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
-                                           st.stop()
-                                    
-                                    # 새 제품(사용전)일 때 폐기는 경고 예외 처리
-                                    if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                        if not (ed_status == "폐기" and db_current_status == "사용전"):
-                                            st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
-                                            st.stop()
-
-                                    if ed_status == "재사용" and has_history_log and not has_pending_log:
-                                        st.stop()
-
-                                    # [2단계: PC 검문소 설치]
+                                    # 1. 여기서 검증을 딱 한 번만 수행합니다.
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                    # 사용전 툴 폐기는 검문소 통과
+                                    
+                                    # 2. 세션에 결과를 저장하여 아래 로직들이 참조할 수 있게 합니다.
+                                    st.session_state[f"is_valid_{s_no}"] = is_valid
+                                    st.session_state[f"msg_{s_no}"] = msg
+
+                                    # 3. 규칙 위반 시 예외 처리 (사용전->폐기는 통과)
                                     if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
                                         st.error(msg)
                                         st.stop()
-
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
                                         st.stop()
