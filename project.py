@@ -251,7 +251,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
-import streamlit as st
 
 # [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
@@ -260,24 +259,23 @@ def show_warning_dialog(message):
     if st.button("확인"):
         st.rerun()
 
-# DB에서 최신 데이터를 가져와 세션 상태에 저장하는 로직
-def refresh_note_from_db():
-    updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-    if updated_data:
-        st.session_state['u_note_buffer'] = updated_data.get('note', '')
-        st.rerun()
-
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 시리얼: `{qr_scanned_serial}`")
-    
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # 세션에 불러오기 버퍼가 없으면 기존 데이터 사용
+    # [초기화 로직] 세션이 없을 때만 DB에서 가져옴
     if 'u_note_buffer' not in st.session_state:
         st.session_state['u_note_buffer'] = existing_data.get('note', '') if existing_data else ''
-    
+
+    # [불러오기 로직 (폼 밖)]
+    if st.button("📥 DB 최신 특이사항 불러오기"):
+        updated_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+        if updated_data:
+            st.session_state['u_note_buffer'] = updated_data.get('note', '')
+            st.toast("✅ 데이터베이스의 최신 특이사항을 불러왔습니다!") # 즉각적인 반응
+            st.rerun()
+
     status_map = {
         "사용전": ["사용중", "재사용대기", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -288,76 +286,53 @@ if qr_scanned_serial:
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     
     with st.form(key="mobile_update_form"):
-        st.markdown("### ⚡ 상태 및 데이터 수정")
         u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
         
         is_transitioning_from_usage = (db_status_mob == "사용중" and u_status != "사용중")
-        u_work_count = 0
-        if is_transitioning_from_usage:
-            u_work_count = st.number_input("🔢 이번 작업 가공 수량 (필수입력)", min_value=1, step=1)
+        u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
         
         u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
                              index=["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"].index(existing_data.get('detail_spec', "파이90-20-200메쉬")) if existing_data and existing_data.get('detail_spec') else 0)
-        u_count = st.number_input("📊 누적 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
         u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, 
-                                       value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0), step=1)
         
-        # [특이사항 및 불러오기 기능]
-        st.markdown("---")
-        st.warning("⚠️ 불러오기 버튼을 누르면 현재 입력 중인 내용이 삭제되고 DB 최신 내용으로 덮어씌워집니다.")
-        if st.form_submit_button("📥 DB 최신 특이사항 불러오기"):
-            refresh_note_from_db()
-            
+        # 특이사항은 항상 버퍼 값을 사용 (저장 버튼 누르기 전까진 DB 안 건드림)
         u_note = st.text_area("📝 특이사항", value=st.session_state['u_note_buffer'])
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
     # 저장 로직
     if u_submit_form_btn:
-        is_data_changed = (
-            u_status != db_status_mob or
-            u_spec != existing_data.get('detail_spec') or
-            u_worker != existing_data.get('worker', '') or
-            u_machine_num != int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) or
-            u_note != existing_data.get('note', '')
-        )
+        # 상태 변경 감지
+        is_status_changed = (u_status != db_status_mob)
         
         if db_status_mob == "사용전" and u_status == "사용전":
             st.error("🚨 '사용전' 상태입니다. 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
-            if st.button("확인 (닫기)"): st.rerun()
-        elif not is_data_changed and u_work_count == 0:
-            st.warning("⚠️ 변경된 정보가 없습니다.")
-            if st.button("확인 (닫기)"): st.rerun()
-        elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
+        elif is_status_changed and u_status not in status_map.get(db_status_mob, []):
             show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
         elif is_transitioning_from_usage and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
         else:
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            new_log = ""
-            if is_data_changed:
-                new_log = f"\n[{log_time_str}] 수정:"
-                if u_status != db_status_mob: new_log += f" 상태:{db_status_mob}→{u_status}"
-                if u_work_count > 0: new_log += f", 가공수량:{u_work_count}개"
-                new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
-            
-            # 특이사항 저장 시 버퍼 초기화
-            st.session_state['u_note_buffer'] = u_note + new_log
-            new_total_use = u_count + u_work_count
+            # 저장 버튼 누를 때만 로그를 생성하여 버퍼에 반영
+            final_note = u_note
+            if is_status_changed or u_work_count > 0:
+                new_log = f"\n[{log_time_str}] 수정: 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}"
+                final_note += new_log
             
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
                     "status": u_status,
                     "detail_spec": u_spec,
-                    "current_use": new_total_use,
+                    "current_use": existing_data.get('current_use', 0) + u_work_count,
                     "worker": u_worker,
                     "machine_no": f"{u_machine_num}호기",
-                    "note": st.session_state['u_note_buffer']
+                    "note": final_note
                 }},
                 upsert=True
             )
+            st.session_state['u_note_buffer'] = final_note # 버퍼 업데이트
             st.success("✅ 저장 완료!")
             st.rerun()
 
