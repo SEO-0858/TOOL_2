@@ -250,90 +250,67 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-    st.write("DEBUG: 불러온 데이터의 note 값 ->", existing_data.get('note'))
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
-    st.write("<br>", unsafe_allow_html=True)
     
-    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+    # 1. DB 데이터 로드 및 초기 설정 (가장 상단에 정의)
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
-    if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
-        st.success("✅ 정보 수정 모드")
-        db_status_mob = existing_data.get("status", "사용중")
-        status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-        status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
+    db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
+    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
+    status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
+    
+    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+    
+    # 2. 폼 영역
+    with st.form(key="mobile_update_form"):
+        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
         
-        display_note = existing_data.get('note', '')
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+        u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, 
+                             index=spec_options.index(existing_data.get('detail_spec', spec_options[0])) if existing_data and existing_data.get('detail_spec') in spec_options else 0)
+        u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
+        u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '') if existing_data else "").strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, 
+                                       value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
+        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', '') if existing_data else "")
         
-        
-        with st.form(key="mobile_update_form"):
-            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, index=spec_options.index(existing_data.get('detail_spec', spec_options[0])) if existing_data.get('detail_spec') in spec_options else 0)
-            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
-            u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
-            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0')))) if any(map(str.isdigit, existing_data.get('machine_no', ''))) else 0, step=1)
-            st.write("DEBUG: 입력창에 들어갈 값 ->", display_note)
-            u_note = st.text_area("📝 현장 특이사항", value=display_note)
-            u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+        u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
-        if u_submit_form_btn:
-            log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            old_spec = existing_data.get('detail_spec', '스펙없음')
-            
-            new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
-            if old_spec != u_spec:
-                new_log += f", 스펙:{old_spec}→{u_spec}"
-            new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
-            
-            final_note_val = u_note.strip() + new_log
-            
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status,
-                    "detail_spec": u_spec,
-                    "current_use": u_count,
-                    "worker": u_worker,
-                    "machine_no": f"{u_machine_num}호기",
-                    "note": final_note_val
-                }},
-                upsert=True
-            )
-            st.success("✅ 저장 완료!")
-            st.rerun()
+    # 3. [중요] 폼 밖에서 동작하는 저장 로직
+    if u_submit_form_btn:
+        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        old_spec = existing_data.get('detail_spec', '스펙없음') if existing_data else '신규'
+        
+        # 로그 생성
+        new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
+        if old_spec != u_spec:
+            new_log += f", 스펙:{old_spec}→{u_spec}"
+        new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
+        
+        # 특이사항 + 로그 합치기
+        final_note_val = u_note + new_log
+        
+        # DB 업데이트
+        db_collection.update_one(
+            {"serial_no": qr_scanned_serial},
+            {"$set": {
+                "status": u_status,
+                "detail_spec": u_spec,
+                "current_use": u_count,
+                "worker": u_worker,
+                "machine_no": f"{u_machine_num}호기",
+                "note": final_note_val
+            }},
+            upsert=True
+        )
+        st.success("✅ 저장 완료!")
+        st.rerun()
 
-    else:
-        st.warning("📝 신규 툴 정보 등록")
-        with st.form(key="mobile_input_form"):
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
-            m_spec = st.selectbox("🛠 상세 스펙 선택", spec_options)
-            m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
-            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기", min_value=0, max_value=200, value=0, step=1)
-            m_note = st.text_area("Note 📝 특이사항")
-            submit_m_btn = st.form_submit_button("💾 데이터 저장 및 등록 완료")
-            
-        if submit_m_btn:
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": m_status,
-                    "detail_spec": m_spec,
-                    "worker": m_worker,
-                    "machine_no": f"{m_machine_num}호기",
-                    "note": m_note
-                }},
-                upsert=True
-            )
-            st.success("🎉 등록 완료!")
-            st.rerun()
-            
+    # 돌아가기 버튼
     if st.button("🏠 메인 시스템으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
-
 
 
 # --- 💻 [PC 관리자 모드] ---
