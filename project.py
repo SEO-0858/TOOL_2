@@ -877,6 +877,9 @@ else:
                         
                                         auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                         final_note_val = ed_note.strip() + auto_log_msg
+                                if is_valid or st.session_state.get(f"force_proceed_{s_no}"):
+            
+                                    # DB 업데이트 시작
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
@@ -900,13 +903,13 @@ else:
                                         st.rerun()
             
                                     else:
-                                            # 규칙도 안 맞고 강제 저장도 안 눌렀을 때만 오류 처리
+                                        # 규칙 위반 시 경고창과 함께 '강제 저장' 버튼을 보여줌
                                         st.warning(f"⚠️ {msg}")
-                                            # ... (나머지 강제 저장 버튼 로직)
-                                    st.session_state[edit_key] = False
-                                    st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
-                                    time.sleep(0.5)
-                                    st.rerun()
+                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):
+                                            # 버튼을 누르면 플래그를 세우고 다시 실행(rerun)해서 
+                                            # 위쪽의 if is_valid or ... 로직으로 진입하게 함
+                                            st.session_state[f"force_proceed_{s_no}"] = True
+                                            st.rerun()
                                     
                                 # 사용전 완전 복구용 초기화 시스템 배치
                                 st.write("<br>", unsafe_allow_html=True)
