@@ -8,6 +8,15 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
+
+@st.dialog("⚠️ 상태 변경 규칙 위반 경고")
+def show_waste_dialog_pc(s_no, data_to_save):
+    st.warning("🚨 규칙 위반입니다. 그래도 저장하시겠습니까?")
+    if st.button("⭕ 강제 저장하기"):
+        # 실제 DB 업데이트를 수행하는 함수 호출
+        db_collection.update_one({"serial_no": data_to_save['serial_no']}, {"$set": data_to_save['set_data']})
+        st.success("✅ 강제 저장 완료!")
+        st.rerun()
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
@@ -790,6 +799,22 @@ else:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
+                                    # [1단계] 먼저 규칙 위반 여부를 검사
+                                    is_valid, msg = validate_process(db_current_status, ed_status)
+                                    
+                                    # [2단계] 규칙 위반 시 '강제 저장' 버튼 노출 (기존 st.stop() 차단막 제거)
+                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
+                                        st.warning(f"⚠️ {msg}")
+                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_save_{s_no}"):
+                                            st.session_state[f"force_proceed_{s_no}"] = True
+                                            st.rerun() # 플래그를 세우고 저장 로직으로 진입
+                                        else:
+                                            st.info("취소하려면 페이지를 새로고침하세요.")
+                                            st.stop()
+                                    
+                                    # [3단계] 정상 저장 혹은 강제 저장 플래그가 있을 경우 실행
+                                    # 기존 845라인부터 있는 DB 업데이트 로직은 이 아래에 자연스럽게 연결됩니다.
+                                    
                                     # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
@@ -868,6 +893,16 @@ else:
                                             "detail_spec": ed_spec
                                         }}
                                     )
+                                    if f"force_proceed_{s_no}" in st.session_state:
+                                        del st.session_state[f"force_proceed_{s_no}"]
+                
+                                        st.success("✅ 저장 완료!")
+                                        st.rerun()
+            
+                                    else:
+                                            # 규칙도 안 맞고 강제 저장도 안 눌렀을 때만 오류 처리
+                                        st.warning(f"⚠️ {msg}")
+                                            # ... (나머지 강제 저장 버튼 로직)
                                     st.session_state[edit_key] = False
                                     st.success(f"🎉 데이터와 현장 특이사항 이력이 성공적으로 함께 저장되었습니다.")
                                     time.sleep(0.5)
