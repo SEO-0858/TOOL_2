@@ -251,7 +251,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
-# [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
     st.error(message)
@@ -263,9 +262,8 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # [수정] 사용전에서 재사용대기로 갈 수 있도록 경로 확장
     status_map = {
-        "사용전": ["사용중", "재사용대기", "폐기"],
+        "사용전": ["사용중", "폐기"],
         "사용중": ["재사용대기", "폐기"],
         "재사용대기": ["재사용", "폐기"],
         "재사용": ["재사용대기", "폐기"],
@@ -275,35 +273,40 @@ if qr_scanned_serial:
     
     with st.form(key="mobile_update_form"):
         u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
-        
-        # '사용중'에서 상태를 바꿀 때만 수량 필수
-        is_transitioning_from_usage = (db_status_mob == "사용중" and u_status != "사용중")
-        u_work_count = 0
-        if is_transitioning_from_usage:
-            u_work_count = st.number_input("🔢 이번 작업 가공 수량 (필수입력)", min_value=1, step=1)
-        
-        # ... (기타 입력 필드: 상세스펙, 작업자, 호기, 특이사항 등 동일)
-        u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], index=...) 
+        # ... (이하 입력 필드 동일)
+        u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
+        u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], index=...) # 생략
         u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기", value=..., step=1)
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기", value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0), step=1)
         u_note = st.text_area("📝 특이사항", value=existing_data.get('note', '') if existing_data else "")
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
     if u_submit_form_btn:
-        # [핵심] 사용전 상태일 때 변경 없이 저장하면 막음
-        if db_status_mob == "사용전" and u_status == "사용전":
-            st.error("🚨 '사용전' 상태입니다. 반드시 상태를 변경(사용중/재사용대기/폐기) 후 저장해주세요!")
-            st.stop()
-            
-        # 상태 위반 검증
-        is_status_changed = (u_status != db_status_mob)
-        if is_status_changed and u_status not in status_map.get(db_status_mob, []):
+        # [수정된 로직] 변경 감지: 상태가 같아도 데이터가 다르면 통과!
+        is_data_changed = (
+            u_status != db_status_mob or
+            u_spec != existing_data.get('detail_spec') or
+            u_worker != existing_data.get('worker', '') or
+            u_machine_num != int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) or
+            u_note != existing_data.get('note', '')
+        )
+        
+        # 상태 전이 규칙 검증은 "상태가 변경되었을 때만" 수행
+        is_rule_violation = (u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []))
+        
+        # '사용중'에서 상태를 바꿀 때만 수량 필수 (이미 다른 상태면 무관)
+        is_transitioning_from_usage = (db_status_mob == "사용중" and u_status != "사용중")
+        
+        if not is_data_changed:
+            st.warning("⚠️ 변경된 정보가 없습니다.")
+            if st.button("확인 (닫기)"): st.rerun()
+        elif is_rule_violation:
             show_warning_dialog(f"🚨 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
         elif is_transitioning_from_usage and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
         else:
-            # [DB 업데이트 로직]
-            # ... (상태, 스펙, 수량, 로그 업데이트 동일)
+            # [DB 업데이트 로직 실행]
+            # ... (이전과 동일)
             st.success("✅ 저장 완료!")
             st.rerun()
 
