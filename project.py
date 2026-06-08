@@ -250,22 +250,22 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-# [경고 팝업 함수 정의]
-@st.dialog("⚠️ 잘못된 상태 선택")
+# [경고 팝업 함수]
+@st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
     st.error(message)
-    if st.button("확인 (닫기)"):
+    if st.button("확인"):
         st.rerun()
 
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
+    st.subheader(f"🆔 시리얼: `{qr_scanned_serial}`")
     
     # 1. DB 데이터 로드
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # 2. 상태 전이 규칙 정의
+    # 2. 상태 전이 규칙 (검증 완료)
     status_map = {
         "가동전": ["사용중", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -277,44 +277,49 @@ if qr_scanned_serial:
     
     # 3. 폼 영역
     with st.form(key="mobile_update_form"):
-        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+        st.markdown("### ⚡ 상태 및 수량 수정")
         
-        # 전체 선택지 보여주기
+        # 전체 선택지 노출
         u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_options.index(db_status_mob) if db_status_mob in status_options else 0, horizontal=True)
         
-        # [조건부 필수 입력] '사용중'에서 변경 시 수량 입력
+        # [조건부 필수 입력]
         show_count_input = (db_status_mob == "사용중" and u_status in ["재사용대기", "폐기"])
         u_work_count = 0
         if show_count_input:
             u_work_count = st.number_input("🔢 이번 작업 가공 수량 (필수입력)", min_value=1, step=1)
         
-        u_spec = st.selectbox("🛠 상세 스펙 선택", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
+        u_spec = st.selectbox("🛠 상세 스펙", ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"], 
                              index=["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"].index(existing_data.get('detail_spec', "파이90-20-200메쉬")) if existing_data and existing_data.get('detail_spec') else 0)
-        u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
-        u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '') if existing_data else "").strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택", min_value=0, max_value=200, 
+        u_count = st.number_input("📊 누적 사용 횟수", value=int(existing_data.get('current_use', 0)) if existing_data else 0, step=1)
+        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', '') if existing_data else "").strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, 
                                        value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0) if existing_data else 0, step=1)
-        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', '') if existing_data else "")
+        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', '') if existing_data else "")
         
         u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
 
-    # 4. 저장 로직 및 검증
+    # 4. 저장 로직 (강력한 검증 포함)
     if u_submit_form_btn:
-        # 규칙 위반 체크
-        allowed_next = status_map.get(db_status_mob, [])
-        if u_status != db_status_mob and u_status not in allowed_next:
-            show_warning_dialog(f"🚨 현재 상태 '{db_status_mob}'에서는 '{u_status}' 상태로 이동할 수 없습니다.")
+        # 검증 1: 동일 상태 선택 방지
+        if u_status == db_status_mob:
+            st.warning("⚠️ 동일한 상태를 선택하셨습니다. 변경할 상태를 선택해주세요.")
+        
+        # 검증 2: 규칙 위반 체크
+        elif u_status not in status_map.get(db_status_mob, []):
+            show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
+        
+        # 검증 3: 필수 입력 체크
         elif show_count_input and u_work_count == 0:
-            st.error("🚨 필수 항목: '사용중' 상태에서는 가공 수량을 반드시 입력해야 합니다!")
+            st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
+            
         else:
-            # 정상 저장 로직
+            # 정상 업데이트 로직
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            is_status_changed = (db_status_mob != u_status)
             new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
             if show_count_input: new_log += f", 가공수량:{u_work_count}개"
             new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
             
-            final_note_val = u_note + new_log
+            final_note_val = (existing_data.get('note', '') if existing_data else '') + new_log
             new_total_use = u_count + u_work_count
             
             db_collection.update_one(
@@ -332,7 +337,7 @@ if qr_scanned_serial:
             st.success("✅ 저장 완료!")
             st.rerun()
 
-    if st.button("🏠 메인 시스템으로 돌아가기"):
+    if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
 
