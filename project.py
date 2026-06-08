@@ -297,12 +297,6 @@ if qr_scanned_serial:
         else:
             # 바뀐 게 없으면 로그를 추가하지 않고 기존 note만 그대로 저장
             final_note_val = u_note
-        if old_spec != u_spec:
-            new_log += f", 스펙:{old_spec}→{u_spec}"
-        new_log += f", 작업자:{u_worker}, 기계:{u_machine_num}호기"
-        
-        # 특이사항 + 로그 합치기
-        final_note_val = u_note + new_log
         
         # DB 업데이트
         db_collection.update_one(
