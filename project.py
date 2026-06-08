@@ -73,7 +73,22 @@ def get_database():
 
 db_collection = get_database()
 
-
+# --- [공정 흐름 제어 검문소] ---
+def validate_process(current_status, next_status):
+    # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
+    if current_status == "사용전" and next_status == "폐기":
+        return True, ""
+        
+    allowed = {
+        "사용전": ["사용중"],
+        "사용중": ["재사용대기", "폐기"],
+        "재사용대기": ["재사용", "폐기"],
+        "재사용": ["재사용대기", "폐기"],
+        "폐기": []
+    }
+    if current_status in allowed and next_status not in allowed[current_status]:
+        return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
+    return True, ""
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
@@ -761,7 +776,10 @@ else:
                                     # '폐기'는 이 경고창 로직 자체를 아예 안 타도록 합니다.
                                 elif ed_status == "재사용" and has_history_log and not has_pending_log:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
-
+                                if f"is_valid_{s_no}" not in st.session_state:
+                                    st.session_state[f"is_valid_{s_no}"] = True
+                                if f"msg_{s_no}" not in st.session_state:
+                                    st.session_state[f"msg_{s_no}"] = ""
                                 if b_submit:
                                     # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
@@ -779,12 +797,8 @@ else:
                                         st.stop()
 
                                     # [2단계: PC 검문소 설치]
-                                    st.write("validate_process 실행전")
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                    st.write("is valide=",is_valid)
-                                    st.write("msg=",msg)
                                     # 사용전 툴 폐기는 검문소 통과
-
                                     if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
                                         st.error(msg)
                                         st.stop()
