@@ -250,6 +250,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
+
 # [경고 팝업 함수]
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
@@ -265,7 +266,7 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     db_status_mob = existing_data.get("status", "사용전") if existing_data else "사용전"
     
-    # 2. 상태 전이 규칙 (검증 완료)
+    # 2. 상태 전이 규칙 (가동전->폐기 경로 복구 완료)
     status_map = {
         "가동전": ["사용중", "폐기"],
         "사용중": ["재사용대기", "폐기"],
@@ -300,20 +301,13 @@ if qr_scanned_serial:
 
     # 4. 저장 로직 (강력한 검증 포함)
     if u_submit_form_btn:
-        # 검증 1: 동일 상태 선택 방지
         if u_status == db_status_mob:
-            st.warning("⚠️ 동일한 상태를 선택하셨습니다. 변경할 상태를 선택해주세요.")
-        
-        # 검증 2: 규칙 위반 체크
+            st.warning("⚠️ 현재 상태와 동일합니다. 변경할 상태를 선택하세요.")
         elif u_status not in status_map.get(db_status_mob, []):
             show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
-        
-        # 검증 3: 필수 입력 체크
         elif show_count_input and u_work_count == 0:
             st.error("🚨 필수 항목: 이번 작업 가공 수량을 입력해주세요!")
-            
         else:
-            # 정상 업데이트 로직
             log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             new_log = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}"
             if show_count_input: new_log += f", 가공수량:{u_work_count}개"
@@ -340,7 +334,6 @@ if qr_scanned_serial:
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
-
 
 # --- 💻 [PC 관리자 모드] ---
 else:
