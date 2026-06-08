@@ -779,7 +779,6 @@ else:
 
                                 if b_submit:
                                     
-                                    is_valid, msg = validate_process(db_current_status, ed_status)
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
                                            show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
