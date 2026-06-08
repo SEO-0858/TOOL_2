@@ -73,22 +73,7 @@ def get_database():
 
 db_collection = get_database()
 
-# --- [공정 흐름 제어 검문소] ---
-def validate_process(current_status, next_status):
-    # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
-    if current_status == "사용전" and next_status == "폐기":
-        return True, ""
-        
-    allowed = {
-        "사용전": ["사용중"],
-        "사용중": ["재사용대기", "폐기"],
-        "재사용대기": ["재사용", "폐기"],
-        "재사용": ["재사용대기", "폐기"],
-        "폐기": []
-    }
-    if current_status in allowed and next_status not in allowed[current_status]:
-        return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
-    return True, ""
+
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
