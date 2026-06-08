@@ -310,6 +310,8 @@ if qr_scanned_serial:
         
         if not is_data_changed and u_work_count == 0:
             st.warning("⚠️ 변경된 정보가 없습니다.")
+            if st.button("확인 (닫기)"):
+                st.rerun()
         elif u_status != db_status_mob and u_status not in status_map.get(db_status_mob, []):
             show_warning_dialog(f"🚨 현재 '{db_status_mob}' 상태에서는 '{u_status}'로 이동할 수 없습니다.")
         elif is_transitioning_from_usage and u_work_count == 0:
