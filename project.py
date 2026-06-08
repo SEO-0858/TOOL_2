@@ -8,30 +8,9 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
-if 'sidebar_errors' not in st.session_state:
-    st.session_state.sidebar_errors = []
 
-# 파일 최상단 import 아래에 이 함수를 추가하세요
-def get_elapsed_time_str(start_time_val):
-    try:
-        # 데이터가 없으면 빈 문자열 반환
-        if not start_time_val or start_time_val == "-":
-            return ""
-        
-        # 문자열을 datetime 객체로 변환 (기존에 이미 dt_class를 사용 중이므로 안전합니다)
-        # 만약 start_time_val이 이미 datetime 객체라면 바로 사용
-        start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
-        
-        # 현재 시간과 차이 계산 (UTC+9 적용)
-        now_kst = dt_class.utcnow() + timedelta(hours=9)
-        diff = now_kst - start_dt
-        
-        hours = int(diff.total_seconds() // 3600)
-        minutes = int((diff.total_seconds() % 3600) // 60)
-        
-        return f'<br><span style="color:red; font-size:9px;">({hours}시간 {minutes}분 경과)</span>'
-    except:
-        return "" # 어떤 에러가 나도 조용히 빈 값 반환
+
+
 
 def add_error(msg):
     st.session_state.sidebar_errors.append(msg)
