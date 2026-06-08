@@ -384,9 +384,9 @@ if qr_scanned_serial:
             final_note_val = u_note.strip()
             if u_status != db_status_mob:
                 is_valid, msg = validate_process(db_status_mob, u_status)
-            if not is_valid and not (db_status_mob == "사용전" and u_status == "폐기"):
-                st.error(msg)
-                st.stop()
+                if not is_valid and not (db_status_mob == "사용전" and u_status == "폐기"):
+                    st.error(msg)
+                    st.stop()
         
         # 2. 저장 로직: 상태 변경 여부와 상관없이 u_note는 무조건 저장됨
         final_note_val = u_note.strip()
