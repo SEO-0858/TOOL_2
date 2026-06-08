@@ -252,51 +252,72 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 
 
+
+# [상태 전이 규칙 정의]
+status_map = {
+    "사용전": ["사용중", "재사용대기", "폐기"],
+    "사용중": ["재사용대기", "폐기"],
+    "재사용대기": ["재사용", "폐기"],
+    "재사용": ["재사용대기", "폐기"],
+    "폐기": [] 
+}
+
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     
-    # 1. DB 데이터 로드
+    # 1. 페이지 로드 시점의 최신 상태 읽기
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
-    db_status_mob = existing_data.get("status", "사용전")
+    db_status_now = existing_data.get("status", "사용전")
     
-    # [불러오기 버튼]
+    # 2. 불러오기 버튼
     if st.button("📥 DB 최신 특이사항 불러오기"):
-        st.rerun() # 단순히 페이지 새로고침하여 DB 값을 다시 읽어오게 함
+        st.rerun()
 
-    # 2. [입력창] (폼을 쓰지 않고 일반 입력 필드 사용)
-    # 폼 없이 일반 필드로 구성하면 버튼 클릭 시 입력값을 무조건 읽어옵니다.
+    # 3. 입력 필드 (폼 없이 구성하여 모바일 반응성 극대화)
     u_status = st.radio("🔄 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
-                       index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(db_status_mob) if db_status_mob in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0)
+                       index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(db_status_now) if db_status_now in ["사용전", "사용중", "재사용", "재사용대기", "폐기"] else 0,
+                       horizontal=True)
     
     u_work_count = st.number_input("🔢 이번 작업 가공 수량", min_value=0, step=1)
     u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
     u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0'))) or 0))
     u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
 
-    # 3. [저장 버튼] (폼 밖의 일반 버튼으로 변경)
+    # 4. 저장 버튼
     if st.button("✅ 수정사항 저장하기"):
-        # 여기서 강제로 검증
-        if db_status_mob == "사용전" and u_status == "사용전":
-            st.error("🚨 '사용전' 상태입니다. 상태를 변경 후 저장해주세요!")
-        else:
-            log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            final_note = u_note + f"\n[{log_time_str}] 수정: 상태:{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
+        # [원천 봉쇄] 저장 직전 DB 상태를 강제로 다시 조회하여 검증
+        final_check = db_collection.find_one({"serial_no": qr_scanned_serial})
+        latest_status = final_check.get("status", "사용전")
+        
+        # 규칙 검증
+        if latest_status == "사용전" and u_status == "사용전":
+            st.error("🚨 [경고] '사용전' 툴을 수정 없이 저장할 수 없습니다. 상태를 변경하세요!")
+            st.stop()
             
-            # DB 업데이트 시도
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status,
-                    "detail_spec": existing_data.get('detail_spec', ''),
-                    "current_use": int(existing_data.get('current_use', 0)) + u_work_count,
-                    "worker": u_worker,
-                    "machine_no": f"{u_machine_num}호기",
-                    "note": final_note
-                }},
-                upsert=True
-            )
-            st.success("✅ 저장되었습니다!")
-            st.rerun() # 저장 직후 새로고침
+        if latest_status != "사용전" and u_status == "사용전":
+            st.error(f"🚨 [경고] 이미 '{latest_status}' 상태인 툴을 '사용전'으로 되돌릴 수 없습니다!")
+            st.stop()
+            
+        if u_status != latest_status and u_status not in status_map.get(latest_status, []):
+            st.error(f"🚨 [경고] '{latest_status}'에서 '{u_status}'로는 이동할 수 없습니다!")
+            st.stop()
+
+        # [최종 저장]
+        log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        final_note = u_note + f"\n[{log_time_str}] 수정: 상태:{latest_status}→{u_status}, 작업자:{u_worker}, 호기:{u_machine_num}호기"
+        
+        db_collection.update_one(
+            {"serial_no": qr_scanned_serial},
+            {"$set": {
+                "status": u_status,
+                "current_use": int(existing_data.get('current_use', 0)) + u_work_count,
+                "worker": u_worker,
+                "machine_no": f"{u_machine_num}호기",
+                "note": final_note
+            }}
+        )
+        st.success("✅ 저장 성공!")
+        st.rerun()
 
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
