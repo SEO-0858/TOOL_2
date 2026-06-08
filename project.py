@@ -253,53 +253,80 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # [오류 경고 팝업 함수]
+
 @st.dialog("⚠️ 상태 변경 규칙 위반")
 def show_warning_dialog(message):
     st.error(message)
     if st.button("확인"):
         st.rerun()
+status_map = {
+    "사용전": ["사용중", "폐기"],
+    "사용중": ["재사용대기", "폐기"],
+    "재사용대기": ["재사용", "폐기"],
+    "재사용": ["재사용대기", "폐기"],
+    "폐기": [] 
+}
 
 if qr_scanned_serial:
-    st.title("📱 현장 툴 정보 기입창")
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+    st.title("📱 현장 툴 정보 즉시 기입창")
     
-    # [입력 폼] - 여기서 모든 값을 입력받습니다. 버튼 누르기 전까지는 DB 절대 불변.
-    with st.form(key='my_form'):
-        u_status = st.radio("🔄 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
-                           index=0, horizontal=True)
-        u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1)
-        u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
-        u_machine_num = st.number_input("⚙️ 기계 호기", min_value=0, value=0)
-        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
-        
-        submit_button = st.form_submit_button(label='✅ 수정사항 저장하기')
+    # 1. 툴 데이터 불러오기 (시리얼 기반)
+    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+    current_status = existing_data.get("status", "사용전")
+    
+    # 2. 툴 상세 정보 (드래그/검색 필요 없이 자동 출력)
+    st.info(f"🆔 **시리얼**: {qr_scanned_serial}")
+    st.success(f"🛠 **상세 스펙**: {existing_data.get('detail_spec', '정보 없음')}")
+    st.markdown("---")
 
-    # [저장 로직] - 버튼이 눌린 그 순간에만 실행됨
-    if submit_button:
-        # 1. DB 최신 상태 강제 재조회 (중복/충돌 방지)
+    # 3. 입력 필드
+    # [상태 선택] - 현재 상태에 맞춰 이동 가능한 목록만 필터링해서 보여줌
+    available_next_status = status_map.get(current_status, [])
+    u_status = st.radio("🔄 상태 선택 (이동 가능)", available_next_status, horizontal=True)
+    
+    # [상세 정보 입력]
+    u_machine_num = st.text_input("⚙️ 기계 호기 (예: 1호기)", value=existing_data.get('machine_no', ''))
+    u_worker = st.text_input("👷 작업자", value=existing_data.get('worker', ''))
+    
+    # [가공 수량 입력] - 사용중에서 넘어갈 때만 중요함
+    u_work_count = st.number_input("🔢 이번 가공 수량", min_value=0, step=1, help="사용중 상태에서 이동 시 필수 입력")
+    
+    # [특이사항]
+    u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
+
+    # 4. 저장 버튼
+    if st.button("✅ 수정사항 저장하기"):
+        # [데이터 재조회] - 저장 직전 최신 상태로 최종 검증
         latest_data = db_collection.find_one({"serial_no": qr_scanned_serial})
         latest_status = latest_data.get("status", "사용전")
         
-        # 2. 상태 전이 규칙 검증
-        if latest_status == "사용전" and u_status == "사용전":
-            st.error("🚨 상태를 변경해주세요!")
-        elif latest_status != "사용전" and u_status == "사용전":
-            st.error("🚨 '사용전'으로 되돌릴 수 없습니다!")
+        # [규칙 검증 필터]
+        if u_status == latest_status:
+            st.error("🚨 현재 상태와 동일한 상태로는 저장할 수 없습니다!")
+        elif u_status not in status_map.get(latest_status, []):
+            st.error(f"🚨 '{latest_status}'에서 '{u_status}'로는 이동할 수 없습니다!")
+        elif latest_status == "사용중" and u_work_count == 0:
+            st.error("🚨 '사용중'에서 상태 변경 시 가공 수량을 입력해주세요!")
         else:
-            # 3. 데이터 업데이트
-            final_note = u_note + f"\n[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {latest_status}→{u_status}"
+            # [DB 반영]
+            log_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            final_note = f"{u_note}\n[{log_time}] {latest_status}→{u_status} / 작업자:{u_worker} / {u_machine_num} / 수량:{u_work_count}"
+            
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
                     "status": u_status,
+                    "machine_no": u_machine_num,
                     "worker": u_worker,
                     "note": final_note,
-                    "current_use": int(latest_data.get('current_use', 0)) + u_work_count
+                    "current_use": int(existing_data.get('current_use', 0)) + u_work_count
                 }}
             )
             st.success("✅ 저장 완료!")
-            # 폼 사용 시에는 여기서 rerun을 해도 입력값만 지워질 뿐 무한 루프가 안 돕니다.
-            st.rerun()
+
+    if st.button("🏠 메인으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 
 
