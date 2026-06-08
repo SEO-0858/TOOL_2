@@ -799,39 +799,23 @@ else:
                                     st.error("⚠️ 공정 흐름 오류: 특이사항 내역에 '재사용대기'로 전환 보관된 연혁이 발견되지 않았습니다. 대기 이력 없이 바로 '재사용' 상태로 가동할 수 없으니 라디오 버튼을 다시 확인해 주세요.")
 
                                 if b_submit:
-                                    # [1단계] 먼저 규칙 위반 여부를 검사
                                     is_valid, msg = validate_process(db_current_status, ed_status)
-                                   
-                                    # [2단계] 규칙 위반 시 '강제 저장' 버튼 노출 (기존 st.stop() 차단막 제거)
-                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
+        
+                                    # [2] 강제 저장 버튼을 눌렀는지 체크하는 변수
+                                    is_forced = st.session_state.get(f"force_proceed_{s_no}", False)
+                                    
+                                    # [3] 정상 규칙을 통과했거나, 강제 저장을 선택했다면 저장 로직(845번 라인 이후)으로 진행
+                                    if is_valid or is_forced:
+                                        # 여기는 비워둡니다 (코드가 아래로 자연스럽게 흘러가서 845번 라인부터 실행됨)
+                                        pass 
+                                        
+                                    # [4] 규칙 위반이고 강제 저장도 안 눌렀다면 경고와 버튼만 띄우고 멈춤
+                                    else:
                                         st.warning(f"⚠️ {msg}")
-                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_save_{s_no}"):
+                                        if st.button("⭕ 규칙 위반이지만 강제로 저장하기", key=f"force_button_{s_no}"):
                                             st.session_state[f"force_proceed_{s_no}"] = True
-                                            st.rerun() # 플래그를 세우고 저장 로직으로 진입
-                                        else:
-                                            st.info("취소하려면 페이지를 새로고침하세요.")
-                                            st.stop()
-                                    
-                                    # [3단계] 정상 저장 혹은 강제 저장 플래그가 있을 경우 실행
-                                    # 기존 845라인부터 있는 DB 업데이트 로직은 이 아래에 자연스럽게 연결됩니다.
-                                    
-                                    # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
-                                    if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
-                                        if not st.session_state.get(f"temp_reason_{s_no}"):
-                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
-                                           st.stop()
-                                    
-                                    # 새 제품(사용전)일 때 폐기는 경고 예외 처리
-                                    if ed_status in ["재사용", "재사용대기", "폐기"] and not has_history_log:
-                                        if not (ed_status == "폐기" and db_current_status == "사용전"):
-                                            st.error("⚠️ 경고: 특이사항에 과거 가동 이력이 없는 완전히 새 제품 상태의 툴입니다.")
-                                            st.stop()
-
-                                    if ed_status == "재사용" and has_history_log and not has_pending_log:
-                                        st.stop()
-
-                                    # [2단계: PC 검문소 설치]   
-                                    is_valid, msg = validate_process(db_current_status, ed_status)
+                                            st.rerun() # 플래그를 세우고 다시 시작하여 [3]번 조건(is_forced)을 통과하게 함
+                                        st.stop() # 경고/버튼만 띄우고 아래 DB 저장 로직으로 넘어가지 않음
                                     # 사용전 툴 폐기는 검문소 통과
                                     if not is_valid and not st.session_state.get(f"force_proceed_{s_no}"):
                                         # 예외: 사용전 폐기는 강제 저장 과정 없이 통과시킴
