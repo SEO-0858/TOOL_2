@@ -826,28 +826,20 @@ else:
                 else:
                     st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
                     
-                    for item in filtered_data:
-                        item = db_collection.find_one({"serial_no": item["serial_no"]})
-                        st.write(item)
 
-                        s_no = item["serial_no"]
-                        db_current_status = item.get("status", "사용전")
+
+
+                    for item in filtered_data:
+                        # 1. 펼쳐질 때마다 DB를 다시 한번만 조회해서 최신 정보로 갱신!
+                        latest_item = db_collection.find_one({"serial_no": item["serial_no"]})
                         
-                        # spec_info 정의를 여기서 확실하게 합니다.
-                        spec_info = item.get('detail_spec', '스펙없음') 
+                        s_no = latest_item["serial_no"]
                         
-                        # 상태 뱃지 생성
-                        if db_current_status == "사용전": status_badge = "🟢 [사용전]"
-                        elif db_current_status == "사용중": status_badge = "🟡 [사용중]"
-                        elif db_current_status == "재사용": status_badge = "🔵 [재사용]"
-                        elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
-                        else: status_badge = "🔴 [폐기]"
-                            
-                        # 제목 생성 (spec_info가 여기서 정의되어 있으니 에러가 안 납니다)
-                        if not item.get('worker') or not item.get('machine_no'):
-                            expander_title = f"⚪ 기입 대기 | 🆔 {s_no}  | 상태: {status_badge}"
-                        else:
-                            expander_title = f"🆔 {s_no}  | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
+                        # 2. 이제 latest_item을 사용해서 타이틀을 만드세요
+                        expander_title = f"🆔 {s_no} | 장비: {latest_item.get('machine_no')} | 작업자: {latest_item.get('worker')} | 상태: {latest_item.get('status')}"
+                        
+
+
                             
                             
                         with st.expander(expander_title):
