@@ -313,39 +313,39 @@ if qr_scanned_serial:
             
         # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
-        
-        # [수정된 모바일 공정 흐름 실시간 검증 시스템]
+        machine_full_name = f"{u_machine_num}호기"
+        # [위치: 315번 라인 근처, if u_submit_form_btn: 내부]
         if u_submit_form_btn:
-            if u_status != db_status_mob: 
-                is_valid, msg = validate_process(db_status_mob, u_status)
-                if not is_valid:
-                    # 단, 예외(사용전->폐기)는 허용
-                    if not (db_status_mob == "사용전" and u_status == "폐기"):
-                        st.error(msg)
-                        st.stop()
-            # 1. 여기서부터 검사를 시작합니다 (버튼 누를 때만!)
-                    flow_error_msg = ""
-                    
-                    if db_status_mob == "폐기" and u_status != "폐기":
-                        flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 것은 안전 및 논리상 절대 불가능합니다!"
-                    elif db_status_mob == "재사용대기" and u_status in ["사용전", "사용중"]:
-                        flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
-                    elif db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
-                        flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
-                    elif db_status_mob == "사용중" and u_status == "재사용":
-                        flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
-                    elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
-                        flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
-                    elif u_status in ["사용중", "재사용", "재사용대기"] and (not u_worker or u_machine_num == 0):
-                        flow_error_msg = "⚠️ [데이터 누락] 가동/보관 단계 저장 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 입력해야 합니다!"
-                    elif u_status == "폐기" and not u_worker:
-                        flow_error_msg = "⚠️ [데이터 누락] 툴 폐기 처리를 하려면 [교체 작업자 이름]을 반드시 입력해야 합니다!"
+            # 1. 먼저 저장할 데이터를 확실히 확보합니다.
+            final_note_val = u_note.strip()
+            if u_status != db_status_mob:
+                log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                auto_log_msg = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
+                final_note_val += auto_log_msg
 
-                    # 2. 검사 결과, 에러가 있다면 여기서 바로 알림을 띄우고 멈춥니다.
-                    if flow_error_msg:
-                        if flow_error_msg not in st.session_state.sidebar_errors:
-                            add_error(flow_error_msg)
-                        st.stop()
+            # 2. [중요] 상태 변경이 있을 때만 검사를 진행하고, 실패 시 여기서 멈춥니다.
+            if u_status != db_status_mob:
+                is_valid, msg = validate_process(db_status_mob, u_status)
+                if not is_valid and not (db_status_mob == "사용전" and u_status == "폐기"):
+                    st.error(msg)
+                    st.stop() # 여기서 멈추면 저장이 안 됩니다.
+            
+            # 3. [반응 없음 해결] 이제 검사를 통과했거나 상태 변경이 없으니 저장합니다.
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "current_use": u_count,
+                    "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
+                    "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                    "note": final_note_val
+                }}
+            )
+            
+            # 4. 저장 성공 후 즉시 알림 및 새로고침
+            st.success("✅ 저장 완료!")
+            time.sleep(0.5)
+            st.rerun()
         
         # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
         # [2단계: 모바일 검문소 설치]
