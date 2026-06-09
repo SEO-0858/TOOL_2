@@ -333,7 +333,8 @@ if qr_scanned_serial:
                         u_worker, 
                         u_machine_num, 
                         u_hours, 
-                        u_mins
+                        u_mins,
+                        existing_data.get('detail_spec', '스펙없음')
                     )
                     st.stop() # 팝업 완료 후 저장되도록 여기서 멈춤
 
@@ -379,7 +380,7 @@ if qr_scanned_serial:
             current_now = get_now_kst()
             
             if u_status == "재사용대기":
-                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
+                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins,ed_spec)
                 st.stop()
             
             if u_status == "폐기":
