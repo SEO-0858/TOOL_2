@@ -76,6 +76,9 @@ db_collection = get_database()
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
     # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
+    if current_status == next_status:
+        return True, ""
+
     if current_status == "사용전" and next_status == "폐기":
         return True, ""
         
