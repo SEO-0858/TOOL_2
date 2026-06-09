@@ -833,18 +833,22 @@ else:
                         s_no = item["serial_no"]
                         db_current_status = item.get("status", "사용전")
                         
+                        # spec_info 정의를 여기서 확실하게 합니다.
+                        spec_info = item.get('detail_spec', '스펙없음') 
+                        
+                        # 상태 뱃지 생성
                         if db_current_status == "사용전": status_badge = "🟢 [사용전]"
                         elif db_current_status == "사용중": status_badge = "🟡 [사용중]"
                         elif db_current_status == "재사용": status_badge = "🔵 [재사용]"
                         elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
-                        expander_title = f"🆔 {s_no} | 장비: {item.get('machine_no', '미지정')} | 규격: {spec_info}"
-                        
+                        # 제목 생성 (spec_info가 여기서 정의되어 있으니 에러가 안 납니다)
                         if not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
+                            
                             
                         with st.expander(expander_title):
                             edit_key = f"is_editing_{s_no}"
