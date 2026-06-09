@@ -172,6 +172,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
 @st.dialog("🚨 툴 폐기 정보 및 사유 입력")
 def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     st.markdown("### 🗑️ 이 툴을 현장 폐기 처리합니다. 아래 정보를 입력하세요.")
+    final_worker = ed_worker
     
     is_stored_waste = (from_status == "재사용대기")
     
