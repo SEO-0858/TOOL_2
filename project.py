@@ -654,7 +654,7 @@ else:
                 delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
                 
                 if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
-                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["001 (전착툴)", "002 (레진툴)", "003 (메탈툴)", "004 (코어툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
+                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["1 (전착툴)", "2 (레진툴)", "3 (메탈툴)", "4 (코어툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
                     understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
                     
                     if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
