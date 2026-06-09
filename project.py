@@ -157,6 +157,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
                 "target_time": "-",
                 "waste_date": "-",
                 "note": final_note_val,
+                "detail_spec": ed_spec,
                 "last_active_machine": pop_mach_name,
                 "last_active_count": pop_count,
                 "last_active_time": log_time_str
@@ -838,7 +839,7 @@ else:
                         elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
-                        spec_info = item.get('detail_spec', '스펙없음') # DB에서 상세스펙을 가져옴
+                        expander_title = f"🆔 {s_no} | 장비: {item.get('machine_no', '미지정')} | 규격: {spec_info}"
                         
                         if not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
