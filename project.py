@@ -8,6 +8,12 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
+def parse_serial_new(s):
+    # s는 12자리 문자열
+    t_type = s[0]      # 종류 (1자리)
+    date_part = s[1:9] # 날짜 (8자리)
+    seq = s[9:12]      # 순번 (3자리)
+    return t_type, date_part, seq
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
@@ -573,12 +579,13 @@ else:
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
-                serial_no = f"{prefix}{current_seq:05d}"
+                today_str = fixed_now_kst.strftime("%Y%m%d")
+                serial_no = f"{tool_code[0]}{today_str}{current_seq:03d}"
                 generated_serials.append(serial_no)
                 
                 blank_records.append({
                     "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴" if tool_code=="003" else "코어툴",
+                    "tool_type": "전착툴" if tool_code[0]=="1" else "레진툴" if tool_code[0]=="2" else "메탈툴",
                     "status": "사용전",
                     "input_date": fixed_date_str,
                     "init_time": fixed_time_str,
