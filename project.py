@@ -1203,59 +1203,63 @@ else:
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
                         st.rerun()
 
-    # 5) 🖥️ 실시간 기계 정보창 (Grid Layout)
+    
+    # 5) 🖥️ 실시간 기계 정보창 (자동 새로고침 모드)
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-            st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
-            now_kst = get_now_kst()
-            st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            layout = [
-                [27, 28, 29, 30, 31, 9, 8, 7],
-                [16, 17, 26, 32, 57],
-                [15, 18, 25, 33, 56],
-                [14, 19, 24, 34, 55, 6],
-                [13, 20, 35, 54, 5],
-                [12, 21, 36, 53, 4],
-                [11, 22, 37, 52, 3],
-                [10, 23, 38, 43],
-                [39, 40, 41, 42],
-                [44, 45, 46, 47, 48, 49, 50, 51]
+        st.title("🖥️ 실시간 기계 배치 및 툴 상세 현황")
+        
+        # 1. 자동 새로고침 설정 (10초마다)
+        # st.empty()를 사용하여 이 공간을 계속 비우고 다시 그릴 준비를 합니다.
+        placeholder = st.empty()
+        
+        # 2. 루프를 돌면서 화면을 실시간으로 업데이트
+        # 루프를 50번 돌고 나면 자동으로 페이지를 새로고침하여 메모리 누수를 방지합니다.
+        for i in range(50): 
+            with placeholder.container():
+                now_kst = get_now_kst()
+                st.write(f"⏰ **현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')} (10초마다 자동갱신)")
+                
+                    # --- [기존의 기계 정보창 그리기 로직 시작] ---
+                layout = [
+                    [27, 28, 29, 30, 31, 9, 8, 7],
+                    [16, 17, 26, 32, 57],
+                    [15, 18, 25, 33, 56],
+                    [14, 19, 24, 34, 55, 6],
+                    [13, 20, 35, 54, 5],
+                    [12, 21, 36, 53, 4],
+                    [11, 22, 37, 52, 3],
+                    [10, 23, 38, 43],
+                    [39, 40, 41, 42],
+                    [44, 45, 46, 47, 48, 49, 50, 51]
             ]
-          
 
+                # [DB에서 데이터 불러오기]
+                active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
+                machine_tool_map = {}
+                for t in active_tools:
+                    nums = re.findall(r'\d+', str(t.get('machine_no', '')))
+                    if nums:
+                        m_no = int(nums[0])
+                        if m_no not in machine_tool_map: machine_tool_map[m_no] = []
+                        machine_tool_map[m_no].append(t)
 
+                for row in layout:
+                    cols = st.columns(len(row))
+                    for i, m_no in enumerate(row):
+                        with cols[i]:
+                            tools = machine_tool_map.get(m_no, [])
+                            with st.container(border=True, height=160):
+                                st.markdown(f"<div style='font-weight:bold;'>{m_no}호기</div>", unsafe_allow_html=True)
+                                if tools:
+                                    for t in tools:
+                                        elapsed = get_elapsed_time_str(t.get('start_time'))
+                                        st.markdown(f"<div style='font-size:9px; line-height:1.2;'>ID: {t.get('serial_no', 'N/A')}<br>작업자: {t.get('worker', '미지정')}</div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown("<div style='font-size:11px;'>대기중</div>", unsafe_allow_html=True)
+                # --- [기존의 기계 정보창 그리기 로직 끝] ---
 
-            # 1187번 줄부터 마지막까지 덮어쓰기
-            active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-            machine_tool_map = {}
-            for t in active_tools:
-                nums = re.findall(r'\d+', str(t.get('machine_no', '')))
-                if nums:
-                    m_no = int(nums[0])
-                    if m_no not in machine_tool_map: machine_tool_map[m_no] = []
-                    machine_tool_map[m_no].append(t)
-
-            for row in layout:
-                cols = st.columns(len(row))
-                for i, m_no in enumerate(row):
-                    with cols[i]:
-                        tools = machine_tool_map.get(m_no, [])
-                        
-                        # 컨테이너 높이를 160으로 늘려 충분한 공간 확보
-                        with st.container(border=True, height=160):
-                            st.markdown(f"<div style='font-weight:bold; color:black;'>{m_no}호기</div>", unsafe_allow_html=True)
-                            
-                            if tools:
-                                for t in tools:
-                                    elapsed = get_elapsed_time_str(t.get('start_time'))
-                                    # 모든 정보를 한 줄씩 깔끔하게 카드 내부에 배치
-                                    st.markdown(f"""
-                                    <div style='font-size:9px; color:black; line-height:1.2; margin-top:2px;'>
-                                        <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
-                                        <b>작업자:</b> {t.get('worker', '미지정')}<br>
-                                        <b>장착:</b> {str(t.get('start_time', '-'))[5:16]}<br>
-                                        <span style='color:red;'>{elapsed}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                            else:
-                                st.markdown("<div style='color:black; font-size:11px;'>대기중</div>", unsafe_allow_html=True)
+            # 3. 10초 대기
+            time.sleep(10)
+            
+        # 50번(500초) 루프가 끝나면 페이지 전체를 새로고침하여 메모리 최적화
+        st.rerun()
