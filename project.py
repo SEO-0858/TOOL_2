@@ -355,7 +355,7 @@ if qr_scanned_serial:
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
                     "status": u_status,
-                    "current_use": 0
+                    "current_use": 0,
                     "worker": u_worker if u_worker else existing_data.get('worker', ''),
                     "machine_no": machine_full_name if machine_full_name else existing_data.get('machine_no', ''),
                     "note": final_note_val
