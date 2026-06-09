@@ -521,7 +521,7 @@ else:
         
         c1, c2 = st.columns(2)
         with c1:
-            tool_code = st.text_input("🆔 고유넘버 앞 3자리 입력 (전착:001 / 레진:002 / 메탈:003 / 코어:004)", value="001", max_chars=3)
+            tool_code = st.text_input("🆔 고유넘버 앞 1자리 입력 (전착:1 / 레진:2 / 메탈:3 / 코어:4)", value="1", max_chars=3)
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
