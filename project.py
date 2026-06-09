@@ -1211,7 +1211,7 @@ else:
                         t_code = target_serial[:3]
                         new_blank = {
                             "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴"if t_code=="3" else "코어툴"
+                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴"if t_code=="3" else "코어툴",
                             "status": "사용전",
                             "input_date": str(today),
                             "init_time": get_now_kst().strftime("%H:%M"),
