@@ -1272,7 +1272,12 @@ else:
                         if tools:
                             for t in tools:
                                 # 🕒 이 로직이 시간 경과를 계산하고 출력합니다 (누락 없음)
-                                elapsed = get_elapsed_time_str(t.get('start_time'))
+                                start_val = t.get('start_time')
+                                # 💡 재사용 상태이거나 사용중 상태일 때 시간을 계산하도록 명시적으로 로직 추가
+                                if start_val and start_val != "-":
+                                    elapsed = get_elapsed_time_str(start_val)
+                                else:
+                                    elapsed = "시간 기록 없음"
                                 st.markdown(f"""
                                 <div style='font-size:9px; color:black; line-height:1.2; margin-top:2px;'>
                                     <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
