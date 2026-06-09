@@ -992,7 +992,7 @@ else:
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
-                                    with col_em = st.columns(2)[1]:  # 에러 방지용으로 기존 코드 안정화 유지
+                                    with st.columns(2)[1]:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정",min_value=0 ,value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
