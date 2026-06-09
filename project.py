@@ -1279,7 +1279,7 @@ else:
                                 else:
                                     elapsed = "시간 기록 없음"
                                 st.markdown(f"""
-                                <div style='font-size:9px; color:black; line-height:1.2; margin-top:2px;'>
+                                <div style='font-size:13px; color:black; line-height:1.5; margin-top:5px; font-weight:bold;'>
                                     <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
                                     <b>작업자:</b> {t.get('worker', '미지정')}<br>
                                     <b>장착:</b> {str(t.get('start_time', '-'))[5:16]}<br>
