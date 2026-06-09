@@ -828,6 +828,8 @@ else:
                     
                     for item in filtered_data:
                         item = db_collection.find_one({"serial_no": item["serial_no"]})
+                        st.write(item)
+
                         s_no = item["serial_no"]
                         db_current_status = item.get("status", "사용전")
                         
