@@ -827,6 +827,7 @@ else:
                     st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
                     
                     for item in filtered_data:
+                        item = db_collection.find_one({"serial_no": item["serial_no"]})
                         s_no = item["serial_no"]
                         db_current_status = item.get("status", "사용전")
                         
