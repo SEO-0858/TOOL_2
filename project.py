@@ -503,7 +503,7 @@ if qr_scanned_serial:
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
-                        "tool_type": "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴",
+                        "tool_type": "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴"if tool_code=="3"else "코어툴",
                         "status": m_status,
                         "input_date": str(chosen_date), 
                         "init_time": init_time_only,  
@@ -546,7 +546,7 @@ else:
         
         c1, c2 = st.columns(2)
         with c1:
-            tool_code = st.text_input("🆔 고유넘버 앞 3자리 입력 (전착:001 / 레진:002 / 메탈:003 / 코어:004)", value="001", max_chars=3)
+            tool_code = st.text_input("🆔 고유넘버 앞 3자리 입력 (전착:1 / 레진:2 / 메탈:3 / 코어:4)", value="1", max_chars=1)
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
@@ -555,7 +555,7 @@ else:
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
             if last_tool:
-                last_counter = int(last_tool["serial_no"][-5:])
+                last_counter = int(last_tool["serial_no"][-3:])
             else:
                 last_counter = 0
         except Exception:
@@ -1211,7 +1211,7 @@ else:
                         t_code = target_serial[:3]
                         new_blank = {
                             "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="001" else "레진툴" if t_code=="002" else "메탈툴",
+                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴"if t_code=="3" else "코어툴"
                             "status": "사용전",
                             "input_date": str(today),
                             "init_time": get_now_kst().strftime("%H:%M"),
