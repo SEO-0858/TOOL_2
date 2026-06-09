@@ -102,7 +102,7 @@ def get_now_kst():
 
 now = get_now_kst()
 today = now.date()
-mmdd = today.strftime("%m%d") 
+yyyymmdd = today.strftime("%Y%m%d")
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
@@ -525,7 +525,7 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
-        prefix = f"{tool_code}{mmdd}"
+        prefix = f"{tool_code}{yyyymmdd}"
         
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
