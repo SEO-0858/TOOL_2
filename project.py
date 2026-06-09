@@ -302,12 +302,8 @@ if qr_scanned_serial:
             with col_um:
                 u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
                 
-            default_val = existing_data.get('note', '')
-            display_note = default_val
-            if "현장 입고일" in default_val or "QR 선발행" in default_val:
-                match = re.search(r"(\[.*?\])", default_val)
-                if match: display_note = match.group(1)
-                else: display_note = ""
+          
+            display_note = existing_data.get('note', '')
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
