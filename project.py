@@ -313,6 +313,7 @@ if qr_scanned_serial:
         flow_error_msg = ""
         machine_full_name = f"{u_machine_num}호기"
         # [위치: 315번 라인 근처, if u_submit_form_btn: 내부]
+
         if u_submit_form_btn:
             # 1. 먼저 저장할 데이터를 확실히 확보합니다.
             final_note_val = u_note.strip()
@@ -320,6 +321,21 @@ if qr_scanned_serial:
                 log_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
                 final_note_val += auto_log_msg
+            
+            if u_submit_form_btn:
+            # 1. 상태가 "재사용대기"로 바뀌는 순간이라면?
+                if u_status == "재사용대기" and db_status_mob != "재사용대기":
+                    # PC에서 사용하는 그 팝업을 모바일에서도 띄웁니다!
+                    show_reuse_pending_dialog(
+                        qr_scanned_serial, 
+                        machine_full_name, 
+                        u_note, 
+                        u_worker, 
+                        u_machine_num, 
+                        u_hours, 
+                        u_mins
+                    )
+                    st.stop() # 팝업 완료 후 저장되도록 여기서 멈춤
 
             # 2. [중요] 상태 변경이 있을 때만 검사를 진행하고, 실패 시 여기서 멈춥니다.
             if u_status != db_status_mob:
