@@ -1283,7 +1283,7 @@ else:
                                     <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
                                     <b>작업자:</b> {t.get('worker', '미지정')}<br>
                                     <b>장착:</b> {str(t.get('start_time', '-'))[5:16]}<br>
-                                    <span style='color:red;'>{elapsed}</span>
+                                    <span style='color:red; font-size:16px;'>⏳ {elapsed}</span>
                                 </div>
                                 """, unsafe_allow_html=True)
                         else:
