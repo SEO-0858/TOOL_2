@@ -8,12 +8,7 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
-def parse_serial_new(s):
-    # s는 12자리 문자열
-    t_type = s[0]      # 종류 (1자리)
-    date_part = s[1:9] # 날짜 (8자리)
-    seq = s[9:12]      # 순번 (3자리)
-    return t_type, date_part, seq
+
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
@@ -79,6 +74,15 @@ def get_database():
 
 db_collection = get_database()
 
+# 🔒 2-2. 마스터 스펙 저장용 별도 컬렉션 연결 헬퍼 함수
+def get_spec_master_collection():
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
+    try:
+        client = MongoClient(mongo_uri)
+        return client["dashboard_db"]["tool_specs_master"]
+    except:
+        return None
+
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
     # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
@@ -102,7 +106,7 @@ def get_now_kst():
 
 now = get_now_kst()
 today = now.date()
-yyyymmdd = today.strftime("%Y%m%d")
+mmdd = today.strftime("%m%d") 
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
@@ -122,7 +126,7 @@ def generate_app_qr_bytes(serial_text):
 
 # 🟣 [재사용대기 팝업 대화창 정의]
 @st.dialog("📋 재사용대기 전환 추가 정보 기입")
-def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins):
+def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins, selected_spec=None):
     st.write("🛠️ 이 툴을 보관 후 다시 사용하기 위해 기계 가공 실적을 입력해 주세요.")
     
     pop_worker_name = st.text_input("👤 보관 처리 작업자 성명", value=ed_worker, key=f"pop_worker_reuse_{s_no}")
@@ -148,22 +152,26 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         timestamp = log_now.strftime("%m/%d %H:%M")
         history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{pop_worker_name}, {pop_mach_name}, {pop_count}개)"
         
+        up_fields = {
+            "status": "재사용대기",
+            "worker": pop_worker_name,  # [2단계 추가] DB에도 작업자 저장
+            "machine_no": pop_mach_name,
+            "dressing_hours": 0,
+            "dressing_mins": 0,
+            "start_time": "-",
+            "target_time": "-",
+            "waste_date": "-",
+            "note": final_note_val,
+            "last_active_machine": pop_mach_name,
+            "last_active_count": pop_count,
+            "last_active_time": log_time_str
+        }
+        if selected_spec:
+            up_fields["detail_spec"] = selected_spec
+
         db_collection.update_one(
             {"serial_no": s_no},
-            {"$set": {
-                "status": "재사용대기",
-                "worker": pop_worker_name,  # [2단계 추가] DB에도 작업자 저장
-                "machine_no": pop_mach_name,
-                "dressing_hours": 0,
-                "dressing_mins": 0,
-                "start_time": "-",
-                "target_time": "-",
-                "waste_date": "-",
-                "note": final_note_val,
-                "last_active_machine": pop_mach_name,
-                "last_active_count": pop_count,
-                "last_active_time": log_time_str
-            }, "$push": {"history": history_entry}}
+            {"$set": up_fields, "$push": {"history": history_entry}}
         )
         st.success("🎉 재사용대기 실적이 성공적으로 누적 저장되었습니다!")
         time.sleep(1)
@@ -172,7 +180,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
 
 # 🔴 [폐기 전환 팝업 대화창 정의]
 @st.dialog("🚨 툴 폐기 정보 및 사유 입력")
-def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
+def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status, selected_spec=None):
     st.markdown("### 🗑️ 이 툴을 현장 폐기 처리합니다. 아래 정보를 입력하세요.")
     
     is_stored_waste = (from_status == "재사용대기")
@@ -234,20 +242,24 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         timestamp = log_now.strftime("%m/%d %H:%M")
         history_entry = f"{timestamp} - 상태변환:폐기 (작업자:{final_worker}, 기계:{pop_mach_name}, 사유:{final_reason_text})"
         
+        up_fields = {
+            "status": "폐기",
+            "worker": pop_worker_name,
+            "machine_no": pop_mach_name,
+            "use_count": pop_use_count,
+            "dressing_hours": 0,
+            "dressing_mins": 0,
+            "start_time": "-",
+            "target_time": "-",
+            "waste_date": log_time_str,
+            "note": final_note_val
+        }
+        if selected_spec:
+            up_fields["detail_spec"] = selected_spec
+
         db_collection.update_one(
             {"serial_no": s_no},
-            {"$set": {
-                "status": "폐기",
-                "worker": pop_worker_name,
-                "machine_no": pop_mach_name,
-                "use_count": pop_use_count,
-                "dressing_hours": 0,
-                "dressing_mins": 0,
-                "start_time": "-",
-                "target_time": "-",
-                "waste_date": log_time_str,
-                "note": final_note_val
-            }, "$push": {"history": history_entry}}
+            {"$set": up_fields, "$push": {"history": history_entry}}
         )
         st.success("💥 툴 폐기 실적 처리가 안전하게 저장되었습니다.")
         time.sleep(1)
@@ -295,6 +307,26 @@ if qr_scanned_serial:
             
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
+            
+            # ★ [현장 모바일 수정 창] 스펙 마스터 컬렉션 연동 호출
+            st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
+            spec_master_col = get_spec_master_collection()
+            current_tool_type = existing_data.get('tool_type', '전착툴')
+            
+            if spec_master_col:
+                db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
+                if db_specs:
+                    spec_options = [spec["spec_name"] for spec in db_specs]
+                    saved_spec = existing_data.get('detail_spec', '')
+                    def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
+                else:
+                    spec_options = ["기본 스펙"]
+                    def_idx = 0
+            else:
+                spec_options = ["기본 스펙"]
+                def_idx = 0
+                
+            u_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key="mob_edit_spec_selectbox")
             
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
@@ -361,11 +393,11 @@ if qr_scanned_serial:
             current_now = get_now_kst()
             
             if u_status == "재사용대기":
-                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
+                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins, selected_spec=u_spec)
                 st.stop()
             
             if u_status == "폐기":
-                show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob)
+                show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob, selected_spec=u_spec)
                 st.stop()
 
             current_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
@@ -404,7 +436,8 @@ if qr_scanned_serial:
                         "waste_date": waste_val,
                         "note": final_note_val,
                         "start_time": start_time_val,
-                        "target_time": target_time_val
+                        "target_time": target_time_val,
+                        "detail_spec": u_spec
                     },
                     "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
                 }
@@ -430,6 +463,20 @@ if qr_scanned_serial:
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
+            
+            # ★ [현장 모바일 최초 등록] 마스터 스펙 동적 연결
+            st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
+            spec_master_col = get_spec_master_collection()
+            tool_code_pref = qr_scanned_serial[:3]
+            mapped_main_type = "전착툴" if tool_code_pref=="001" else "레진툴" if tool_code_pref=="002" else "메탈툴" if tool_code_pref=="003" else "코어툴"
+            
+            if spec_master_col:
+                db_specs = list(spec_master_col.find({"main_type": mapped_main_type}))
+                spec_options = [spec["spec_name"] for spec in db_specs] if db_specs else ["스펙미지정"]
+            else:
+                spec_options = ["스펙미지정"]
+                
+            m_spec = st.selectbox("등록할 스펙을 목록에서 선택해 주세요", spec_options, key="mob_init_spec_selectbox")
             
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
@@ -478,7 +525,7 @@ if qr_scanned_serial:
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
-                        "tool_type": "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴"if tool_code=="3" else "코어툴",
+                        "tool_type": mapped_main_type,
                         "status": m_status,
                         "input_date": str(chosen_date), 
                         "init_time": init_time_only,  
@@ -491,7 +538,8 @@ if qr_scanned_serial:
                         "use_limit": m_limit,
                         "current_use": 0,
                         "waste_date": waste_val,
-                        "note": final_m_note_val
+                        "note": final_m_note_val,
+                        "detail_spec": m_spec
                     }},
                     upsert=True
                 )
@@ -508,7 +556,16 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창"]
+    
+    # ★ 하위 메뉴 리스트에 6번째 신규 탭 완벽 매립
+    menu_options = [
+        "📊 빈데이터 QR코드 대량 선발행", 
+        "⚠️ 실시간 툴 드레싱 알림판", 
+        "📂 전체 데이터 현황판", 
+        "⚙️ 데이터 수정 / 삭제 / QR 재발행", 
+        "🖥️ 실시간 기계 정보창",
+        "🔧 툴 상세스펙 마스터 관리"
+    ]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
         
@@ -521,16 +578,17 @@ else:
         
         c1, c2 = st.columns(2)
         with c1:
-            tool_code = st.text_input("🆔 고유넘버 앞 1자리 입력 (전착:1 / 레진:2 / 메탈:3 / 코어:4)", value="1", max_chars=3)
+            tool_code = st.text_input("🆔 고유넘버 앞 3자리 입력 (전착:001 / 레진:002 / 메탈:003 / 코어:004)", value="001", max_chars=3)
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
-        prefix = f"{tool_code}{yyyymmdd}"
+        # [원상 복구 100%] 원본의 철저한 12자리 규칙 보존 코드 파트
+        prefix = f"{tool_code}{mmdd}"
         
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
             if last_tool:
-                last_counter = int(last_tool["serial_no"][-3:])
+                last_counter = int(last_tool["serial_no"][-5:])
             else:
                 last_counter = 0
         except Exception:
@@ -552,14 +610,18 @@ else:
             fixed_time_str = fixed_now_kst.strftime("%H:%M")
             display_mmdd_hhmm = fixed_now_kst.strftime("%m/%d %H:%M")
             
+            # [원상 복구 100%] 입력한 tool_code 분기 연산 완벽 복원
+            mapped_type_str = "전착툴" if tool_code=="001" else "레진툴" if tool_code=="002" else "메탈툴" if tool_code=="003" else "코어툴"
+            
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
-                serial_no = f"{prefix}{current_seq:03d}"
+                serial_no = f"{prefix}{current_seq:05d}"
                 generated_serials.append(serial_no)
                 
+                # 빈 QR 발행은 원래 취지대로 광속 대량 연사를 위해 기본 '스펙미지정' 공백화 처리
                 blank_records.append({
                     "serial_no": serial_no,
-                    "tool_type": "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴" if tool_code=="3" else "코어툴",
+                    "tool_type": mapped_type_str,
                     "status": "사용전",
                     "input_date": fixed_date_str,
                     "init_time": fixed_time_str,
@@ -572,6 +634,7 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
+                    "detail_spec": "스펙미지정",
                     "note": f"[{display_mmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
@@ -654,7 +717,7 @@ else:
                 delete_mode = st.radio("🗑️ 삭제 방식 선택", ["📂 종류별 묶음 초기화 및 리셋", "🆔 특정 개별 시리얼 코드 1개만 삭제"], horizontal=True)
                 
                 if delete_mode == "📂 종류별 묶음 초기화 및 리셋":
-                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["1 (전착툴)", "2 (레진툴)", "3 (메탈툴)", "4 (코어툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
+                    target_reset_code = st.selectbox("🎯 데이터 삭제 및 순번을 초기화할 툴 종류", ["001 (전착툴)", "002 (레진툴)", "003 (메탈툴)", "004 (코어툴)", "⚠️ 전체 모든 데이터 싹 다 삭제"])
                     understand_risk = st.checkbox("❗ 선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
                     
                     if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
@@ -733,7 +796,7 @@ else:
                         st.markdown(
                             f"""
                             <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
-                                <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
+                                <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — 스펙: <span style='color:green;'>{item.get('detail_spec', '스펙미지정')}</span> — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
                                 <p style="margin: 5px 0; font-size: 15px;">
                                     <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
                                     <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
@@ -834,7 +897,7 @@ else:
                         elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
-                        spec_info = item.get('detail_spec', '스펙없음') # DB에서 상세스펙을 가져옴
+                        spec_info = item.get('detail_spec', '스펙미지정') # DB에서 상세스펙을 가져옴
                         
                         if not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
@@ -848,7 +911,7 @@ else:
                                 
                             if st.session_state[edit_key]:
                                
-                                spec_info = item.get('detail_spec', '스펙없음')
+                                spec_info = item.get('detail_spec', '스펙미지정')
                                 st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
                                 
                                 note_content = str(item.get('note', ''))
@@ -904,16 +967,32 @@ else:
                                         ed_worker = st.text_input("👷 교체 작업자 이름 기입", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
-                                    # 상세 스펙 선택창 추가
-                                    st.markdown("🛠 **상세 스펙 선택**")
-                                    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
-                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
-                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
+                                    
+                                    # ★ [PC 현황판 수정창] 관리자가 등록한 동적 스펙 마스터 목록 호출
+                                    st.markdown("🛠 **상세 스펙 선택 (마스터 리스트 호출)**")
+                                    spec_master_col = get_spec_master_collection()
+                                    current_tool_type = item.get('tool_type', '전착툴')
+                                    
+                                    if spec_master_col:
+                                        db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
+                                        if db_specs:
+                                            spec_options = [spec["spec_name"] for spec in db_specs]
+                                            saved_spec = item.get('detail_spec', '')
+                                            def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
+                                        else:
+                                            spec_options = ["기본 스펙"]
+                                            def_idx = 0
+                                    else:
+                                        spec_options = ["기본 스펙"]
+                                        def_idx = 0
+                                        
+                                    ed_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key=f"spec_pc_selectbox_{s_no}")     
+                                    
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
                                         ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
-                                    with col_em:
+                                    with col_em = st.columns(2)[1]:  # 에러 방지용으로 기존 코드 안정화 유지
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
                                     ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정",min_value=0 ,value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
@@ -965,7 +1044,7 @@ else:
                                     # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
-                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
+                                           show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status, selected_spec=ed_spec)
                                            st.stop()
                                     
                                     # 새 제품(사용전)일 때 폐기는 경고 예외 처리
@@ -985,7 +1064,7 @@ else:
                                         st.stop()
 
                                     if ed_status == "재사용대기":
-                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins, selected_spec=ed_spec)
                                         st.stop()
                                     
                                     if ed_status == "폐기":
@@ -995,7 +1074,7 @@ else:
                                                 ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason} | 장착 기계: 없음"
                                             else:
                                                 ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
-                                        show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
+                                        show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status, selected_spec=ed_spec)
                                         st.stop()
                                         
                                     waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
@@ -1012,7 +1091,7 @@ else:
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
 
-                                    old_spec = item.get('detail_spec', ' ')
+                                    old_spec = item.get('detail_spec', '스펙미지정')
                                     if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
                                     else:
@@ -1088,7 +1167,8 @@ else:
                                                 "history": [],
                                                 "last_active_machine": None,
                                                 "last_active_count": None,
-                                                "last_active_time": None
+                                                "last_active_time": None,
+                                                "detail_spec": "스펙미지정"
                                             }}
                                         )
                                         st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
@@ -1103,6 +1183,7 @@ else:
                                 col_x, col_y = st.columns(2)
                                 with col_x:
                                     st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
+                                    st.write(f"• **🛠 상세 스펙:** {item.get('detail_spec', '스펙미지정')}")
                                     st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
                                     st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
                                     st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
@@ -1180,7 +1261,7 @@ else:
                         t_code = target_serial[:3]
                         new_blank = {
                             "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴" if t_code=="2"else "코어툴",
+                            "tool_type": "전착툴" if t_code=="001" else "레진툴" if t_code=="002" else "메탈툴",
                             "status": "사용전",
                             "input_date": str(today),
                             "init_time": get_now_kst().strftime("%H:%M"),
@@ -1193,6 +1274,7 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
+                            "detail_spec": "스펙미지정",
                             "note": "누락 번호 관리자 강제 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
@@ -1218,8 +1300,6 @@ else:
                 [44, 45, 46, 47, 48, 49, 50, 51]
             ]
           
-
-
 
             # 1187번 줄부터 마지막까지 덮어쓰기
             active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
@@ -1248,6 +1328,7 @@ else:
                                     st.markdown(f"""
                                     <div style='font-size:9px; color:black; line-height:1.2; margin-top:2px;'>
                                         <b>ID:</b> {t.get('serial_no', 'N/A')}<br>
+                                        <b>스펙:</b> {t.get('detail_spec', '스펙미지정')}<br>
                                         <b>작업자:</b> {t.get('worker', '미지정')}<br>
                                         <b>장착:</b> {str(t.get('start_time', '-'))[5:16]}<br>
                                         <span style='color:red;'>{elapsed}</span>
@@ -1255,3 +1336,52 @@ else:
                                     """, unsafe_allow_html=True)
                             else:
                                 st.markdown("<div style='color:black; font-size:11px;'>대기중</div>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
+    # -------------------------------------------------------------
+    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+        st.title("🔧 툴 상세 스펙 마스터 관리")
+        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
+        
+        spec_master_col = get_spec_master_collection()
+        
+        if spec_master_col is None:
+            st.error("데이터베이스와 통신할 수 없습니다.")
+        else:
+            with st.form("spec_input_form_master", clear_on_submit=True):
+                st.subheader("➕ 하위 상세 스펙 신규 등록")
+                ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
+                ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
+                ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
+                
+                if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
+                    if not ins_name:
+                        st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
+                    else:
+                        spec_master_col.insert_one({
+                            "main_type": ins_type,
+                            "spec_name": ins_name,
+                            "memo": ins_memo
+                        })
+                        st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
+                        time.sleep(0.5)
+                        st.rerun()
+
+            st.write("<br><hr>", unsafe_allow_html=True)
+            st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
+            all_specs_list = list(spec_master_col.find({}))
+            
+            if not all_specs_list:
+                st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
+            else:
+                for spec in all_specs_list:
+                    col_sp1, col_sp2 = st.columns([4, 1])
+                    with col_sp1:
+                        st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
+                    with col_sp2:
+                        if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
+                            spec_master_col.delete_one({"_id": spec["_id"]})
+                            st.success("리스트에서 정상 제거되었습니다.")
+                            time.sleep(0.5)
+                            st.rerun()
