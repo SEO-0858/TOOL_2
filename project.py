@@ -434,8 +434,23 @@ if qr_scanned_serial:
             
         combined_dt = dt_class.combine(chosen_date, chosen_time)
         
+                # 1. 마스터 컬렉션 연결
+        spec_master_col = get_spec_master_collection()
+        # 2. 현재 선택된 툴 종류에 맞춰 마스터 스펙만 가져오기
+        # (여기서 m_status를 바로 알 수 없으므로, 모든 스펙을 가져온 뒤 나중에 필터링하거나, 
+        # 툴 종류별로 분류하여 가져오는 것이 좋습니다.)
+        all_master_specs = list(spec_master_col.find({})) 
+        spec_options = [s['spec_name'] for s in all_master_specs] # 스펙 이름만 뽑기
+
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+            # 모바일 폼 내부
+            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+
+            # [추가] 상세 스펙 선택 드롭다운
+            selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
+
+            m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
             
@@ -493,6 +508,7 @@ if qr_scanned_serial:
                         "worker": m_worker,
                         "machine_no": machine_full_name,
                         "dressing_hours": dressing_hours,
+                        "detail_spec": selected_spec,
                         "dressing_mins": dressing_mins,
                         "start_time": start_time_str,
                         "target_time": target_time_str,
@@ -914,7 +930,11 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+                                    
+                                    spec_master_col = get_spec_master_collection()
+                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
+                                    spec_options = [s['spec_name'] for s in spec_docs]
+
                                     # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
                                     ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
