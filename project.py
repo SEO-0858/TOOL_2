@@ -294,49 +294,49 @@ if qr_scanned_serial:
         orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
         default_machine_int = 0
 
-        with st.form(key="mobile_update_form"):
-            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
-            
-            u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
-            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
-            
-            # ★ [현장 모바일 수정 창] 스펙 마스터 목록 동적 연동 호출
-            st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
-            spec_master_col = get_spec_master_collection()
-            current_tool_type = existing_data.get('tool_type', '전착툴')
-            
-            if spec_master_col:
-                db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
-                if db_specs:
-                    spec_options = [spec["spec_name"] for spec in db_specs]
-                    saved_spec = existing_data.get('detail_spec', '')
-                    def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
-                else:
-                    spec_options = ["기본 스펙"]
-                    def_idx = 0
+        
+        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+        u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
+        
+        u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
+        
+        # ★ [현장 모바일 수정 창] 스펙 마스터 목록 동적 연동 호출
+        st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
+        spec_master_col = get_spec_master_collection()
+        current_tool_type = existing_data.get('tool_type', '전착툴')
+        
+        if spec_master_col:
+            db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
+            if db_specs:
+                spec_options = [spec["spec_name"] for spec in db_specs]
+                saved_spec = existing_data.get('detail_spec', '')
+                def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
             else:
                 spec_options = ["기본 스펙"]
                 def_idx = 0
-                
-            u_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key="mob_edit_spec_selectbox")
+        else:
+            spec_options = ["기본 스펙"]
+            def_idx = 0
             
-            st.write("<br>", unsafe_allow_html=True)
-            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
-            col_uh, col_um = st.columns(2)
-            with col_uh: u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
-            with col_um: u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
-                
-            default_val = existing_data.get('note', '')
-            display_note = default_val
-            if "현장 입고일" in default_val or "QR 선발행" in default_val:
-                match = re.search(r"(\[.*?\])", default_val)
-                if match: display_note = match.group(1)
-                else: display_note = ""
+        u_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key="mob_edit_spec_selectbox")
+        
+        st.write("<br>", unsafe_allow_html=True)
+        st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
+        col_uh, col_um = st.columns(2)
+        with col_uh: u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
+        with col_um: u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
             
-            u_note = st.text_area("📝 현장 특이사항", value=display_note)
-            u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+        default_val = existing_data.get('note', '')
+        display_note = default_val
+        if "현장 입고일" in default_val or "QR 선발행" in default_val:
+            match = re.search(r"(\[.*?\])", default_val)
+            if match: display_note = match.group(1)
+            else: display_note = ""
+        
+        u_note = st.text_area("📝 현장 특이사항", value=display_note)
+        u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         # 모바일 실시간 벨리데이션 검증
         if u_submit_form_btn:
