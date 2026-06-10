@@ -304,6 +304,26 @@ if qr_scanned_serial:
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
+            # ★ [현장 모바일 수정 창] 스펙 마스터 컬렉션 연동 호출
+            st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
+            spec_master_col = get_spec_master_collection()
+            current_tool_type = existing_data.get('tool_type', '전착툴')
+            
+            if spec_master_col:
+                db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
+                if db_specs:
+                    spec_options = [spec["spec_name"] for spec in db_specs]
+                    saved_spec = existing_data.get('detail_spec', '')
+                    def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
+                else:
+                    spec_options = ["기본 스펙"]
+                    def_idx = 0
+            else:
+                spec_options = ["기본 스펙"]
+                def_idx = 0
+                
+            u_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key="mob_edit_spec_selectbox")
+            
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
             col_uh, col_um = st.columns(2)
@@ -369,11 +389,11 @@ if qr_scanned_serial:
             current_now = get_now_kst()
             
             if u_status == "재사용대기":
-                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
+                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins, selected_spec=u_spec)
                 st.stop()
             
             if u_status == "폐기":
-                show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob)
+                show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob, selected_spec=u_spec)
                 st.stop()
 
             current_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
@@ -412,7 +432,8 @@ if qr_scanned_serial:
                         "waste_date": waste_val,
                         "note": final_note_val,
                         "start_time": start_time_val,
-                        "target_time": target_time_val
+                        "target_time": target_time_val,
+                        "detail_spec": u_spec
                     },
                     "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
                 }
@@ -433,23 +454,30 @@ if qr_scanned_serial:
             chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300, key="m_chosen_time")
             
         combined_dt = dt_class.combine(chosen_date, chosen_time)
-        
-                # 1. 마스터 컬렉션 연결
+        # 1. 마스터 컬렉션 연결
         spec_master_col = get_spec_master_collection()
-        # 2. 현재 선택된 툴 종류에 맞춰 마스터 스펙만 가져오기
-        # (여기서 m_status를 바로 알 수 없으므로, 모든 스펙을 가져온 뒤 나중에 필터링하거나, 
-        # 툴 종류별로 분류하여 가져오는 것이 좋습니다.)
         all_master_specs = list(spec_master_col.find({})) 
-        spec_options = [s['spec_name'] for s in all_master_specs] # 스펙 이름만 뽑기
+        spec_options = [s['spec_name'] for s in all_master_specs]
 
         with st.form(key="mobile_input_form"):
-            spec_master_col = get_spec_master_collection()
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
             selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
-            all_master_specs = list(spec_master_col.find({})) 
-            spec_options = [s['spec_name'] for s in all_master_specs]
+            
+            # ★ [현장 모바일 최초 등록] 마스터 스펙 동적 연결
+            st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
+            spec_master_col = get_spec_master_collection()
+            tool_code_pref = qr_scanned_serial[:3]
+            mapped_main_type = "전착툴" if tool_code_pref=="001" else "레진툴" if tool_code_pref=="002" else "메탈툴" if tool_code_pref=="003" else "코어툴"
+            
+            if spec_master_col:
+                db_specs = list(spec_master_col.find({"main_type": mapped_main_type}))
+                spec_options = [spec["spec_name"] for spec in db_specs] if db_specs else ["스펙미지정"]
+            else:
+                spec_options = ["스펙미지정"]
+                
+            m_spec = st.selectbox("등록할 스펙을 목록에서 선택해 주세요", spec_options, key="mob_init_spec_selectbox")
             
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
@@ -498,7 +526,7 @@ if qr_scanned_serial:
                     {"serial_no": qr_scanned_serial},
                     {"$set": {
                         "serial_no": qr_scanned_serial,
-                        "tool_type": "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴"if tool_code=="3" else "코어툴",
+                        "tool_type": mapped_main_type,
                         "status": m_status,
                         "input_date": str(chosen_date), 
                         "init_time": init_time_only,  
