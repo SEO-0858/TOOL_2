@@ -302,23 +302,7 @@ if qr_scanned_serial:
             
             # ★ [현장 모바일 수정 창] 스펙 마스터 컬렉션 동적 연동 호출
             st.markdown("🛠 **상세 스펙 선택 (마스터 리스트)**")
-            spec_master_col = get_spec_master_collection()
-            current_tool_type = existing_data.get('tool_type', '전착툴')
-            
-            if spec_master_col:
-                db_specs = list(spec_master_col.find({"main_type": current_tool_type}))
-                if db_specs:
-                    spec_options = [spec["spec_name"] for spec in db_specs]
-                    saved_spec = existing_data.get('detail_spec', '')
-                    def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
-                else:
-                    spec_options = ["기본 스펙"]
-                    def_idx = 0
-            else:
-                spec_options = ["기본 스펙"]
-                def_idx = 0
-                
-            u_spec = st.selectbox("관리자가 작성한 리스트에서 스펙을 선택하세요", spec_options, index=def_idx, key="mob_edit_spec_selectbox")
+
             
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
