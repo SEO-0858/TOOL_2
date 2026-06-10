@@ -901,7 +901,7 @@ else:
                                 st.markdown("📅 **최초 기계 장착 일시 수정**")
                                 col_be_d, col_be_t = st.columns(2)
                                 with col_be_d:
-                                    ed_date = st.date_input("장착 날짜 변경", value=init_date, key=f"dt_{s_no}")
+                                    ed_date = st.date_input("장착 날짜 변경", value=init_date, key=f"dt_{s_no}_{item['_id']}")
                                 with col_be_t:
                                     ed_time = st.time_input("장착 시간 변경", value=init_time, step=300, key=f"tm_{s_no}")
 
