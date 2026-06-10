@@ -302,7 +302,7 @@ if qr_scanned_serial:
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["스펙없음"], key="mob_spec_sel")
+            u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["스펙없음"], key="mobile_spec_select_999")
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
