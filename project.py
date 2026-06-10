@@ -315,9 +315,17 @@ if qr_scanned_serial:
                 
             default_val = existing_data.get('note', '')
             display_note = default_val
-            if "현장 입고일" in default_val or "QR 선발행" in default_val:
-                match = re.search(r"(\[.*?\])", default_val)
-                if match: display_note = match.group(1)
+            default_val = existing_data.get('note', '')
+
+            # 대괄호 안의 내용만 추출하되, 전체 내용도 함께 보여주거나 
+            # 혹은 대괄호 내용을 따로 관리하고 싶으신 거라면 아래처럼 수정하세요.
+
+            match = re.search(r"(\[.*?\])", default_val)
+            if match:
+                # 대괄호 안의 정보 + 나머지 전체 정보를 합쳐서 보여줍니다.
+                display_note = default_val 
+            else:
+                display_note = default_val
                 
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
