@@ -104,10 +104,6 @@ def validate_process(current_status, next_status):
         return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
     return True, ""
 
-
-
-
-
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
     return datetime.datetime.utcnow() + timedelta(hours=9)
@@ -404,6 +400,7 @@ if qr_scanned_serial:
             data_to_save = {
                 "serial_no": qr_scanned_serial,
                 "status": u_status,
+                "current_use": u_count, # 만약 제거하셨다면 이 줄은 빼셔도 됩니다
                 "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
                 "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
                 "waste_date": waste_val,
@@ -1337,35 +1334,3 @@ else:
                             st.rerun()  
 
 
-@st.dialog("⚠️ 최종 작업 확인")
-def confirm_save_dialog(data_dict):
-    st.write("입력하신 내용을 최종 확인해 주세요.")
-    
-    # 4가지 핵심 항목 강조
-    st.info(f"💎 상태: **{data_dict['status']}**")
-    st.info(f"👷 작업자: **{data_dict['worker']}**")
-    st.info(f"⚙️ 기계: **{data_dict['machine_no']}**")
-    st.info(f"🛠 상세 스펙: **{data_dict['detail_spec']}**")
-    
-    if st.button("✅ 최종 저장 실행", type="primary"):
-        # 여기서 원래 399번 줄에 있던 로직을 실행합니다
-        db_collection.update_one(
-            {"serial_no": data_dict['serial_no']},
-            {
-                "$set": {
-                    "status": data_dict['status'],
-                    "current_use": data_dict['current_use'],
-                    "worker": data_dict['worker'],
-                    "machine_no": data_dict['machine_no'],
-                    "waste_date": data_dict['waste_date'],
-                    "note": data_dict['note'],
-                    "start_time": data_dict['start_time'],
-                    "target_time": data_dict['target_time'],
-                    "detail_spec": data_dict['detail_spec']
-                },
-                "$push": {"history": data_dict['history_entry']} if data_dict['is_status_changed'] else {"$each": []}
-            }
-        )
-        st.success("🎉 저장 완료!")
-        time.sleep(1)
-        st.rerun()
