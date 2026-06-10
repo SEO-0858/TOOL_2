@@ -267,31 +267,16 @@ if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
     st.write("<br>", unsafe_allow_html=True)
-    spec_master_col = get_spec_master_collection()
-    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) 
-    spec_options = [s['spec_name'] for s in spec_docs]
-    all_master_specs = list(spec_master_col.find({})) 
-    
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
-        # 1. 상세 스펙 데이터 불러오기 (모바일 블록 내 필수!)
-        spec_master_col = get_spec_master_collection()
-        spec_docs = list(spec_master_col.find({})) # 필요시 {"main_type": "전착툴"} 조건 추가
-        spec_options = [s['spec_name'] for s in spec_docs]
         db_status_mob = existing_data.get("status", "사용중")
         
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
-        try:
-            spec_master_col = get_spec_master_collection()
-            spec_docs = list(spec_master_col.find({}))
-            spec_options = [s['spec_name'] for s in spec_docs]
-        except:
-            spec_options = ["데이터없음"]
-              
+        
         note_content = str(existing_data.get('note', ''))
         has_history_log = "상태:" in note_content or "호기" in note_content
         has_pending_log = "상태: 재사용대기" in note_content
@@ -314,7 +299,8 @@ if qr_scanned_serial:
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            u_spec = st.selectbox("스펙을 선택하세요", spec_options if spec_options else ["데이터 없음"], key="mob_spec_sel")
+            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
+            
             u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
@@ -420,6 +406,7 @@ if qr_scanned_serial:
                 {
                     "$set": {
                         "status": u_status,
+                        "current_use": u_count,
                         "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
                         "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
                         "waste_date": waste_val,
@@ -456,9 +443,13 @@ if qr_scanned_serial:
         spec_options = [s['spec_name'] for s in all_master_specs] # 스펙 이름만 뽑기
 
         with st.form(key="mobile_input_form"):
+            spec_master_col = get_spec_master_collection()
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+            selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
+            all_master_specs = list(spec_master_col.find({})) 
+            spec_options = [s['spec_name'] for s in all_master_specs]
             
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("⏳ **드레싱 주기 커스텀 설정**")
@@ -520,7 +511,8 @@ if qr_scanned_serial:
                         "use_limit": m_limit,
                         "current_use": 0,
                         "waste_date": waste_val,
-                        "note": final_m_note_val
+                        "note": final_m_note_val,
+                        "detail_spec": selected_spec
                     }},
                     upsert=True
                 )
