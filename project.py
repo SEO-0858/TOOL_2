@@ -78,6 +78,14 @@ def get_database():
         return None
 
 db_collection = get_database()
+# 🔒 2-2. 마스터 스펙 저장용 별도 컬렉션 연결 헬퍼 함수
+def get_spec_master_collection():
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
+    try:
+        client = MongoClient(mongo_uri)
+        return client["dashboard_db"]["tool_specs_master"]
+    except:
+        return None
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
@@ -1261,6 +1269,7 @@ else:
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
     # -------------------------------------------------------------
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+        
         st.title("🔧 툴 상세 스펙 마스터 관리")
         st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
         
