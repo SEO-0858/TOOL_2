@@ -439,8 +439,8 @@ if qr_scanned_serial:
 
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
-            # 모바일 폼 내부
-            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+          
+            
 
             # [추가] 상세 스펙 선택 드롭다운
             selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
@@ -1333,6 +1333,4 @@ else:
                             st.success("리스트에서 정상 제거되었습니다.")
                             time.sleep(0.5)
                             st.rerun()  
-
-    
-                            
+                                                      
