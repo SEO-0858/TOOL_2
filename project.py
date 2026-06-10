@@ -454,14 +454,9 @@ if qr_scanned_serial:
             chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300, key="m_chosen_time")
             
         combined_dt = dt_class.combine(chosen_date, chosen_time)
-        # 1. 마스터 컬렉션 연결
-        spec_master_col = get_spec_master_collection()
-        all_master_specs = list(spec_master_col.find({})) 
-        spec_options = [s['spec_name'] for s in all_master_specs]
-
+        
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
-            selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
             
@@ -540,7 +535,7 @@ if qr_scanned_serial:
                         "current_use": 0,
                         "waste_date": waste_val,
                         "note": final_m_note_val,
-                        "detail_spec": selected_spec
+                        "detail_spec": m_spec
                     }},
                     upsert=True
                 )
@@ -551,7 +546,6 @@ if qr_scanned_serial:
     if st.button("🏠 메인 시스템으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
-
 
 # --- 💻 [PC 관리자 모드] ---
 else:
