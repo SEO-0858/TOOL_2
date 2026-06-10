@@ -302,7 +302,7 @@ if qr_scanned_serial:
             u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
             u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
-            u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
+            u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
             st.write("<br>", unsafe_allow_html=True)
@@ -318,7 +318,7 @@ if qr_scanned_serial:
             if "현장 입고일" in default_val or "QR 선발행" in default_val:
                 match = re.search(r"(\[.*?\])", default_val)
                 if match: display_note = match.group(1)
-                else: display_note = ""
+                
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
