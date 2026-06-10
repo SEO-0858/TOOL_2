@@ -277,6 +277,10 @@ if qr_scanned_serial:
     
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
         st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
+        # 1. 상세 스펙 데이터 불러오기 (모바일 블록 내 필수!)
+        spec_master_col = get_spec_master_collection()
+        spec_docs = list(spec_master_col.find({})) # 필요시 {"main_type": "전착툴"} 조건 추가
+        spec_options = [s['spec_name'] for s in spec_docs]
         db_status_mob = existing_data.get("status", "사용중")
         
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
