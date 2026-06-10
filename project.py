@@ -78,14 +78,6 @@ def get_database():
         return None
 
 db_collection = get_database()
-# 🔒 2-2. 마스터 스펙 저장용 별도 컬렉션 연결 헬퍼 함수
-def get_spec_master_collection():
-    mongo_uri = st.secrets["database"]["MONGO_URI"]
-    try:
-        client = MongoClient(mongo_uri)
-        return client["dashboard_db"]["tool_specs_master"]
-    except:
-        return None
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
@@ -110,7 +102,7 @@ def get_now_kst():
 
 now = get_now_kst()
 today = now.date()
-yyyymmdd = today.strftime("%Y%m%d")
+mmdd = today.strftime("%m%d") 
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
@@ -266,101 +258,257 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
+    st.write("<br>", unsafe_allow_html=True)
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
-    spec_master_col = get_spec_master_collection()
-    tool_code = qr_scanned_serial[:3]
-    mapped_type = "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴" if tool_code=="3" else "코어툴"
     
-    spec_docs = list(spec_master_col.find({"main_type": mapped_type})) if spec_master_col else []
-    spec_options = [s['spec_name'] for s in spec_docs] if spec_docs else ["스펙미지정"]
-
     if existing_data and existing_data.get("worker") and existing_data.get("machine_no"):
+        st.success("✅ 이미 정보 기입이 완료된 툴입니다. 상태 및 정보를 수정할 수 있습니다.")
         db_status_mob = existing_data.get("status", "사용중")
+        
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
         
-        # [데이터 입력 UI]
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-        u_count = st.number_input("📊 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
-        u_worker = st.text_input("👷 작업자 이름", value=existing_data.get('worker', '')).strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, 
-                                        value=int(''.join(filter(str.isdigit, str(existing_data.get('machine_no', '0')))) or 0), step=1)
+        note_content = str(existing_data.get('note', ''))
+        has_history_log = "상태:" in note_content or "호기" in note_content
+        has_pending_log = "상태: 재사용대기" in note_content
         
-        saved_spec = existing_data.get('detail_spec', '')
-        def_idx = spec_options.index(saved_spec) if saved_spec in spec_options else 0
-        u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options, index=def_idx)
+        if db_status_mob == "재사용대기" or (existing_data.get("last_active_machine") and has_history_log):
+            st.warning(f"""
+            ⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.**
+            * **직전 사용 장비**: {existing_data.get('last_active_machine', '기록없음')}
+            * **재사용대기 전환 시점**: {existing_data.get('last_active_time', '기록없음')}
+            * **이전 공정 가공 갯수**: {existing_data.get('last_active_count', 0)} 개
+            """)
         
-        col_uh, col_um = st.columns(2)
-        u_hours = col_uh.number_input("시간(Hour)", min_value=0, max_value=72, value=int(existing_data.get('dressing_hours', 0)))
-        u_mins = col_um.number_input("분(Minute)", min_value=0, max_value=59, value=int(existing_data.get('dressing_mins', 0)), step=5)
-        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
-        
-        if st.button("🔄 수정사항 저장하기"):
-            # 1. 공정 흐름 검증
-            is_valid, msg = validate_process(db_status_mob, u_status)
-            if not is_valid and not (db_status_mob == "사용전" and u_status == "폐기"):
-                st.error(msg)
-                st.stop()
+        orig_machine = existing_data.get('machine_no', '')
+        orig_machine_num = ''.join(filter(str.isdigit, orig_machine))
+        try:
+            default_machine_int = 0
+        except:
+            default_machine_int = 0
+
+        with st.form(key="mobile_update_form"):
+            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
             
-            # 2. 팝업 호출 (재사용대기/폐기)
+            u_worker = st.text_input("👷 작업자 이름 기입", value="").strip()
+            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
+            
+            st.write("<br>", unsafe_allow_html=True)
+            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
+            col_uh, col_um = st.columns(2)
+            with col_uh:
+                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
+            with col_um:
+                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
+                
+            default_val = existing_data.get('note', '')
+            display_note = default_val
+            if "현장 입고일" in default_val or "QR 선발행" in default_val:
+                match = re.search(r"(\[.*?\])", default_val)
+                if match: display_note = match.group(1)
+                else: display_note = ""
+            
+            u_note = st.text_area("📝 현장 특이사항", value=display_note)
+            u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+            
+        # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
+        flow_error_msg = ""
+        
+        # [수정된 모바일 공정 흐름 실시간 검증 시스템]
+        if u_submit_form_btn:
+            # 1. 여기서부터 검사를 시작합니다 (버튼 누를 때만!)
+            flow_error_msg = ""
+            
+            if db_status_mob == "폐기" and u_status != "폐기":
+                flow_error_msg = "⚠️ [공정 보안 경고] 이 툴은 이미 최종 '폐기' 처리가 완료된 상태입니다. 폐기 공구를 다시 가동 공정으로 되돌리는 것은 안전 및 논리상 절대 불가능합니다!"
+            elif db_status_mob == "재사용대기" and u_status in ["사용전", "사용중"]:
+                flow_error_msg = "⚠️ [공정 보안 경고] 현재 보관('재사용대기') 중인 툴입니다. 다시 장착하여 재가동할 때는 '사용중'이 아닌 무조건 [재사용] 또는 [폐기] 라디오 버튼만 선택해야 합니다!"
+            elif db_status_mob == "사용전" and u_status in ["재사용", "재사용대기", "폐기"]:
+                flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
+            elif db_status_mob == "사용중" and u_status == "재사용":
+                flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
+            elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
+                flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
+            elif u_status in ["사용중", "재사용", "재사용대기"] and (not u_worker or u_machine_num == 0):
+                flow_error_msg = "⚠️ [데이터 누락] 가동/보관 단계 저장 시에는 [교체 작업자 이름] 및 [기계 가공 호기(0호기 불가)]를 반드시 입력해야 합니다!"
+            elif u_status == "폐기" and not u_worker:
+                flow_error_msg = "⚠️ [데이터 누락] 툴 폐기 처리를 하려면 [교체 작업자 이름]을 반드시 입력해야 합니다!"
+
+            # 2. 검사 결과, 에러가 있다면 여기서 바로 알림을 띄우고 멈춥니다.
+            if flow_error_msg:
+                if flow_error_msg not in st.session_state.sidebar_errors:
+                    add_error(flow_error_msg)
+                st.stop()
+        
+        # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
+        # [2단계: 모바일 검문소 설치]
+        is_valid, msg = validate_process(db_status_mob, u_status)
+        
+        # [수정] 사용전 툴 폐기는 모바일에서도 예외적으로 통과시킴
+        if not is_valid:
+            if db_status_mob == "사용전" and u_status == "폐기":
+                is_valid = True
+                
+        if not is_valid:
+            st.error(msg)
+            st.stop()
+
+            machine_full_name = f"{u_machine_num}호기"
+            total_duration_mins = (u_hours * 60) + u_mins
+            current_now = get_now_kst()
+            
             if u_status == "재사용대기":
                 show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
                 st.stop()
+            
             if u_status == "폐기":
                 show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob)
                 st.stop()
 
-            # 3. DB 업데이트 로직
-            current_now = get_now_kst()
-            log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
-            history_entry = f"{current_now.strftime('%m/%d %H:%M')} - 상태:{db_status_mob}→{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
+            current_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
+            waste_val = current_time_str if u_status == "폐기" else "-"
             
-            # 드레싱 주기 계산
-            total_mins = (u_hours * 60) + u_mins
-            start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else log_time_str
-            target_time_val = (dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S") + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S") if total_mins > 0 else "-"
+            if total_duration_mins > 0 and u_status in ["사용중", "재사용"]:
+                start_time_val = existing_data.get("start_time") if existing_data.get("start_time") != "-" else current_now.strftime("%Y-%m-%d %H:%M:%S")
+                try:
+                    start_dt = dt_class.strptime(start_time_val, "%Y-%m-%d %H:%M:%S")
+                except:
+                    start_dt = current_now
+                    start_time_val = current_now.strftime("%Y-%m-%d %H:%M:%S")
+                target_time_val = (start_dt + timedelta(minutes=total_duration_mins)).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                start_time_val = existing_data.get("start_time", "-")
+                target_time_val = existing_data.get("target_time", "-")
+
+            timestamp = current_now.strftime("%m/%d %H:%M")
+            history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
+            
+            if u_status == db_status_mob:
+                final_note_val = u_note.strip()  
+            else:
+                log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
+                auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
+                final_note_val = u_note.strip() + auto_log_msg
 
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": u_status, "current_use": u_count, "worker": u_worker,
-                    "machine_no": f"{u_machine_num}호기", "detail_spec": u_spec,
-                    "dressing_hours": u_hours, "dressing_mins": u_mins,
-                    "start_time": start_time_val, "target_time": target_time_val,
-                    "note": u_note + f"\n[{log_time_str}] 상태:{u_status}"
-                }, "$push": {"history": history_entry}}
+                {
+                    "$set": {
+                        "status": u_status,
+                        "current_use": u_count,
+                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
+                        "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                        "waste_date": waste_val,
+                        "note": final_note_val,
+                        "start_time": start_time_val,
+                        "target_time": target_time_val
+                    },
+                    "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
+                }
             )
-            st.success("✅ 저장되었습니다!")
-            st.rerun()
-
+            st.success("✅ 수정사항이 저장되었습니다!")
+            time.sleep(1)
+            st.rerun()    
     else:
-        # [최초 데이터 기입]
-        m_status = st.radio("💎 최초 상태", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
-        m_worker = st.text_input("👷 작업자 이름").strip()
-        m_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, max_value=200, value=0)
-        m_spec = st.selectbox("🛠 상세 스펙 선택", spec_options)
+        st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
-        if st.button("💾 데이터 저장 및 등록 완료"):
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "status": m_status, "worker": m_worker, "machine_no": f"{m_machine_num}호기",
-                    "detail_spec": m_spec, "tool_type": mapped_type
-                }}, upsert=True
-            )
-            st.success("🎉 등록 완료!")
-            st.rerun()
+        st.markdown("### 📅 기계 장착 날짜 및 시간 선택")
+        current_now = get_now_kst()
+        
+        col_date, col_time = st.columns(2)
+        with col_date:
+            chosen_date = st.date_input("장착 날짜 선택", value=current_now.date(), key="m_chosen_date")
+        with col_time:
+            chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300, key="m_chosen_time")
+            
+        combined_dt = dt_class.combine(chosen_date, chosen_time)
+        
+        with st.form(key="mobile_input_form"):
+            m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+            m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
+            m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
+            
+            st.write("<br>", unsafe_allow_html=True)
+            st.markdown("⏳ **드레싱 주기 커스텀 설정**")
+            col_h, col_m = st.columns(2)
+            with col_h:
+                dressing_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=4, step=1)
+            with col_m:
+                dressing_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5)
+                
+            m_limit = st.number_input("Limit 사용 한도 횟수",min_value=0, value=10000, step=1000)
+            
+            init_display_note = existing_data.get('note', '') if existing_data else ""
+            if "현장 입고일" in init_display_note or "QR 선발행" in init_display_note:
+                match_init = re.search(r"(\[.*?\])", init_display_note)
+                init_display_note = match_init.group(1) if match_init else ""
 
-    if st.button("🏠 메인으로 돌아가기"):
+            m_note = st.text_area("Note 📝 특이사항", value=init_display_note)
+            
+            submit_m_btn = st.form_submit_button("💾 데이터 저장 및 등록 완료")
+            
+        if submit_m_btn:
+            if not m_worker:
+                add_error("⚠️ 작업자 이름을 반드시 입력해 주세요!")
+            elif m_machine_num == 0:
+                add_error("⚠️ 장착 가공할 정확한 기계 호기 번호를 기입해 주세요!")
+            else:
+                tool_code = qr_scanned_serial[:3]
+                waste_val = str(today) if m_status == "폐기" else "-"
+                machine_full_name = f"{m_machine_num}호기"
+                
+                total_mins = (dressing_hours * 60) + dressing_mins
+                if total_mins > 0 and m_status in ["사용중", "재사용"]:
+                    start_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
+                    target_time_str = (combined_dt + timedelta(minutes=total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    start_time_str = "-"
+                    target_time_str = "-"
+                
+                init_time_only = chosen_time.strftime("%H:%M")
+                
+                log_time_str = combined_dt.strftime("%Y-%m-%d %H:%M:%S")
+                auto_log_msg = f"\n[{log_time_str}] 상태: {m_status}, 작업자: {m_worker}, 기계: {machine_full_name}"
+                final_m_note_val = m_note.strip() + auto_log_msg
+
+                db_collection.update_one(
+                    {"serial_no": qr_scanned_serial},
+                    {"$set": {
+                        "serial_no": qr_scanned_serial,
+                        "tool_type": "전착툴" if tool_code=="1" else "레진툴" if tool_code=="2" else "메탈툴"if tool_code=="3" else "코어툴",
+                        "status": m_status,
+                        "input_date": str(chosen_date), 
+                        "init_time": init_time_only,  
+                        "worker": m_worker,
+                        "machine_no": machine_full_name,
+                        "dressing_hours": dressing_hours,
+                        "dressing_mins": dressing_mins,
+                        "start_time": start_time_str,
+                        "target_time": target_time_str,
+                        "use_limit": m_limit,
+                        "current_use": 0,
+                        "waste_date": waste_val,
+                        "note": final_m_note_val
+                    }},
+                    upsert=True
+                )
+                st.success("🎉 지정하신 장착 시간 기준으로 저장이 완료되었습니다!")
+                st.balloons()
+                st.rerun()
+                
+    if st.button("🏠 메인 시스템으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
+
 
 # --- 💻 [PC 관리자 모드] ---
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창", "🔧 툴 상세스펙 마스터 관리"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창"]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
         
@@ -377,7 +525,7 @@ else:
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
             
-        prefix = f"{tool_code}{yyyymmdd}"
+        prefix = f"{tool_code}{mmdd}"
         
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
@@ -758,11 +906,7 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                    
-                                    spec_master_col = get_spec_master_collection()
-                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
-                                    spec_options = [s['spec_name'] for s in spec_docs]
-
+                                    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
                                     # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
                                     ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
@@ -1111,54 +1255,3 @@ else:
                                     """, unsafe_allow_html=True)
                             else:
                                 st.markdown("<div style='color:black; font-size:11px;'>대기중</div>", unsafe_allow_html=True)
-
-
-        # -------------------------------------------------------------
-    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
-    # -------------------------------------------------------------
-    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
-        
-        st.title("🔧 툴 상세 스펙 마스터 관리")
-        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
-        
-        spec_master_col = get_spec_master_collection()
-        
-        if spec_master_col is None:
-            st.error("데이터베이스와 통신할 수 없습니다.")
-        else:
-            with st.form("spec_input_form_master", clear_on_submit=True):
-                st.subheader("➕ 하위 상세 스펙 신규 등록")
-                ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
-                ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
-                ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
-                
-                if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
-                    if not ins_name:
-                        st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
-                    else:
-                        spec_master_col.insert_one({
-                            "main_type": ins_type,
-                            "spec_name": ins_name,
-                            "memo": ins_memo
-                        })
-                        st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
-                        time.sleep(0.5)
-                        st.rerun()
-
-            st.write("<br><hr>", unsafe_allow_html=True)
-            st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
-            all_specs_list = list(spec_master_col.find({}))
-            
-            if not all_specs_list:
-                st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
-            else:
-                for spec in all_specs_list:
-                    col_sp1, col_sp2 = st.columns([4, 1])
-                    with col_sp1:
-                        st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
-                    with col_sp2:
-                        if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
-                            spec_master_col.delete_one({"_id": spec["_id"]})
-                            st.success("리스트에서 정상 제거되었습니다.")
-                            time.sleep(0.5)
-                            st.rerun()                            
