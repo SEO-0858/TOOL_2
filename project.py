@@ -8,6 +8,15 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
+
+def get_spec_master_collection():
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
+    try:
+        client = MongoClient(mongo_uri)
+        return client["dashboard_db"]["tool_specs_master"] # <- 여기서 정확히 지정 중!
+    except:
+        return None
+    
 def parse_serial_new(s):
     # s는 12자리 문자열
     t_type = s[0]      # 종류 (1자리)
@@ -425,9 +434,14 @@ if qr_scanned_serial:
             chosen_time = st.time_input("장착 시간 선택", value=current_now.time(), step=300, key="m_chosen_time")
             
         combined_dt = dt_class.combine(chosen_date, chosen_time)
-        
+        spec_master_col = get_spec_master_collection()
+        all_master_specs = list(spec_master_col.find({})) 
+        spec_options = [s['spec_name'] for s in all_master_specs]
+        if not spec_options:
+            spec_options = ["스펙없음(등록필요)"]
         with st.form(key="mobile_input_form"):
             m_status = st.radio("💎 툴 최초 상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], index=0, horizontal=True)
+            selected_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["직접입력"])
             m_worker = st.text_input("Worker 👷 교체 작업자 이름").strip()
             m_machine_num = st.number_input("Machine ⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=0, step=1)
             
@@ -491,7 +505,8 @@ if qr_scanned_serial:
                         "use_limit": m_limit,
                         "current_use": 0,
                         "waste_date": waste_val,
-                        "note": final_m_note_val
+                        "note": final_m_note_val,
+                        "detail_spec": selected_spec
                     }},
                     upsert=True
                 )
@@ -906,7 +921,9 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                    spec_options = ["파이90-20-200메쉬", "파이100-30-300메쉬", "파이50-10-100메쉬"]
+                                    spec_master_col = get_spec_master_collection()
+                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
+                                    spec_options = [s['spec_name'] for s in spec_docs]
                                     # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
                                     ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
@@ -1255,3 +1272,53 @@ else:
                                     """, unsafe_allow_html=True)
                             else:
                                 st.markdown("<div style='color:black; font-size:11px;'>대기중</div>", unsafe_allow_html=True)
+
+
+        # -------------------------------------------------------------
+    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
+    # -------------------------------------------------------------
+    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+        st.title("🔧 툴 상세 스펙 마스터 관리")
+        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
+        
+        spec_master_col = get_spec_master_collection()
+        
+        if spec_master_col is None:
+            st.error("데이터베이스와 통신할 수 없습니다.")
+        else:
+            with st.form("spec_input_form_master", clear_on_submit=True):
+                st.subheader("➕ 하위 상세 스펙 신규 등록")
+                ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
+                ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
+                ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
+                
+                if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
+                    if not ins_name:
+                        st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
+                    else:
+                        spec_master_col.insert_one({
+                            "main_type": ins_type,
+                            "spec_name": ins_name,
+                            "memo": ins_memo
+                        })
+                        st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
+                        time.sleep(0.5)
+                        st.rerun()
+
+            st.write("<br><hr>", unsafe_allow_html=True)
+            st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
+            all_specs_list = list(spec_master_col.find({}))
+            
+            if not all_specs_list:
+                st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
+            else:
+                for spec in all_specs_list:
+                    col_sp1, col_sp2 = st.columns([4, 1])
+                    with col_sp1:
+                        st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
+                    with col_sp2:
+                        if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
+                            spec_master_col.delete_one({"_id": spec["_id"]})
+                            st.success("리스트에서 정상 제거되었습니다.")
+                            time.sleep(0.5)
+                            st.rerun()                            
