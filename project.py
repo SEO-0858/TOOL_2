@@ -314,10 +314,7 @@ if qr_scanned_serial:
                 
             default_val = existing_data.get('note', '')
             display_note = existing_data.get('note', '')
-            if "현장 입고일" in default_val or "QR 선발행" in default_val:
-                match = re.search(r"(\[.*?\])", default_val)
-                if match: display_note = match.group(1)
-                else: display_note = ""
+            display_note = default_val
             
             u_note = st.text_area("📝 현장 특이사항", value=display_note, height=150)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
@@ -392,7 +389,7 @@ if qr_scanned_serial:
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
             
             if u_status == db_status_mob:
-                final_note_val = u_note.strip()  
+                final_note_val = u_note.strip() + auto_log_msg
             else:
                 log_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
                 auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
