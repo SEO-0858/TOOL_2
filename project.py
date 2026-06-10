@@ -104,6 +104,41 @@ def validate_process(current_status, next_status):
         return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
     return True, ""
 
+@st.dialog("⚠️ 최종 작업 확인")
+def confirm_save_dialog(data_dict):
+    st.write("입력하신 내용을 최종 확인해 주세요.")
+    
+    # 4가지 핵심 항목 강조
+    st.info(f"💎 상태: **{data_dict['status']}**")
+    st.info(f"👷 작업자: **{data_dict['worker']}**")
+    st.info(f"⚙️ 기계: **{data_dict['machine_no']}**")
+    st.info(f"🛠 상세 스펙: **{data_dict['detail_spec']}**")
+    
+    if st.button("✅ 최종 저장 실행", type="primary"):
+        # 여기서 원래 399번 줄에 있던 로직을 실행합니다
+        db_collection.update_one(
+            {"serial_no": data_dict['serial_no']},
+            {
+                "$set": {
+                    "status": data_dict['status'],
+                    "current_use": data_dict['current_use'],
+                    "worker": data_dict['worker'],
+                    "machine_no": data_dict['machine_no'],
+                    "waste_date": data_dict['waste_date'],
+                    "note": data_dict['note'],
+                    "start_time": data_dict['start_time'],
+                    "target_time": data_dict['target_time'],
+                    "detail_spec": data_dict['detail_spec']
+                },
+                "$push": {"history": data_dict['history_entry']} if data_dict['is_status_changed'] else {"$each": []}
+            }
+        )
+        st.success("🎉 저장 완료!")
+        time.sleep(1)
+        st.rerun()
+
+
+
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
     return datetime.datetime.utcnow() + timedelta(hours=9)
@@ -396,25 +431,23 @@ if qr_scanned_serial:
                 auto_log_msg = f"\n[{log_time_str}] 상태: {u_status}, 작업자: {u_worker}, 기계: {machine_full_name}"
                 final_note_val = u_note.strip() + auto_log_msg
 
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {
-                    "$set": {
-                        "status": u_status,
-                        "current_use": u_count,
-                        "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
-                        "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
-                        "waste_date": waste_val,
-                        "note": final_note_val,
-                        "start_time": start_time_val,
-                        "target_time": target_time_val
-                    },
-                    "$push": {"history": history_entry} if u_status != db_status_mob else {"$each": []}
-                }
-            )
-            st.success("✅ 수정사항이 저장되었습니다!")
-            time.sleep(1)
-            st.rerun()    
+            # 399번 줄부터 있던 update_one 로직을 지우고 아래로 교체
+            data_to_save = {
+                "serial_no": qr_scanned_serial,
+                "status": u_status,
+                "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
+                "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                "waste_date": waste_val,
+                "note": final_note_val,
+                "start_time": start_time_val,
+                "target_time": target_time_val,
+                "detail_spec": u_spec,
+                "history_entry": history_entry,
+                "is_status_changed": (u_status != db_status_mob)
+            }
+
+            # 팝업 호출
+            confirm_save_dialog(data_to_save)  
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
         
@@ -1332,4 +1365,6 @@ else:
                             spec_master_col.delete_one({"_id": spec["_id"]})
                             st.success("리스트에서 정상 제거되었습니다.")
                             time.sleep(0.5)
-                            st.rerun()                            
+                            st.rerun()  
+
+
