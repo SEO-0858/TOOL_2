@@ -333,7 +333,7 @@ if qr_scanned_serial:
 
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True, key="u_status_mobile_v2")
             spec_master_col = get_spec_master_collection()
             spec_options = [s['spec_name'] for s in list(spec_master_col.find({}))]
             u_spec = st.selectbox("🛠 상세 스펙 선택", spec_options if spec_options else ["스펙없음"])          
@@ -352,14 +352,14 @@ if qr_scanned_serial:
             display_note = existing_data.get('note', '')
             display_note = default_val
             
-            u_note = st.text_area("📝 현장 특이사항", value=display_note, height=150)
+            u_note = st.text_area("📝 현장 특이사항", value=display_note, height=150, key="u_note_mobile_v2")
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
         
         # [수정된 모바일 공정 흐름 실시간 검증 시스템]
-        if u_submit_form_btn:
+        if st.button("🔄 수정사항 저장하기", key="final_save_btn_v2"):
             # 1. 여기서부터 검사를 시작합니다 (버튼 누를 때만!)
             flow_error_msg = ""
             
@@ -433,20 +433,19 @@ if qr_scanned_serial:
 
             # 399번 줄부터 있던 update_one 로직을 지우고 아래로 교체
             data_to_save = {
-                "serial_no": qr_scanned_serial,
-                "status": u_status,
-                "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
-                "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
-                "waste_date": waste_val,
-                "note": final_note_val,
-                "start_time": start_time_val,
-                "target_time": target_time_val,
-                "detail_spec": u_spec,
-                "history_entry": history_entry,
-                "is_status_changed": (u_status != db_status_mob)
-            }
-
-            # 팝업 호출
+                                "serial_no": qr_scanned_serial,
+                                "status": u_status,
+                                "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
+                                "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                                "note": final_note_val,
+                                "detail_spec": u_spec,
+                                "start_time": start_time_val,
+                                "target_time": target_time_val,
+                                "waste_date": waste_val,
+                                "current_use": 0,
+                                "history_entry": history_entry,
+                                "is_status_changed": (u_status != db_status_mob)
+                            }
             confirm_save_dialog(data_to_save)  
     else:
         st.warning("📝 아직 정보가 기입되지 않은 빈데이터 QR코드입니다. 초기 정보를 기입해 주세요.")
