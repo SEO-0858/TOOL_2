@@ -319,7 +319,7 @@ if qr_scanned_serial:
                 if match: display_note = match.group(1)
                 else: display_note = ""
             
-            u_note = st.text_area("📝 현장 특이사항", value=display_note, height=150)
+            u_note = st.text_area("📝 현장 특이사항", value=display_note)
             u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
             
         # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
@@ -351,7 +351,11 @@ if qr_scanned_serial:
                     add_error(flow_error_msg)
                 st.stop()
         
+        # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
         # [2단계: 모바일 검문소 설치]
+        is_valid, msg = validate_process(db_status_mob, u_status)
+        
+        # [수정 후: 모바일 섹션용]
         # 1. 상태가 바뀌었을 때만 공정 검문소를 가동합니다.
         if db_status_mob != u_status:
             is_valid, msg = validate_process(db_status_mob, u_status)
