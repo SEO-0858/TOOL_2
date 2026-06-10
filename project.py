@@ -285,7 +285,13 @@ if qr_scanned_serial:
         
         status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
         status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
-        
+        try:
+            spec_master_col = get_spec_master_collection()
+            spec_docs = list(spec_master_col.find({}))
+            spec_options = [s['spec_name'] for s in spec_docs]
+        except:
+            spec_options = ["데이터없음"]
+              
         note_content = str(existing_data.get('note', ''))
         has_history_log = "상태:" in note_content or "호기" in note_content
         has_pending_log = "상태: 재사용대기" in note_content
