@@ -339,6 +339,8 @@ if qr_scanned_serial:
                 flow_error_msg = f"⚠️ [공정 흐름 오류] 아직 가동된 적 없는 '사용전' 상태의 새 제품입니다. 이치에 맞지 않게 바로 '{u_status}' 상태로 건너뛸 수 없습니다!"
             elif db_status_mob == "사용중" and u_status == "재사용":
                 flow_error_msg = "⚠️ [공정 흐름 오류] 현재 '사용중'인 툴은 바로 '재사용'으로 갈 수 없습니다! 반드시 먼저 '재사용대기'를 선택하여 실적갯수를 기록한 후 보관함에서 꺼낼 때 '재사용' 하는 것입니다."
+            elif db_status_mob == "사용중" and u_status == "사용중":
+                flow_error_msg = ""    
             elif db_status_mob in ["사용중", "재사용", "재사용대기"] and u_status == "사용전":
                 flow_error_msg = "⚠️ [공정 오류] 이미 사용 흔적이 기록된 가동 툴은 라디오 버튼으로 '사용전' 복구가 불가합니다! 이력을 파괴하려면 PC 대시보드 하단의 '완전 초기화' 기능을 이용하세요."
             elif u_status in ["사용중", "재사용", "재사용대기"] and (not u_worker or u_machine_num == 0):
