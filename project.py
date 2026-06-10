@@ -539,8 +539,8 @@ else:
             tool_code = st.text_input("🆔 고유넘버 앞 1자리 입력 (전착:1 / 레진:2 / 메탈:3 / 코어:4)", value="1", max_chars=3)
         with c2:
             quantity = st.number_input("📦 발행할 QR코드 갯수", min_value=1, max_value=100, value=50, step=1)
-            
-        prefix = f"{tool_code}{mmdd}"
+        yyyymmdd = today.strftime("%Y%m%d")    
+        prefix = f"{tool_code}{yyyymmdd}"
         
         try:
             last_tool = db_collection.find_one({"serial_no": {"$regex": f"^{prefix}"}}, sort=[("serial_no", -1)])
