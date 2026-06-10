@@ -351,19 +351,16 @@ if qr_scanned_serial:
                     add_error(flow_error_msg)
                 st.stop()
         
-        # flow_error_msg 체크가 끝난 바로 아래에 추가하세요
         # [2단계: 모바일 검문소 설치]
-        is_valid, msg = validate_process(db_status_mob, u_status)
-        
-        # [수정] 사용전 툴 폐기는 모바일에서도 예외적으로 통과시킴
-        if not is_valid:
-            if db_status_mob == "사용전" and u_status == "폐기":
-                is_valid = True
-                
-        if not is_valid:
-            st.error(msg)
-            st.stop()
-
+        # 1. 상태가 바뀌었을 때만 공정 검문소를 가동합니다.
+        if db_status_mob != u_status:
+            is_valid, msg = validate_process(db_status_mob, u_status)
+            
+            # 2. '사용전 -> 폐기'는 예외적으로 허용
+            if not (db_status_mob == "사용전" and u_status == "폐기"):
+                if not is_valid:
+                    st.error(msg)
+                    st.stop()
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
@@ -1006,11 +1003,15 @@ else:
                                         st.stop()
 
                                     # [2단계: PC 검문소 설치]
-                                    is_valid, msg = validate_process(db_current_status, ed_status)
-                                    # 사용전 툴 폐기는 검문소 통과
-                                    if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
-                                        st.error(msg)
-                                        st.stop()
+                                    # 1. 상태가 바뀌었을 때만 공정 검문소를 가동합니다.
+                                    if db_current_status != ed_status:
+                                        is_valid, msg = validate_process(db_current_status, ed_status)
+                                        
+                                        # 2. '사용전 -> 폐기'는 예외적으로 허용하고, 나머지는 검문 결과에 따라 차단합니다.
+                                        if not (db_current_status == "사용전" and ed_status == "폐기"):
+                                            if not is_valid:
+                                                st.error(msg)
+                                                st.stop()
 
                                     if ed_status == "재사용대기":
                                         show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
