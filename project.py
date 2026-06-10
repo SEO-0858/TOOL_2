@@ -299,9 +299,7 @@ if qr_scanned_serial:
 
         with st.form(key="mobile_update_form"):
             st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-            u_count = st.number_input("📊 현재까지의 실제 사용 횟수", value=int(existing_data.get('current_use', 0)), step=1)
-            
+            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)            
             u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
             u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
             
@@ -516,7 +514,6 @@ if qr_scanned_serial:
                         "start_time": start_time_str,
                         "target_time": target_time_str,
                         "use_limit": m_limit,
-                        "current_use": 0,
                         "waste_date": waste_val,
                         "note": final_m_note_val,
                         "detail_spec": selected_spec
