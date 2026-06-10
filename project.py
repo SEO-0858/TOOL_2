@@ -355,16 +355,15 @@ if qr_scanned_serial:
         # [2단계: 모바일 검문소 설치]
         is_valid, msg = validate_process(db_status_mob, u_status)
         
-        # [수정 후: 모바일 섹션용]
-        # 1. 상태가 바뀌었을 때만 공정 검문소를 가동합니다.
-        if db_status_mob != u_status:
-            is_valid, msg = validate_process(db_status_mob, u_status)
-            
-            # 2. '사용전 -> 폐기'는 예외적으로 허용
-            if not (db_status_mob == "사용전" and u_status == "폐기"):
-                if not is_valid:
-                    st.error(msg)
-                    st.stop()
+        # [수정] 사용전 툴 폐기는 모바일에서도 예외적으로 통과시킴
+        if not is_valid:
+            if db_status_mob == "사용전" and u_status == "폐기":
+                is_valid = True
+                
+        if not is_valid:
+            st.error(msg)
+            st.stop()
+
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
