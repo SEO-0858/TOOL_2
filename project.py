@@ -423,7 +423,7 @@ if qr_scanned_serial:
 
             timestamp = current_now.strftime("%m/%d %H:%M")
             history_entry = f"{timestamp} - 상태:{existing_data.get('status')}→{u_status}, 작업자:{u_worker}, 기계:{machine_full_name}"
-            
+            auto_log_msg = ""
             if u_status == db_status_mob:
                 final_note_val = u_note.strip() + auto_log_msg
             else:
