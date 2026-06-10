@@ -508,7 +508,6 @@ if qr_scanned_serial:
                         "worker": m_worker,
                         "machine_no": machine_full_name,
                         "dressing_hours": dressing_hours,
-                        "detail_spec": selected_spec,
                         "dressing_mins": dressing_mins,
                         "start_time": start_time_str,
                         "target_time": target_time_str,
