@@ -272,12 +272,12 @@ if qr_scanned_serial:
     
     # 1. 데이터 조회
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+    prev_status = existing_data.get("status", "사용전")
     
     # 2. 상태 선택
     st.markdown("### 🔄 툴 현재 상태")
-    db_status_mob = existing_data.get("status", "사용전")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
+    status_index = status_options.index(prev_status) if prev_status in status_options else 0
     u_status = st.radio("상태를 선택하세요", status_options, index=status_index, horizontal=True)
     
     st.divider()
@@ -306,27 +306,26 @@ if qr_scanned_serial:
     with col_m:
         u_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=existing_data.get('dressing_mins', 0))
         
-    u_note = st.text_area("📝 현장 특이사항 (이전 기록 포함)", value=existing_data.get('note', ''))
+    u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', '').split('\n')[0])
     
-    # 5. 저장 로직
+    # 5. 저장 로직 (중복 방지 및 정보 갱신)
     if st.button("💾 데이터 저장 및 수정 완료"):
         if not u_worker:
             st.error("⚠️ 작업자 이름을 입력해주세요!")
         else:
-            # [PC 알림판 호환] 시간 계산 로직
+            # 상태 변경 여부 확인 후 로그 생성 (상태가 변할 때만 기록)
+            final_note_val = u_note.strip()
+            if u_status != prev_status:
+                current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
+                final_note_val = final_note_val + log_msg
+            
+            # PC 알림판용 시간 계산
             total_minutes = (u_hours * 60) + u_mins
             start_dt = get_now_kst()
             target_dt = start_dt + timedelta(minutes=total_minutes)
             
-            target_time_val = target_dt.strftime("%Y-%m-%d %H:%M:%S")
-            start_time_val = start_dt.strftime("%Y-%m-%d %H:%M:%S")
-            
-            # 특이사항 로그 생성
-            current_time_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
-            log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기, 스펙:{u_spec}"
-            final_note_val = u_note.strip() + log_msg
-            
-            # DB 업데이트
+            # DB 업데이트 (무조건 최신 정보로 갱신)
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -337,15 +336,14 @@ if qr_scanned_serial:
                     "dressing_mins": u_mins,
                     "note": final_note_val,
                     "detail_spec": u_spec,
-                    "start_time": start_time_val,
-                    "target_time": target_time_val
+                    "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                    "target_time": target_dt.strftime("%Y-%m-%d %H:%M:%S")
                 }},
                 upsert=True
             )
-            st.toast("✅ 저장 완료! PC 알림판을 확인하세요.", icon="🎉")
+            st.toast("✅ 정보가 업데이트되었습니다!", icon="🎉")
             st.rerun()
 
-    # 돌아가기 버튼
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear()
         st.rerun()
