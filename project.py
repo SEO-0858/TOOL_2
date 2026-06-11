@@ -266,54 +266,62 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
+# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 인식된 시리얼 넘버: `{qr_scanned_serial}`")
+    st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial})
+    # 데이터 조회
+    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
-    if existing_data and existing_data.get("worker"):
-        st.success("✅ 이미 정보가 기입된 툴입니다. 내용을 수정하세요.")
-        
-        # 1. DB 값 그대로 가져오기 (상태 제어 변수 제거)
-        db_status_mob = existing_data.get("status", "사용중")
-        status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-        
-        # 2. 상태 선택 위젯 (단순하게 인덱스만 계산)
-        status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 1
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
-        
-        # 3. 입력 필드들
-        u_worker = st.text_input("👷 작업자 이름", value=existing_data.get('worker', '')).strip()
-        u_machine_num = st.number_input("⚙️ 기계 가공 호기", min_value=0, value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', '0')))) if any(c.isdigit() for c in existing_data.get('machine_no', '')) else 0)
-        
-        u_hours = st.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
-        u_mins = st.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
-        u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
-        
-        # 4. 저장 로직 (복잡한 flow_error_msg, stop() 등 제거)
-        if st.button("🔄 수정사항 저장하기"):
-            # DB 저장 로직만 남김
-            machine_full_name = f"{u_machine_num}호기"
-            
+    # 1. 상태 선택 (기존값 없으면 "사용전" 기본값)
+    db_status_mob = existing_data.get("status", "사용전")
+    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
+    status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
+    
+    u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
+    
+    # 2. 기본 정보 입력
+    u_worker = st.text_input("👷 작업자 이름", value=existing_data.get('worker', '')).strip()
+    
+    # 기계 호기 번호 처리
+    orig_mach = existing_data.get('machine_no', '')
+    default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
+    u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, value=default_mach, step=1)
+    
+    # 드레싱 시간 설정
+    u_hours = st.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
+    u_mins = st.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
+    
+    u_note = st.text_area("📝 특이사항", value=existing_data.get('note', ''))
+    
+    # 3. 저장 버튼
+    if st.button("💾 데이터 저장"):
+        if not u_worker:
+            st.error("⚠️ 작업자 이름을 입력해주세요!")
+        elif u_machine_num == 0:
+            st.error("⚠️ 기계 호기를 입력해주세요!")
+        else:
+            # DB 저장
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
+                    "serial_no": qr_scanned_serial,
                     "status": u_status,
-                    "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
-                    "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
+                    "worker": u_worker,
+                    "machine_no": f"{u_machine_num}호기",
                     "dressing_hours": u_hours,
                     "dressing_mins": u_mins,
                     "note": u_note
-                }}
+                }},
+                upsert=True
             )
-            st.success("✅ 저장되었습니다!")
+            st.success("✅ 저장 완료되었습니다!")
             st.rerun()
-            
-    else:
-        # (빈 데이터인 경우의 신규 등록 로직은 기존처럼 유지하되, 위와 같은 구조로 정리 가능)
-        st.warning("📝 빈 데이터입니다. 신규 정보를 기입해 주세요.")
-        # ... (이후 신규 등록 폼)
+
+    if st.button("🏠 메인으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 
 # --- 💻 [PC 관리자 모드] ---
