@@ -303,6 +303,8 @@ if qr_scanned_serial:
         st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
         if "status_radio" not in st.session_state:
             st.session_state["status_radio"] = db_status_mob
+        current_db_status = db_status_mob 
+        status_index = status_options.index(current_db_status)
         u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)            
         u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
         u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
@@ -384,16 +386,9 @@ if qr_scanned_serial:
         if not is_valid:
             # [수정] 복구 버튼을 눌렀을 때만 작동하는 로직
             if st.button("🔄 이전 상태로 복구하고 다시 시도하기"):
-                if 'flow_error_msg' in st.session_state:
-                    del st.session_state['flow_error_msg']
                 st.rerun()
             
-            # [수정] 에러를 띄우기 전에 복구된 상태인지 확인
-            if st.session_state.get('just_restored', False):
-                st.session_state['just_restored'] = False # 신호 초기화
-                st.stop() # 에러를 띄우지 않고 멈춤
-            
-            # 에러 메시지
+
             st.error(msg)
             st.stop()
 
