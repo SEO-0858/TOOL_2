@@ -958,6 +958,7 @@ else:
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
+                                    st.write(f"현재 선택된 상태값: {ed_status}")
 
                                     # [사용중 툴 폐기 시 경고 및 사유 입력]
                                     if ed_status == "폐기" and db_current_status == "사용중":
