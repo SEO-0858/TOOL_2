@@ -303,7 +303,7 @@ if qr_scanned_serial:
         st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
         if "status_radio" not in st.session_state:
             st.session_state["status_radio"] = db_status_mob
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, key="status_radio", horizontal=True)            
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)            
         u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
         u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
         
@@ -382,16 +382,15 @@ if qr_scanned_serial:
             st.stop()        
                 
         if not is_valid:
-            if st.button("🔄 이전 상태로 복구하고 다시 시도하기"):
-                st.session_state["status_radio"] = db_status_mob  # 원래 DB에 있던 상태로 복구
-                st.rerun() # 페이지 새로고침
+  
+            st.rerun() # 페이지 새로고침
             st.error(msg)
             st.stop()
             if st.button("❌ 오류 메시지 닫기"):
                 # 에러를 관리하는 변수를 초기화하거나, 그냥 페이지를 새로고침합니다.
                 st.rerun() 
                 st.stop()
-                
+
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
