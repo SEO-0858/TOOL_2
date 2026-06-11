@@ -370,6 +370,14 @@ if qr_scanned_serial:
         if not is_valid:
             if db_status_mob == "사용전" and u_status == "폐기":
                 is_valid = True
+
+        if u_status == "재사용대기":
+            show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
+            st.stop()
+            
+        if u_status == "폐기":
+            show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob)
+            st.stop()        
                 
         if not is_valid:
             st.error(msg)
@@ -381,15 +389,6 @@ if qr_scanned_serial:
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
-            
-            if u_status == "재사용대기":
-                show_reuse_pending_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, u_machine_num, u_hours, u_mins)
-                st.stop()
-            
-            if u_status == "폐기":
-                show_waste_dialog(qr_scanned_serial, existing_data.get('machine_no', ''), u_note, u_worker, db_status_mob)
-                st.stop()
-
             current_time_str = current_now.strftime("%Y-%m-%d %H:%M:%S")
             waste_val = current_time_str if u_status == "폐기" else "-"
             
