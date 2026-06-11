@@ -1070,7 +1070,7 @@ else:
 # 사이드바 메뉴와 연결되는 최상위 if-elif 구조입니다.
 # (이 구조를 그대로 유지해야 메뉴가 백지로 나오지 않습니다.)
 
-    elif tool_menu == "🔍 실시간 기계 정보창":
+    elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
         now_kst = get_now_kst()
         st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
