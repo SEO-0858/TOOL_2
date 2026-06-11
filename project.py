@@ -299,37 +299,37 @@ if qr_scanned_serial:
         except:
             default_machine_int = 0
 
-        with st.form(key="mobile_update_form"):
-            st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
-            u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)            
-            u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
-            u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
+        
+        st.markdown("### ⚡ 실시간 툴 상태 및 횟수 수정")
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)            
+        u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
+        u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
+        
+        st.write("<br>", unsafe_allow_html=True)
+        st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
+        col_uh, col_um = st.columns(2)
+        with col_uh:
+            u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
+        with col_um:
+            u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
             
-            st.write("<br>", unsafe_allow_html=True)
-            st.markdown("⏳ **드레싱 주기 커스텀 시간 수정**")
-            col_uh, col_um = st.columns(2)
-            with col_uh:
-                u_hours = st.number_input("시간(Hour) 설정", min_value=0, max_value=72, value=0, step=1, key="uh")
-            with col_um:
-                u_mins = st.number_input("분(Minute) 설정", min_value=0, max_value=59, value=0, step=5, key="um")
-                
-            default_val = existing_data.get('note', '')
+        default_val = existing_data.get('note', '')
+        display_note = default_val
+        default_val = existing_data.get('note', '')
+
+        # 대괄호 안의 내용만 추출하되, 전체 내용도 함께 보여주거나 
+        # 혹은 대괄호 내용을 따로 관리하고 싶으신 거라면 아래처럼 수정하세요.
+
+        match = re.search(r"(\[.*?\])", default_val)
+        if match:
+            # 대괄호 안의 정보 + 나머지 전체 정보를 합쳐서 보여줍니다.
+            display_note = default_val 
+        else:
             display_note = default_val
-            default_val = existing_data.get('note', '')
-
-            # 대괄호 안의 내용만 추출하되, 전체 내용도 함께 보여주거나 
-            # 혹은 대괄호 내용을 따로 관리하고 싶으신 거라면 아래처럼 수정하세요.
-
-            match = re.search(r"(\[.*?\])", default_val)
-            if match:
-                # 대괄호 안의 정보 + 나머지 전체 정보를 합쳐서 보여줍니다.
-                display_note = default_val 
-            else:
-                display_note = default_val
-                
             
-            u_note = st.text_area("📝 현장 특이사항", value=display_note)
-            u_submit_form_btn = st.form_submit_button("🔄 수정사항 저장하기")
+        
+        u_note = st.text_area("📝 현장 특이사항", value=display_note)
+        u_submit_form_btn = st.button("🔄 수정사항 저장하기")
             
         # 📱 모바일 공정 흐름 실시간 검증 시스템 가동
         flow_error_msg = ""
@@ -377,7 +377,7 @@ if qr_scanned_serial:
             if st.button("❌ 오류 메시지 닫기"):
                 # 에러를 관리하는 변수를 초기화하거나, 그냥 페이지를 새로고침합니다.
                 st.rerun() 
-                st.stop()
+            st.stop()
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
@@ -420,7 +420,6 @@ if qr_scanned_serial:
                 {
                     "$set": {
                         "status": u_status,
-                        "current_use": u_count,
                         "worker": "" if u_status in ["사용전", "폐기"] else u_worker, 
                         "machine_no": "" if u_status in ["사용전", "폐기"] else machine_full_name,
                         "waste_date": waste_val,
