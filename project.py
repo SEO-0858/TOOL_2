@@ -266,39 +266,38 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
+    # 1. 데이터 조회 (빈 데이터일 경우 빈 딕셔너리 사용)
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
-    # 1. 툴 상태 선택 섹션
-    st.markdown("### 🔄 툴 상태 제어")
+    # 2. 상태 선택 (기본값 설정)
     db_status_mob = existing_data.get("status", "사용전")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
-    u_status = st.radio("툴 현재 상태를 선택하세요", status_options, index=status_index, horizontal=True)
-    
-    st.divider() # 섹션 구분선
-    
-    # 2. 기본 정보 섹션
-    st.markdown("### 📝 기본 정보 입력")
-    u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', '')).strip()
-    
-    orig_mach = existing_data.get('machine_no', '')
-    default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
-    u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, value=default_mach, step=1)
-    
-    # 3. 툴 세부 스펙 섹션 (누락된 스펙 선택창 추가)
-    st.markdown("### 🛠 상세 스펙 설정")
-    spec_master_col = get_spec_master_collection()
-    spec_options = [s['spec_name'] for s in list(spec_master_col.find({}))] or ["스펙없음"]
-    u_spec = st.selectbox("사용할 툴 세부 스펙을 선택하세요", spec_options, index=0)
+    u_status = st.radio("🔄 툴 현재 상태를 선택하세요", status_options, index=status_index, horizontal=True)
     
     st.divider()
     
-    # 4. 드레싱 주기 섹션 (제목 및 시간/분 분리)
+    # 3. 입력 필드 (기본 정보)
+    st.markdown("### 📝 기본 정보")
+    u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', '')).strip()
+    
+    # 기계 번호 자동 추출
+    orig_mach = existing_data.get('machine_no', '')
+    default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
+    u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=default_mach, step=1)
+    
+    # 세부 스펙 선택
+    spec_master_col = get_spec_master_collection()
+    spec_options = [s['spec_name'] for s in list(spec_master_col.find({}))] or ["스펙없음"]
+    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_options, index=0)
+    
+    st.divider()
+    
+    # 4. 드레싱 주기 설정
     st.markdown("### ⏳ 드레싱 주기 설정")
     col_h, col_m = st.columns(2)
     with col_h:
@@ -306,24 +305,38 @@ if qr_scanned_serial:
     with col_m:
         u_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=existing_data.get('dressing_mins', 0))
         
-    u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
+    u_note = st.text_area("📝 현장 특이사항 (이전 기록 포함)", value=existing_data.get('note', ''))
     
-    # 5. 저장 버튼
+    # 5. 저장 로직
     if st.button("💾 데이터 저장 및 수정 완료"):
-        db_collection.update_one(
-            {"serial_no": qr_scanned_serial},
-            {"$set": {
-                "status": u_status,
-                "worker": u_worker,
-                "machine_no": f"{u_machine_num}호기",
-                "detail_spec": u_spec,
-                "dressing_hours": u_hours,
-                "dressing_mins": u_mins,
-                "note": u_note
-            }},
-            upsert=True
-        )
-        st.success("✅ 저장되었습니다!")
+        if not u_worker:
+            st.error("⚠️ 작업자 이름을 입력해주세요!")
+        else:
+            # 이력 기록 로직 (현재 시간 + 상태 변경 내용)
+            current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
+            final_note_val = u_note.strip() + log_msg
+            
+            # DB 저장
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {
+                    "status": u_status,
+                    "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
+                    "machine_no": "" if u_status in ["사용전", "폐기"] else f"{u_machine_num}호기",
+                    "detail_spec": u_spec,
+                    "dressing_hours": u_hours,
+                    "dressing_mins": u_mins,
+                    "note": final_note_val
+                }},
+                upsert=True
+            )
+            st.success("✅ 저장되었습니다!")
+            st.rerun()
+
+    # 돌아가기 버튼
+    if st.button("🏠 메인으로 돌아가기"):
+        st.query_params.clear()
         st.rerun()
 
 
