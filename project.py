@@ -1098,11 +1098,8 @@ else:
                         st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
                         st.rerun()
 
-    # 5) 🖥️ 실시간 기계 정보창 (Grid Layout)--------------------------------------------------------------------------------------------------
-# --- [메뉴 선택 메인 로직 섹션] ---
-# 사이드바 메뉴와 연결되는 최상위 if-elif 구조입니다.
-# (이 구조를 그대로 유지해야 메뉴가 백지로 나오지 않습니다.)
 
+# 5) 🖥️ 실시간 기계 정보창 (Grid Layout)--------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
         now_kst = get_now_kst()
@@ -1140,27 +1137,23 @@ else:
                     st.markdown(f"**{m_no}호기**")
                     if m_no in machine_tool_map:
                         for item in machine_tool_map[m_no]:
-                            # 상태 계산 및 UI 출력
                             color, label, text = get_status_info(item, now_kst)
                             render_tool_ui(item, color, label, text)
                             if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
-                                st.session_state.edit_serial = item['serial_no']
                                 st.session_state.edit_serial = item['serial_no']
                                 st.rerun()
                     else:
                         st.info("비어있음")
 
-
-        # --- [수정창 호출 로직: 아래 코드를 레이아웃 출력부 바로 아래에 추가하세요] ---
+        # 4. 상세 수정창 (note 필드 기반 연혁 파싱 로직 포함)
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
             st.divider()
             st.subheader(f"🛠 툴 정보 및 연혁 관리: {st.session_state.edit_serial}")
             
-            # 1. DB에서 데이터 다시 한번 확실하게 조회
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
-                # A. 기본 정보 수정 (기계/작업자)
+                # [기본 정보 수정]
                 with st.form("edit_basic_info"):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -1168,27 +1161,29 @@ else:
                     with col2:
                         new_worker = st.text_input("담당 작업자", value=target_tool.get('worker', ''))
                     
-                    submit_info = st.form_submit_button("💾 기본 정보 저장")
-                    if submit_info:
+                    if st.form_submit_button("💾 기본 정보 저장"):
                         db_collection.update_one(
                             {"serial_no": st.session_state.edit_serial},
                             {"$set": {"machine_no": new_machine, "worker": new_worker}}
                         )
                         st.success("기본 정보가 수정되었습니다!")
 
-                # B. 연혁 데이터 편집 (판다스 에디터)
-                st.write("#### 📜 연혁 데이터 편집")
-                history_data = target_tool.get("history", [])
+                # [연혁 관리: note 필드 활용]
+                st.write("#### 📜 연혁 데이터 (기록 관리)")
+                raw_note = target_tool.get("note", "")
                 
-                # 데이터가 비어있으면 빈 폼이라도 보여줌
-                df = pd.DataFrame(history_data) if history_data else pd.DataFrame(columns=["이력 내용", "누적수량", "기계번호", "발생시간"])
+                # 줄바꿈 기준으로 데이터를 쪼개어 표로 변환
+                note_lines = raw_note.split('\n') if raw_note else ["입고 정보 없음"]
+                df = pd.DataFrame(note_lines, columns=["연혁 및 기록 내용"])
                 
                 edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
                 
                 if st.button("💾 연혁 전체 저장"):
+                    # 다시 줄바꿈 문자열로 합쳐서 DB에 저장
+                    updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
                     db_collection.update_one(
                         {"serial_no": st.session_state.edit_serial},
-                        {"$set": {"history": edited_df.to_dict(orient='records')}}
+                        {"$set": {"note": updated_note}}
                     )
                     st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
@@ -1198,11 +1193,25 @@ else:
                     st.rerun()
             else:
                 st.error("데이터를 찾을 수 없습니다.")
+
+    elif tool_menu == "툴 상세스펙 마스터 관리":
+        st.title("툴 상세 스펙 마스터 관리")
+        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다.")
+        spec_master_col = get_spec_master_collection()
+        if spec_master_col is None:
+            st.error("데이터베이스와 통신할 수 없습니다.")
+        else:
+            with st.form("spec_input_form_master", clear_on_submit=True):
+                ins_type = st.selectbox("1. 툴 대분류 선택", ["진착툴", "레진툴", "에탄툴", "코어툴"])
+                ins_name = st.text_input("2. 세부 스펙 이름 기입")
+                ins_memo = st.text_input("3. 비고/메모")
+                if st.form_submit_button("스펙 리스트에 최종 등록"):
+                    st.success("등록되었습니다.")
         
 
 
 
-
+#-------툴 상세스펙 마스터 관리------------------------------------------------------------------------------------------------------------------------------
 
     elif tool_menu == "툴 상세스펙 마스터 관리":
         # 🔧 아이콘을 빼고 텍스트로만 설정하여 문법 오류 방지
