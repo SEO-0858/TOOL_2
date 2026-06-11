@@ -270,22 +270,23 @@ if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
-    # 1. 데이터 조회 (빈 데이터일 경우 빈 딕셔너리 사용)
+    # 1. 데이터 조회 (PC와 동일한 DB 호출)
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
-    # 2. 상태 선택 (기본값 설정)
+    # 2. 상태 선택
+    st.markdown("### 🔄 툴 현재 상태")
     db_status_mob = existing_data.get("status", "사용전")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     status_index = status_options.index(db_status_mob) if db_status_mob in status_options else 0
-    u_status = st.radio("🔄 툴 현재 상태를 선택하세요", status_options, index=status_index, horizontal=True)
+    u_status = st.radio("상태를 선택하세요", status_options, index=status_index, horizontal=True)
     
     st.divider()
     
-    # 3. 입력 필드 (기본 정보)
+    # 3. 기본 정보 입력
     st.markdown("### 📝 기본 정보")
     u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', '')).strip()
     
-    # 기계 번호 자동 추출
+    # 기계 번호: 숫자만 추출하여 저장/불러오기
     orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=default_mach, step=1)
@@ -307,27 +308,28 @@ if qr_scanned_serial:
         
     u_note = st.text_area("📝 현장 특이사항 (이전 기록 포함)", value=existing_data.get('note', ''))
     
-    # 5. 저장 로직
+    # 5. 저장 로직 (PC와 호환되도록 필드명 1:1 매칭)
     if st.button("💾 데이터 저장 및 수정 완료"):
         if not u_worker:
             st.error("⚠️ 작업자 이름을 입력해주세요!")
         else:
-            # 이력 기록 로직 (현재 시간 + 상태 변경 내용)
+            # 특이사항 로그 생성 (PC 현황판 로직과 동일 형식)
             current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
             final_note_val = u_note.strip() + log_msg
             
-            # DB 저장
+            # DB 업데이트
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
                     "status": u_status,
+                    # PC와 동일하게 상태에 따라 작업자/기계 정보 초기화
                     "worker": "" if u_status in ["사용전", "폐기"] else u_worker,
                     "machine_no": "" if u_status in ["사용전", "폐기"] else f"{u_machine_num}호기",
-                    "detail_spec": u_spec,
                     "dressing_hours": u_hours,
                     "dressing_mins": u_mins,
-                    "note": final_note_val
+                    "note": final_note_val,
+                    "detail_spec": u_spec
                 }},
                 upsert=True
             )
