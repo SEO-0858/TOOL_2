@@ -266,32 +266,29 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 
-# --- 📱 [모바일/현장 QR 스캔 기입 모드] ----------------------------------
+# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---------------------------------------------------------------------------------------
 
-# [최종 확인 팝업창 - 상태 대조 기능 포함]
+
+# [최종 확인 팝업창 - 팝업 내부에서 모든 처리를 완결]
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
-    # 1. 상태 대조 및 강조 로직
+    # 상태 대조 및 강조
     if data['status'] != data['prev_status']:
-        if data['status'] == "폐기":
-            st.error(f"⚠️ 경고: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 변경합니다!")
-        else:
-            st.warning(f"🔄 알림: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 상태가 변경됩니다.")
+        color_func = st.error if data['status'] == "폐기" else st.warning
+        color_func(f"🔄 변경: [ {data['prev_status']} ] ➔ [ {data['status']} ]")
     else:
         st.info(f"현재 상태 유지: [ {data['status']} ]")
 
-    st.markdown("---")
-    # 2. 요약 정보
     st.write(f"- **작업자:** {data['worker']}")
     st.write(f"- **기계 호기:** {data['machine_no']}")
-    st.write(f"- **세부 스펙:** {data['detail_spec']}")
-    st.write(f"- **설정 주기:** {data['dressing_hours']}시간 {data['dressing_mins']}분")
+    st.write(f"- **스펙:** {data['detail_spec']}")
     
     qty = 0
     if data['status'] in ["폐기", "재사용대기"]:
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
         
-    if st.button("✅ 최종 확정 및 저장"):
+    # [핵심] 여기서 저장 버튼을 눌러도 전체 페이지는 영향을 받지 않음
+    if st.button("✅ 저장 완료"):
         final_note = data['note']
         if data['status'] != data['prev_status']:
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -314,60 +311,45 @@ def confirm_and_save(serial, data):
             }},
             upsert=True
         )
-        st.toast("✅ 저장 완료되었습니다!", icon="🎉")
-        st.rerun()
+        st.toast("✅ 저장 성공!", icon="🎉")
+        st.rerun() # 팝업 안에서의 리런은 전체 페이지 깜빡임에 영향이 적음
 
-# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
-if qr_scanned_serial:
-    st.title("📱 현장 툴 정보 즉시 기입창")
-    st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
-    
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+# --- 📱 [ 깜빡임 방지용 Fragment] ---
+@st.fragment
+def render_mobile_form(serial):
+    existing_data = db_collection.find_one({"serial_no": serial}) or {}
     prev_status = existing_data.get("status", "사용전")
     
-    # [깜빡임 방지를 위해 st.form 대신 일반 입력 모드 유지]
-    st.markdown("### 🔄 툴 현재 상태")
-    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    idx = status_options.index(prev_status) if prev_status in status_options else 0
-    u_status = st.radio("상태를 선택하세요", status_options, index=idx, horizontal=True)
-    
-    st.divider()
-    
-    st.markdown("### 📝 기본 정보")
-    u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
-    
-    orig_mach = existing_data.get('machine_no', '')
-    default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
-    u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
+    u_status = st.radio("상태 선택", ["사용전", "사용중", "재사용", "재사용대기", "폐기"], 
+                        index=["사용전", "사용중", "재사용", "재사용대기", "폐기"].index(prev_status), horizontal=True)
+    u_worker = st.text_input("작업자", value=existing_data.get('worker', ''))
+    u_machine = st.number_input("기계 호기", value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', ''))) or 0))
     
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
+    u_spec = st.selectbox("스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
     
-    st.divider()
-    
-    st.markdown("### ⏳ 드레싱 및 특이사항")
     c1, c2 = st.columns(2)
-    u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
-    u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
-    u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
+    u_h = c1.number_input("시간", value=existing_data.get('dressing_hours', 0))
+    u_m = c2.number_input("분", value=existing_data.get('dressing_mins', 0))
+    u_note = st.text_area("특이사항", value=existing_data.get('note', ''))
     
-    # 팝업 호출 버튼
     if st.button("💾 데이터 확인 및 저장"):
-        start_dt = get_now_kst()
-        target_dt = start_dt + timedelta(minutes=(u_h * 60) + u_m)
         confirm_data = {
             'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
             'machine_no': f"{u_machine}호기", 'detail_spec': u_spec,
             'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
-            'start_time': start_dt.strftime("%Y-%m-%d %H:%M:%S"),
-            'target_time': target_dt.strftime("%Y-%m-%d %H:%M:%S")
+            'start_time': get_now_kst().strftime("%Y-%m-%d %H:%M:%S"),
+            'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime("%Y-%m-%d %H:%M:%S")
         }
-        confirm_and_save(qr_scanned_serial, confirm_data)
+        confirm_and_save(serial, confirm_data)
 
-    if st.button("🏠 메인으로 돌아가기"):
+if qr_scanned_serial:
+    st.title("📱 현장 툴 정보")
+    render_mobile_form(qr_scanned_serial)
+    if st.button("🏠 메인으로"):
         st.query_params.clear(); st.rerun()
 
-# --- 💻 [PC 관리자 모드] ---
+# --- 💻 [PC 관리자 모드] -----------------------------------------------------------------------------------------
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
