@@ -1062,7 +1062,7 @@ else:
                         
                                         auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                         final_note_val = ed_note.strip() + auto_log_msg
-                                        st.write(f"최종 저장 직전의 status 값: {ed_status}")
+                                        st.write(f"--- [최종 점검] DB 저장 직전 ed_status 값: {ed_status} ---")
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
