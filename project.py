@@ -8,6 +8,7 @@ import base64
 import re
 import time
 from datetime import datetime as dt_datetime
+import pandas as pd
 
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 필수 함수입니다."""
