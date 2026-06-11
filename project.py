@@ -382,8 +382,10 @@ if qr_scanned_serial:
             st.stop()        
                 
         if not is_valid:
-  
-            st.rerun() # 페이지 새로고침
+            if st.button("🔄 이전 상태로 복구하고 다시 시도하기"):
+                if 'sidebar_errors' in st.session_state:
+                    st.session_state.sidebar_errors = []
+                    st.rerun() # 페이지 새로고침
             st.error(msg)
             st.stop()
             if st.button("❌ 오류 메시지 닫기"):
