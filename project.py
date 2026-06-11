@@ -273,8 +273,6 @@ if qr_scanned_serial:
     # 1. 데이터 조회
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     prev_status = existing_data.get("status", "사용전")
-    
-    # [수정] 특이사항 데이터를 확실하게 불러오기
     saved_note = existing_data.get("note", "")
     
     # 2. 상태 선택
@@ -293,6 +291,7 @@ if qr_scanned_serial:
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=default_mach, step=1)
     
+    # 스펙 선택 로직
     spec_master_col = get_spec_master_collection()
     spec_options = [s['spec_name'] for s in list(spec_master_col.find({}))] or ["스펙없음"]
     current_spec = existing_data.get('detail_spec', spec_options[0])
@@ -301,7 +300,7 @@ if qr_scanned_serial:
     
     st.divider()
     
-    # 4. 드레싱 주기 설정
+    # 4. 드레싱 주기 및 특이사항
     st.markdown("### ⏳ 드레싱 주기 설정")
     col_h, col_m = st.columns(2)
     with col_h:
@@ -309,27 +308,24 @@ if qr_scanned_serial:
     with col_m:
         u_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=existing_data.get('dressing_mins', 0))
         
-    # [수정] saved_note를 그대로 입력창에 넣어줌
-    u_note = st.text_area("📝 현장 특이사항 (이전 기록)", value=saved_note, height=150)
+    u_note = st.text_area("📝 현장 특이사항", value=saved_note, height=150)
     
     # 5. 저장 로직
     if st.button("💾 데이터 저장 및 수정 완료"):
         if not u_worker:
             st.error("⚠️ 작업자 이름을 입력해주세요!")
         else:
-            # 상태가 바뀔 때만 로그 추가
+            # 로그 기록은 상태가 바뀔 때만 수행
             final_note_val = u_note.strip()
             if u_status != prev_status:
                 current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-                log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
+                log_msg = f"\n[{current_time_str}] 상태:{u_status}, 스펙:{u_spec}, 작업자:{u_worker}, 기계:{u_machine_num}호기"
                 final_note_val = final_note_val + log_msg
             
-            # PC 알림판용 시간 계산
-            total_minutes = (u_hours * 60) + u_mins
+            # DB 업데이트 (무조건 최신값 반영)
             start_dt = get_now_kst()
-            target_dt = start_dt + timedelta(minutes=total_minutes)
+            target_dt = start_dt + timedelta(minutes=(u_hours * 60) + u_mins)
             
-            # DB 업데이트
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
