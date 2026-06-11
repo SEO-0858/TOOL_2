@@ -388,7 +388,7 @@ if qr_scanned_serial:
             if st.button("❌ 오류 메시지 닫기"):
                 # 에러를 관리하는 변수를 초기화하거나, 그냥 페이지를 새로고침합니다.
                 st.rerun() 
-            st.stop()
+                st.stop()
             machine_full_name = f"{u_machine_num}호기"
             total_duration_mins = (u_hours * 60) + u_mins
             current_now = get_now_kst()
