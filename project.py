@@ -1142,7 +1142,8 @@ else:
                             # 상태 계산 및 UI 출력
                             color, label, text = get_status_info(item, now_kst)
                             render_tool_ui(item, color, label, text)
-                            if st.button("📝 상세/수정", key=f"btn_{item['serial_no']}"):
+                            if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
+                                st.session_state.edit_serial = item['serial_no']
                                 st.session_state.edit_serial = item['serial_no']
                                 st.rerun()
                     else:
