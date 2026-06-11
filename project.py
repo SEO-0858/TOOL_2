@@ -286,12 +286,10 @@ if qr_scanned_serial:
     st.markdown("### 📝 기본 정보")
     u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', '')).strip()
     
-    # 기계 번호 처리
     orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만 입력)", min_value=0, max_value=200, value=default_mach, step=1)
     
-    # 세부 스펙 선택 (기존 값 있으면 선택, 없으면 첫 번째)
     spec_master_col = get_spec_master_collection()
     spec_options = [s['spec_name'] for s in list(spec_master_col.find({}))] or ["스펙없음"]
     current_spec = existing_data.get('detail_spec', spec_options[0])
@@ -310,17 +308,25 @@ if qr_scanned_serial:
         
     u_note = st.text_area("📝 현장 특이사항 (이전 기록 포함)", value=existing_data.get('note', ''))
     
-    # 5. 저장 로직 (필드 누락 방지 및 즉시 반영)
+    # 5. 저장 로직
     if st.button("💾 데이터 저장 및 수정 완료"):
         if not u_worker:
             st.error("⚠️ 작업자 이름을 입력해주세요!")
         else:
+            # [PC 알림판 호환] 시간 계산 로직
+            total_minutes = (u_hours * 60) + u_mins
+            start_dt = get_now_kst()
+            target_dt = start_dt + timedelta(minutes=total_minutes)
+            
+            target_time_val = target_dt.strftime("%Y-%m-%d %H:%M:%S")
+            start_time_val = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+            
             # 특이사항 로그 생성
-            current_time_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            current_time_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
             log_msg = f"\n[{current_time_str}] 상태:{u_status}, 작업자:{u_worker}, 기계:{u_machine_num}호기, 스펙:{u_spec}"
             final_note_val = u_note.strip() + log_msg
             
-            # DB 업데이트 (detail_spec 명시적 포함)
+            # DB 업데이트
             db_collection.update_one(
                 {"serial_no": qr_scanned_serial},
                 {"$set": {
@@ -330,13 +336,19 @@ if qr_scanned_serial:
                     "dressing_hours": u_hours,
                     "dressing_mins": u_mins,
                     "note": final_note_val,
-                    "detail_spec": u_spec 
+                    "detail_spec": u_spec,
+                    "start_time": start_time_val,
+                    "target_time": target_time_val
                 }},
                 upsert=True
             )
-            # st.toast 후 즉시 화면을 갱신해야 note 값이 바뀐 DB를 바로 불러옴
-            st.toast("✅ 저장되었습니다!", icon="🎉")
-            st.rerun() # 깜빡임 문제가 잡혔으니, 확실하게 최신 데이터를 보여주기 위해 rerun
+            st.toast("✅ 저장 완료! PC 알림판을 확인하세요.", icon="🎉")
+            st.rerun()
+
+    # 돌아가기 버튼
+    if st.button("🏠 메인으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
 
 
 # --- 💻 [PC 관리자 모드] ---
