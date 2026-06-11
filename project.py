@@ -305,7 +305,7 @@ if qr_scanned_serial:
             st.session_state["status_radio"] = db_status_mob
         current_db_status = db_status_mob 
         status_index = status_options.index(current_db_status)
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True,key="status_radio")
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True)
         if "restore_clicked" not in st.session_state:
             st.session_state["restore_clicked"] = False
 
@@ -392,7 +392,6 @@ if qr_scanned_serial:
                 
         if not is_valid:
             if st.button("🔄 이전 상태로 복구하고 다시 시도하기"):
-                st.session_state["restore_clicked"] = True
                 st.rerun()
 
             st.error(msg)
