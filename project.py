@@ -305,7 +305,14 @@ if qr_scanned_serial:
             st.session_state["status_radio"] = db_status_mob
         current_db_status = db_status_mob 
         status_index = status_options.index(current_db_status)
-        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True,key="status_radio")            
+        u_status = st.radio("🔄 툴 현재 상태 선택", status_options, index=status_index, horizontal=True,key="status_radio")
+        if "restore_clicked" not in st.session_state:
+            st.session_state["restore_clicked"] = False
+
+        if st.session_state["restore_clicked"]:
+            st.session_state["status_radio"] = db_status_mob
+            st.session_state["restore_clicked"] = False
+            st.rerun() # 값을 바꾼 뒤 즉시 화면을 갱신합니다.            
         u_worker = st.text_input("👷 작업자 이름 기입", value=existing_data.get('worker', '')).strip()
         u_machine_num = st.number_input("⚙️ 기계 가공 호기 선택 (숫자만 입력)", min_value=0, max_value=200, value=default_machine_int, step=1)
         
@@ -385,8 +392,8 @@ if qr_scanned_serial:
                 
         if not is_valid:
             if st.button("🔄 이전 상태로 복구하고 다시 시도하기"):
-                st.session_state["status_radio"] = db_status_mob
-                st.rerun() 
+                st.session_state["restore_clicked"] = True
+                st.rerun()
 
             st.error(msg)
             st.stop()
