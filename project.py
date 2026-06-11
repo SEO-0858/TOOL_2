@@ -271,6 +271,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 
+
 # --- 0. DB 업데이트 함수 ---
 def save_data_to_db(serial, data, qty):
     final_note = data['note']
@@ -296,69 +297,72 @@ def save_data_to_db(serial, data, qty):
         upsert=True
     )
 
-# --- 1. 페이지 전환 처리 (확인 페이지 vs 입력 페이지) ---
-page = st.query_params.get("page", "main")
+# --- 1. QR 스캔이 있을 때만 페이지 로직 실행 ---
+if qr_scanned_serial:
+    page = st.query_params.get("page", "main")
 
-# [A] 입력 메인 페이지
-if page == "main":
-    st.title("📱 현장 툴 정보 기입")
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
-    prev_status = existing_data.get("status", "사용전")
-    
-    st.markdown("### 🔄 툴 현재 상태")
-    status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
-    u_status = st.radio("상태 선택", status_options, index=status_options.index(prev_status), horizontal=True)
-    
-    st.divider()
-    st.markdown("### 📝 기본 정보")
-    u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
-    u_machine = st.number_input("⚙️ 기계 가공 호기", value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', ''))) or 0))
-    
-    spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    u_spec = st.selectbox("🛠 툴 세부 스펙", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
-    
-    st.divider()
-    st.markdown("### ⏳ 드레싱 및 특이사항")
-    c1, c2 = st.columns(2)
-    u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
-    u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
-    u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
-    
-    if st.button("💾 데이터 확인 및 저장"):
-        st.session_state.temp_data = {
-            'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
-            'machine_no': f"{u_machine}호기", 'detail_spec': u_spec,
-            'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
-            'start_time': get_now_kst().strftime("%Y-%m-%d %H:%M:%S"),
-            'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime("%Y-%m-%d %H:%M:%S")
-        }
-        st.query_params["page"] = "confirm"
-        st.rerun()
-
-# [B] 확인 페이지
-elif page == "confirm":
-    data = st.session_state.temp_data
-    st.title("💾 데이터 최종 확인")
-    
-    if data['status'] != data['prev_status']:
-        st.warning(f"🔄 상태 변경: [ {data['prev_status']} ] ➔ [ {data['status']} ]")
-    else:
-        st.info(f"현재 상태 유지: [ {data['status']} ]")
+    # [A] 입력 메인 페이지
+    if page == "main":
+        st.title("📱 현장 툴 정보 기입")
+        st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
         
-    st.write(f"- **작업자:** {data['worker']}")
-    st.write(f"- **기계 호기:** {data['machine_no']}")
-    st.write(f"- **세부 스펙:** {data['detail_spec']}")
-    
-    qty = 0
-    if data['status'] in ["폐기", "재사용대기"]:
-        qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
+        existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+        prev_status = existing_data.get("status", "사용전")
         
-    if st.button("✅ 최종 확정 및 저장"):
-        save_data_to_db(qr_scanned_serial, data, qty)
-        st.success("데이터가 반영되었습니다!")
-        if st.button("🏠 메인으로 이동"):
-            st.query_params.clear()
+        st.markdown("### 🔄 툴 현재 상태")
+        status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
+        u_status = st.radio("상태 선택", status_options, index=status_options.index(prev_status) if prev_status in status_options else 0, horizontal=True)
+        
+        st.divider()
+        st.markdown("### 📝 기본 정보")
+        u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
+        u_machine = st.number_input("⚙️ 기계 가공 호기", value=int(''.join(filter(str.isdigit, existing_data.get('machine_no', ''))) or 0))
+        
+        spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
+        u_spec = st.selectbox("🛠 툴 세부 스펙", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
+        
+        st.divider()
+        st.markdown("### ⏳ 드레싱 및 특이사항")
+        c1, c2 = st.columns(2)
+        u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
+        u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
+        u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
+        
+        if st.button("💾 데이터 확인 및 저장"):
+            st.session_state.temp_data = {
+                'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
+                'machine_no': f"{u_machine}호기", 'detail_spec': u_spec,
+                'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
+                'start_time': get_now_kst().strftime("%Y-%m-%d %H:%M:%S"),
+                'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            st.query_params["page"] = "confirm"
             st.rerun()
+
+    # [B] 확인 페이지
+    elif page == "confirm":
+        data = st.session_state.temp_data
+        st.title("💾 데이터 최종 확인")
+        
+        if data['status'] != data['prev_status']:
+            st.warning(f"🔄 상태 변경: [ {data['prev_status']} ] ➔ [ {data['status']} ]")
+        else:
+            st.info(f"현재 상태 유지: [ {data['status']} ]")
+            
+        st.write(f"- **작업자:** {data['worker']}")
+        st.write(f"- **기계 호기:** {data['machine_no']}")
+        st.write(f"- **세부 스펙:** {data['detail_spec']}")
+        
+        qty = 0
+        if data['status'] in ["폐기", "재사용대기"]:
+            qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
+            
+        if st.button("✅ 최종 확정 및 저장"):
+            save_data_to_db(qr_scanned_serial, data, qty)
+            st.success("데이터가 반영되었습니다!")
+            if st.button("🏠 메인으로 이동"):
+                st.query_params.clear()
+                st.rerun()
 
 
 
