@@ -1102,7 +1102,7 @@ def render_tool_ui(item, color_hex, status_label, time_text):
 
 # --- [2. elif tool_menu == "🔍 실시간 기계 정보창": 에 들어갈 메인 코드] ---
 
-st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+st.title("🖥 실시간 기계 정보창")
 now_kst = get_now_kst()
 st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
