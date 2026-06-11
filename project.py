@@ -1066,7 +1066,7 @@ else:
                         st.rerun()
 
     # 5) 🖥️ 실시간 기계 정보창 (Grid Layout)--------------------------------------------------------------------------------------------------
-# --- [1. 파일 상단(함수 정의부)에 위치해야 할 코드] ---
+    # --- [1. 파일 상단(함수 정의부)에 위치해야 할 코드] ---
 # 가독성과 재사용성을 위해 로직을 함수로 분리했습니다.
 
 def get_status_info(item, current_now):
@@ -1102,55 +1102,55 @@ def render_tool_ui(item, color_hex, status_label, time_text):
 
 # --- [2. elif tool_menu == "🔍 실시간 기계 정보창": 에 들어갈 메인 코드] ---
 
-st.title("🖥 실시간 기계 정보창")
-now_kst = get_now_kst()
-st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+    st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+    now_kst = get_now_kst()
+    st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# 대표님이 정의하신 고유 레이아웃 배열
-layout = [
-    [27, 28, 29, 30, 31, 9, 8, 7],
-    [16, 17, 26, 32, 57],
-    [15, 18, 25, 33, 56],
-    [14, 19, 24, 34, 55, 6],
-    [13, 20, 35, 54, 5],
-    [12, 21, 36, 53, 4],
-    [11, 22, 37, 52, 3],
-    [10, 23, 38, 43],
-    [39, 40, 41, 42],
-    [44, 45, 46, 47, 48, 49, 50, 51]
-]
+    # 대표님이 정의하신 고유 레이아웃 배열
+    layout = [
+        [27, 28, 29, 30, 31, 9, 8, 7],
+        [16, 17, 26, 32, 57],
+        [15, 18, 25, 33, 56],
+        [14, 19, 24, 34, 55, 6],
+        [13, 20, 35, 54, 5],
+        [12, 21, 36, 53, 4],
+        [11, 22, 37, 52, 3],
+        [10, 23, 38, 43],
+        [39, 40, 41, 42],
+        [44, 45, 46, 47, 48, 49, 50, 51]
+    ]
 
-# 활성 툴 데이터 조회
-active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-machine_tool_map = {}
-for t in active_tools:
-    nums = re.findall(r'\d+', str(t.get('machine_no', '')))
-    if nums:
-        m_no = int(nums[0])
-        if m_no not in machine_tool_map: machine_tool_map[m_no] = []
-        machine_tool_map[m_no].append(t)
+    # 활성 툴 데이터 조회
+    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
+    machine_tool_map = {}
+    for t in active_tools:
+        nums = re.findall(r'\d+', str(t.get('machine_no', '')))
+        if nums:
+            m_no = int(nums[0])
+            if m_no not in machine_tool_map: machine_tool_map[m_no] = []
+            machine_tool_map[m_no].append(t)
 
-# 레이아웃 순서대로 화면 그리기
-for row in layout:
-    cols = st.columns(len(row))
-    for i, m_no in enumerate(row):
-        with cols[i]:
-            st.markdown(f"**{m_no}호기**")
-            if m_no in machine_tool_map:
-                for item in machine_tool_map[m_no]:
-                    color, label, text = get_status_info(item, now_kst)
-                    render_tool_ui(item, color, label, text)
-                    if st.button("📝 상세/수정", key=f"btn_{item['serial_no']}"):
-                        st.session_state.edit_serial = item['serial_no']
-                        st.rerun()
-            else:
-                st.info("빈 호기")
+    # 레이아웃 순서대로 화면 그리기
+    for row in layout:
+        cols = st.columns(len(row))
+        for i, m_no in enumerate(row):
+            with cols[i]:
+                st.markdown(f"**{m_no}호기**")
+                if m_no in machine_tool_map:
+                    for item in machine_tool_map[m_no]:
+                        color, label, text = get_status_info(item, now_kst)
+                        render_tool_ui(item, color, label, text)
+                        if st.button("📝 상세/수정", key=f"btn_{item['serial_no']}"):
+                            st.session_state.edit_serial = item['serial_no']
+                            st.rerun()
+                else:
+                    st.info("빈 호기")
 
 
         # -------------------------------------------------------------
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
     # -------------------------------------------------------------
-    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+    if tool_menu == "🔧 툴 상세스펙 마스터 관리":
         st.title("🔧 툴 상세 스펙 마스터 관리")
         st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
         
