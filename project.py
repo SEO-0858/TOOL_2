@@ -1151,43 +1151,58 @@ else:
 
 
         # --- [수정창 호출 로직: 아래 코드를 레이아웃 출력부 바로 아래에 추가하세요] ---
-
-        
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
             st.divider()
-            st.subheader(f"🛠 툴 연혁 관리 및 상세 수정: {st.session_state.edit_serial}")
+            st.subheader(f"🛠 툴 정보 및 연혁 관리: {st.session_state.edit_serial}")
             
-            # 1. DB에서 해당 툴의 전체 데이터(연혁 포함)를 긁어옵니다.
+            # 1. DB에서 데이터 다시 한번 확실하게 조회
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
-                # 2. 연혁(history) 데이터가 있다면 판다스로 변환
-                history_data = target_tool.get("history", [])
-                if history_data:
-                    df = pd.DataFrame(history_data)
-                    st.write("#### 📜 툴 연혁 관리 (엑셀처럼 수정하세요)")
+                # A. 기본 정보 수정 (기계/작업자)
+                with st.form("edit_basic_info"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_machine = st.text_input("기계 번호", value=target_tool.get('machine_no', ''))
+                    with col2:
+                        new_worker = st.text_input("담당 작업자", value=target_tool.get('worker', ''))
                     
-                    # 3. 판다스 에디터로 데이터를 띄웁니다 (직접 수정 가능)
-                    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
-                    
-                    # 4. 저장 로직: 수정된 데이터를 다시 몽고DB로 밀어넣습니다.
-                    if st.button("💾 연혁 및 정보 저장"):
-                        updated_history = edited_df.to_dict(orient='records')
+                    submit_info = st.form_submit_button("💾 기본 정보 저장")
+                    if submit_info:
                         db_collection.update_one(
                             {"serial_no": st.session_state.edit_serial},
-                            {"$set": {"history": updated_history}}
+                            {"$set": {"machine_no": new_machine, "worker": new_worker}}
                         )
-                        st.success("연혁 데이터가 업데이트되었습니다.")
-                        st.rerun()
-                else:
-                    st.info("이 툴은 아직 등록된 연혁이 없습니다.")
-                    
-                # 5. 닫기 버튼
+                        st.success("기본 정보가 수정되었습니다!")
+
+                # B. 연혁 데이터 편집 (판다스 에디터)
+                st.write("#### 📜 연혁 데이터 편집")
+                history_data = target_tool.get("history", [])
+                
+                # 데이터가 비어있으면 빈 폼이라도 보여줌
+                df = pd.DataFrame(history_data) if history_data else pd.DataFrame(columns=["이력 내용", "누적수량", "기계번호", "발생시간"])
+                
+                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+                
+                if st.button("💾 연혁 전체 저장"):
+                    db_collection.update_one(
+                        {"serial_no": st.session_state.edit_serial},
+                        {"$set": {"history": edited_df.to_dict(orient='records')}}
+                    )
+                    st.success("연혁이 업데이트되었습니다!")
+                    st.rerun()
+
                 if st.button("❌ 닫기"):
                     st.session_state.edit_serial = None
                     st.rerun()
             else:
                 st.error("데이터를 찾을 수 없습니다.")
+        
+
+
+
+
+
     elif tool_menu == "툴 상세스펙 마스터 관리":
         # 🔧 아이콘을 빼고 텍스트로만 설정하여 문법 오류 방지
         st.title("툴 상세 스펙 마스터 관리")
