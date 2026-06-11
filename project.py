@@ -9,6 +9,38 @@ import re
 import time
 from datetime import datetime as dt_datetime
 
+def get_status_info(item, current_now):
+    """툴 상태 정보를 계산하는 필수 함수입니다."""
+    try:
+        # DB의 target_time 형식이 "YYYY-MM-DD HH:MM:SS"라고 가정합니다.
+        target_dt = datetime.strptime(item.get("target_time", "2026-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        time_diff = target_dt - current_now
+        total_seconds = time_diff.total_seconds()
+
+        if total_seconds < 0:
+            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {str(abs(time_diff)).split('.')[0]} 지남"
+        elif total_seconds <= 3600:
+            return "#FFAA00", "주의(임박)", f"약 {int(total_seconds // 60)}분 남음"
+        else:
+            hours = int(total_seconds // 3600)
+            mins = int((total_seconds % 3600) // 60)
+            return "#008850", "정상 가동 중", f"{hours}시간 {mins}분 남음"
+    except:
+        return "#808080", "상태 정보 없음", "-"
+
+def render_tool_ui(item, color_hex, status_label, time_text):
+    """UI를 그리는 필수 함수입니다."""
+    st.markdown(f"""
+    <div style="border-left: 8px solid {color_hex}; padding: 10px; margin-bottom: 5px; background-color: #f9f9f9; border-radius: 4px;">
+        <h4 style="margin: 0; font-size: 16px;">🆔 {item.get('serial_no')} ({item.get('detail_spec', '-')})</h4>
+        <p style="margin: 5px 0; font-size: 13px;">
+            <b>작업자:</b> {item.get('worker', '-')} | <b>시간:</b> {item.get('start_time', '-')[-8:]} <br>
+            <span style="color: {color_hex}; font-weight: bold;">{status_label} ({time_text})</span>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 def get_spec_master_collection():
     mongo_uri = st.secrets["database"]["MONGO_URI"]
     try:
