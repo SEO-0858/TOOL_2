@@ -1165,11 +1165,18 @@ else:
                         st.write("#### 📜 연혁 데이터 (기록 관리)")
                         raw_note = target_tool.get("note", "")
                         df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
+                        
+                        # [핵심 수정] editor 변수에 수정된 데이터 저장
                         edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
                         
                         # 폼 안에서 버튼 하나로 모든 정보를 한꺼번에 저장
                         if st.form_submit_button("💾 전체 정보 저장"):
-                            updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
+                            # [핵심 안전장치] 컬럼 이름이 확실한지 확인하고 데이터를 가져옵니다.
+                            if "연혁 및 기록 내용" in edited_df.columns:
+                                updated_note = "\n".join(edited_df["연혁 및 기록 내용"].dropna().astype(str).tolist())
+                            else:
+                                # 만약 컬럼이 없으면, 전체 데이터를 첫 번째 컬럼으로 취급
+                                updated_note = "\n".join(edited_df.iloc[:, 0].dropna().astype(str).tolist())
                             
                             db_collection.update_one(
                                 {"serial_no": ctx_key},
