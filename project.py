@@ -1213,15 +1213,22 @@ else:
                     st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
 
-                # [연혁 데이터 편집]
+                # [연혁 데이터 편집 부분]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
                 note_lines = raw_note.split('\n') if raw_note else ["기록 없음"]
                 df = pd.DataFrame(note_lines, columns=["연혁 및 기록 내용"])
                 
-                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+                # 데이터 에디터에 key 부여
+                edited_df = st.data_editor(
+                    df, 
+                    use_container_width=True, 
+                    num_rows="dynamic", 
+                    key=f"history_editor_{st.session_state.edit_serial}"
+                )
                 
-                if st.button("💾 연혁 전체 저장"):
+                # 버튼에 고유한 key 부여 (◀◀ 핵심 수정)
+                if st.button("💾 연혁 전체 저장", key=f"btn_save_history_{st.session_state.edit_serial}"):
                     updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
                     db_collection.update_one(
                         {"serial_no": st.session_state.edit_serial},
@@ -1230,11 +1237,10 @@ else:
                     st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
 
-                if st.button("❌ 닫기"):
+                # 닫기 버튼에도 key 부여
+                if st.button("❌ 닫기", key=f"btn_close_edit_{st.session_state.edit_serial}"):
                     st.session_state.edit_serial = None
                     st.rerun()
-            else:
-                st.error("데이터를 찾을 수 없습니다.")
 
     elif tool_menu == "툴 상세스펙 마스터 관리":
         st.title("툴 상세 스펙 마스터 관리")
