@@ -1102,11 +1102,13 @@ else:
 # 5) 🖥️ 실시간 기계 정보창 (Grid Layout)--------------------------------------------------------------------------------------------------
 
   
+    
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
         now_kst = get_now_kst()
         st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
+        # 1. 기존 레이아웃 배열 유지
         layout = [
             [27, 28, 29, 30, 31, 9, 8, 7],
             [16, 17, 26, 32, 57],
@@ -1120,10 +1122,17 @@ else:
             [44, 45, 46, 47, 48, 49, 50, 51]
         ]
 
+        # 2. 데이터 매핑 로직
         active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-        machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
-                            for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+        machine_tool_map = {}
+        for t in active_tools:
+            nums = re.findall(r'\d+', str(t.get('machine_no', '')))
+            if nums:
+                m_no = int(nums[0])
+                if m_no not in machine_tool_map: machine_tool_map[m_no] = []
+                machine_tool_map[m_no].append(t)
 
+        # 3. 레이아웃 출력부
         for row in layout:
             cols = st.columns(len(row))
             for i, m_no in enumerate(row):
@@ -1133,12 +1142,14 @@ else:
                         for item in machine_tool_map[m_no]:
                             color, label, text = get_status_info(item, now_kst)
                             render_tool_ui(item, color, label, text)
-                            if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}_{time.time()}"):
+                            # 상세 수정 버튼
+                            if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}_{m_no}"):
                                 st.session_state.edit_serial = item['serial_no']
                                 st.rerun()
                     else:
                         st.info("비어있음")
 
+        # 4. 상세 수정창 (데이터 로딩 및 연혁 관리)
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
             st.divider()
             st.subheader(f"🛠 툴 정보 및 연혁 관리: {st.session_state.edit_serial}")
@@ -1146,6 +1157,7 @@ else:
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
+                # [기본 정보 수정 및 자동 로그 저장]
                 with st.form("edit_basic_info"):
                     col1, col2 = st.columns(2)
                     new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
@@ -1153,34 +1165,40 @@ else:
                     
                     if st.form_submit_button("💾 기본 정보 저장"):
                         old_machine = target_tool.get('machine_no', '')
-                        log_msg = f"\n[{dt.now().strftime('%m-%d %H:%M')}] 위치 변경: {old_machine} -> {new_machine}" if old_machine != new_machine else ""
-                        updated_note = (target_tool.get('note', '') + log_msg).strip()
+                        log_msg = ""
+                        if old_machine != new_machine:
+                            log_msg = f"\n[{dt.now().strftime('%m-%d %H:%M')}] 위치 변경: {old_machine} -> {new_machine}"
                         
+                        updated_note = (target_tool.get('note', '') + log_msg).strip()
                         db_collection.update_one(
                             {"serial_no": st.session_state.edit_serial},
                             {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
                         )
-                        st.success("저장되었습니다!")
+                        st.success("기본 정보가 저장되었습니다!")
                         st.rerun()
 
+                # [연혁 데이터 편집부]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
-                df = pd.DataFrame(target_tool.get("note", "").split('\n') if target_tool.get("note") else ["기록 없음"], columns=["연혁 및 기록 내용"])
+                raw_note = target_tool.get("note", "")
+                df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
                 
-                # 고유 key 부여 (time.time() 사용으로 중복 완전 차단)
-                unique_key = f"ed_{st.session_state.edit_serial}_{time.time()}"
-                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=unique_key)
+                # 고유 key 사용하여 에러 방지
+                unique_k = f"{st.session_state.edit_serial}_{time.time()}"
+                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{unique_k}")
                 
-                if st.button("💾 연혁 전체 저장", key=f"save_{unique_key}"):
+                if st.button("💾 연혁 전체 저장", key=f"save_{unique_k}"):
                     db_collection.update_one(
                         {"serial_no": st.session_state.edit_serial},
                         {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
                     )
-                    st.success("업데이트되었습니다!")
+                    st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
 
-                if st.button("❌ 닫기", key=f"close_{unique_key}"):
+                if st.button("❌ 닫기", key=f"close_{unique_k}"):
                     st.session_state.edit_serial = None
                     st.rerun()
+            else:
+                st.error("데이터를 찾을 수 없습니다.")
         
 
 
