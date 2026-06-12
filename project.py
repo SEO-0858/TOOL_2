@@ -187,7 +187,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
-        timestamp = log_now.strftime("%m/%d %H:%M")
+        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
         history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{pop_worker_name}, {pop_mach_name}, {pop_count}개)"
         
         db_collection.update_one(
