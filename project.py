@@ -1144,7 +1144,7 @@ else:
                         else:
                             st.info("비어있음")
 
-            # 3. 상세 수정창 (edit_serial 존재 시 출력)
+        # 3. 상세 수정창 (현황판 밑에 배치)
             if 'edit_serial' in st.session_state and st.session_state.edit_serial:
                 ctx_key = st.session_state.edit_serial
                 st.divider()
@@ -1157,35 +1157,22 @@ else:
                 target_tool = db_collection.find_one({"serial_no": ctx_key})
                 
                 if target_tool:
-                # 1. 기본 정보 수정 폼 (분리)
+                    # 폼 안에서 기본 정보 저장
                     with st.form("edit_basic_info"):
-                        col1, col2 = st.columns(2)
-                        new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
-                        new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
-                        
+                        new_machine = st.text_input("기계 번호", value=target_tool.get('machine_no', ''))
+                        new_worker = st.text_input("담당 작업자", value=target_tool.get('worker', ''))
                         if st.form_submit_button("💾 기본 정보 저장"):
-                            db_collection.update_one(
-                                {"serial_no": ctx_key},
-                                {"$set": {"machine_no": new_machine, "worker": new_worker}}
-                            )
-                            st.success("기본 정보 저장 완료!")
+                            db_collection.update_one({"serial_no": ctx_key}, {"$set": {"machine_no": new_machine, "worker": new_worker}})
                             st.rerun()
 
-                    # 2. 연혁 데이터 편집 (폼 바깥으로 이동)
-                    st.write("#### 📜 연혁 데이터 (기록 관리)")
+                    # 연혁 저장 (data_editor 결과물을 확실히 반영)
                     raw_note = target_tool.get("note", "")
                     df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
-                    
-                    # 폼 밖에서 동작하도록 data_editor를 별도로 호출
                     edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{ctx_key}")
                     
-                    # 별도의 저장 버튼 (폼 바깥)
                     if st.button("💾 연혁 전체 저장", key=f"save_note_{ctx_key}"):
                         updated_note = "\n".join(edited_df["연혁 및 기록 내용"].dropna().astype(str).tolist())
-                        db_collection.update_one(
-                            {"serial_no": ctx_key},
-                            {"$set": {"note": updated_note}}
-                        )
+                        db_collection.update_one({"serial_no": ctx_key}, {"$set": {"note": updated_note}})
                         st.success("연혁이 업데이트되었습니다!")
                         st.rerun()
        
