@@ -1178,38 +1178,38 @@ else:
                     
                     # [기본 정보 저장 버튼 클릭 시]
                     if st.form_submit_button("💾 기본 정보 저장"):
-                        # 1. 최신 데이터 조회
+                    # 1. 최신 데이터 조회
                         current_db_data = db_collection.find_one({"serial_no": ctx_key})
                         old_machine = current_db_data.get('machine_no', '')
                         old_worker = current_db_data.get('worker', '')
+                    
+                    # 2. 변경 여부 확인 (화면에 성공 메시지를 띄우기 위함)
+                    is_changed = (old_machine != new_machine) or (old_worker != new_worker)
+                    
+                    if is_changed:
+                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
                         
-                        # 2. 변경된 내용들을 리스트로 수집
-                        changes = []
-                        if old_machine != new_machine:
-                            changes.append(f"기계: {old_machine}→{new_machine}")
-                        if old_worker != new_worker:
-                            changes.append(f"작업자: {old_worker}→{new_worker}")
+                        # 핵심: 변경되지 않았더라도 항상 [기존값 → 변경값] 형태로 표시
+                        machine_str = f"{old_machine}→{new_machine}"
+                        worker_str = f"{old_worker}→{new_worker}"
                         
-                        # 3. 변경 사항이 있을 때만 한 줄로 통합 기록
-                        if changes:
-                            timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                            # "기계: 17→15, 작업자: 최→이" 형식으로 깔끔하게 한 줄로 생성
-                            log_msg = f"\n[{timestamp}] 변경사항: {', '.join(changes)}"
-                            
-                            updated_note = (target_tool.get('note', '') + log_msg).strip()
-                            
-                            db_collection.update_one(
-                                {"serial_no": ctx_key},
-                                {"$set": {
-                                    "machine_no": new_machine, 
-                                    "worker": new_worker, 
-                                    "note": updated_note
-                                }}
-                            )
-                            st.success("정보가 저장되었습니다!")
-                            st.rerun()
-                        else:
-                            st.info("변경된 내용이 없습니다.")
+                        # 한 줄에 모든 상태를 요약해서 기록
+                        log_msg = f"\n[{timestamp}] 기계:{machine_str} / 작업자:{worker_str}"
+                        
+                        updated_note = (target_tool.get('note', '') + log_msg).strip()
+                        
+                        db_collection.update_one(
+                            {"serial_no": ctx_key},
+                            {"$set": {
+                                "machine_no": new_machine, 
+                                "worker": new_worker, 
+                                "note": updated_note
+                            }}
+                        )
+                        st.success("정보가 저장되었습니다!")
+                        st.rerun()
+                    else:
+                        st.info("변경된 정보가 없습니다.")
 
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
