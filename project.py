@@ -2,6 +2,7 @@ import streamlit as st
 from pymongo import MongoClient
 import datetime
 from datetime import timedelta, datetime as dt_class
+from datetime import datetime
 import qrcode
 from io import BytesIO
 import base64
@@ -1168,7 +1169,9 @@ else:
                         old_machine = target_tool.get('machine_no', '')
                         log_msg = ""
                         if old_machine != new_machine:
-                            log_msg = f"\n[{datetime.now().strftime('%m-%d %H:%M')}] 위치 변경: {old_machine} -> {new_machine}"
+                            # datetime.now() 호출 시 에러 방지를 위해 명확히 수정
+                            timestamp = datetime.now().strftime('%m-%d %H:%M')
+                            log_msg = f"\n[{timestamp}] 위치 변경: {old_machine} -> {new_machine}"
                         
                         updated_note = (target_tool.get('note', '') + log_msg).strip()
                         
@@ -1182,7 +1185,7 @@ else:
                         )
                         st.success("정보가 저장되었습니다!")
                         st.rerun()
-
+                        
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
