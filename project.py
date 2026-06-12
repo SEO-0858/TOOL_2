@@ -1157,38 +1157,37 @@ else:
                 target_tool = db_collection.find_one({"serial_no": ctx_key})
                 
                 if target_tool:
-                    with st.form("edit_all_info"): # 폼 이름을 하나로 통일
+                # 1. 기본 정보 수정 폼 (분리)
+                    with st.form("edit_basic_info"):
                         col1, col2 = st.columns(2)
                         new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
                         new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
                         
-                        st.write("#### 📜 연혁 데이터 (기록 관리)")
-                        raw_note = target_tool.get("note", "")
-                        df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
-                        
-                        # [핵심 수정] editor 변수에 수정된 데이터 저장
-                        edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
-                        
-                        # 폼 안에서 버튼 하나로 모든 정보를 한꺼번에 저장
-                        if st.form_submit_button("💾 전체 정보 저장"):
-                            # [핵심 안전장치] 컬럼 이름이 확실한지 확인하고 데이터를 가져옵니다.
-                            if "연혁 및 기록 내용" in edited_df.columns:
-                                updated_note = "\n".join(edited_df["연혁 및 기록 내용"].dropna().astype(str).tolist())
-                            else:
-                                # 만약 컬럼이 없으면, 전체 데이터를 첫 번째 컬럼으로 취급
-                                updated_note = "\n".join(edited_df.iloc[:, 0].dropna().astype(str).tolist())
-                            
+                        if st.form_submit_button("💾 기본 정보 저장"):
                             db_collection.update_one(
                                 {"serial_no": ctx_key},
-                                {"$set": {
-                                    "machine_no": new_machine,
-                                    "worker": new_worker,
-                                    "note": updated_note
-                                }}
+                                {"$set": {"machine_no": new_machine, "worker": new_worker}}
                             )
-                            st.success("모든 정보가 저장되었습니다!")
+                            st.success("기본 정보 저장 완료!")
                             st.rerun()
 
+                    # 2. 연혁 데이터 편집 (폼 바깥으로 이동)
+                    st.write("#### 📜 연혁 데이터 (기록 관리)")
+                    raw_note = target_tool.get("note", "")
+                    df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
+                    
+                    # 폼 밖에서 동작하도록 data_editor를 별도로 호출
+                    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{ctx_key}")
+                    
+                    # 별도의 저장 버튼 (폼 바깥)
+                    if st.button("💾 연혁 전체 저장", key=f"save_note_{ctx_key}"):
+                        updated_note = "\n".join(edited_df["연혁 및 기록 내용"].dropna().astype(str).tolist())
+                        db_collection.update_one(
+                            {"serial_no": ctx_key},
+                            {"$set": {"note": updated_note}}
+                        )
+                        st.success("연혁이 업데이트되었습니다!")
+                        st.rerun()
        
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
