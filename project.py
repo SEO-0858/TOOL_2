@@ -1176,36 +1176,37 @@ else:
                     new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
                     new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
                     
+                    # [기본 정보 저장 버튼 클릭 시]
                     if st.form_submit_button("💾 기본 정보 저장"):
-                        old_machine = target_tool.get('machine_no', '')
-                        old_worker = target_tool.get('worker', '')
-                    
-                    log_entries = []
-                    
-                    # 기계 번호 변경 감지
-                    if old_machine != new_machine:
-                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                        log_entries.append(f"[{timestamp}] 기계 변경: {old_machine} -> {new_machine}")
-                    
-                    # 작업자 변경 감지
-                    if old_worker != new_worker:
-                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                        log_entries.append(f"[{timestamp}] 작업자 변경: {old_worker} -> {new_worker}")
-                    
-                    # 로그 생성 및 저장
-                    log_msg = "\n" + "\n".join(log_entries) if log_entries else ""
-                    updated_note = (target_tool.get('note', '') + log_msg).strip()
-                    
-                    db_collection.update_one(
-                        {"serial_no": ctx_key},
-                        {"$set": {
-                            "machine_no": new_machine, 
-                            "worker": new_worker, 
-                            "note": updated_note
-                        }}
-                    )
-                    st.success("정보가 저장되었습니다!")
-                    st.rerun()
+                        # 1. 데이터 가져오기 (이 블록 안에서 다시 한 번 호출)
+                        current_db_data = db_collection.find_one({"serial_no": ctx_key})
+                        old_machine = current_db_data.get('machine_no', '') if current_db_data else ''
+                        old_worker = current_db_data.get('worker', '') if current_db_data else ''
+                        
+                        log_entries = []
+                        
+                        # 2. 변경 내용 비교 및 로그 생성
+                        if old_machine != new_machine:
+                            timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                            log_entries.append(f"[{timestamp}] 기계 변경: {old_machine} -> {new_machine}")
+                        
+                        if old_worker != new_worker:
+                            timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                            log_entries.append(f"[{timestamp}] 작업자 변경: {old_worker} -> {new_worker}")
+                        
+                        # 3. DB 업데이트
+                        updated_note = (target_tool.get('note', '') + ("\n" + "\n".join(log_entries) if log_entries else "")).strip()
+                        
+                        db_collection.update_one(
+                            {"serial_no": ctx_key},
+                            {"$set": {
+                                "machine_no": new_machine, 
+                                "worker": new_worker, 
+                                "note": updated_note
+                            }}
+                        )
+                        st.success("정보가 저장되었습니다!")
+                        st.rerun()
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
