@@ -144,7 +144,7 @@ def get_now_kst():
 
 now = get_now_kst()
 today = now.date()
-mmdd = today.strftime("%Y-%m-%d %H:%M")
+mmdd = today.strftime("%m%d") 
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
@@ -187,7 +187,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
-        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+        timestamp = log_now.strftime("%m/%d %H:%M")
         history_entry = f"{timestamp} - 상태변환:재사용대기 (작업자:{pop_worker_name}, {pop_mach_name}, {pop_count}개)"
         
         db_collection.update_one(
@@ -446,7 +446,7 @@ else:
             fixed_now_kst = get_now_kst()
             fixed_date_str = fixed_now_kst.strftime("%Y-%m-%d")
             fixed_time_str = fixed_now_kst.strftime("%H:%M")
-            display_mmdd_hhmm = fixed_now_kst.strftime("%m/%d %H:%M")
+            display_yyyymmdd_hhmm = fixed_now_kst.strftime("%Y-%m-%d %H:%M")
             
             for idx in range(1, quantity + 1):
                 current_seq = last_counter + idx
@@ -468,7 +468,7 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
-                    "note": f"[{display_mmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
+                    "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
             try:
