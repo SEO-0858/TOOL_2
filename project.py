@@ -1151,14 +1151,21 @@ else:
 
         # 4. 상세 수정창 (데이터 로딩 및 연혁 관리)
       
+        # 4. 상세 수정창 (최상단에 닫기 로직을 더 명확하게 배치)
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
+        
+            # [닫기 버튼 로직을 맨 위로 올려서 가장 먼저 실행되게 함]
+            if st.button("❌ 닫기 (창 닫기)", key="force_close_btn"):
+                st.session_state.edit_serial = None
+                st.rerun()
+
             st.divider()
             st.subheader(f"🛠 툴 정보 및 연혁 관리: {st.session_state.edit_serial}")
             
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
-            # 1. 기본 정보 수정 폼 (Form 안에는 저장 버튼만)
+                # 기본 정보 수정 폼
                 with st.form("edit_basic_info"):
                     col1, col2 = st.columns(2)
                     new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
@@ -1166,79 +1173,68 @@ else:
                     
                     if st.form_submit_button("💾 기본 정보 저장"):
                         old_machine = target_tool.get('machine_no', '')
-                        log_msg = ""
                         if old_machine != new_machine:
                             timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
                             log_msg = f"\n[{timestamp}] 기계 변경: {old_machine} -> {new_machine}"
-                        
-                        updated_note = (target_tool.get('note', '') + log_msg).strip()
-                        db_collection.update_one(
-                            {"serial_no": st.session_state.edit_serial},
-                            {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
-                        )
-                        st.success("정보가 저장되었습니다!")
+                            updated_note = (target_tool.get('note', '') + log_msg).strip()
+                            db_collection.update_one(
+                                {"serial_no": st.session_state.edit_serial},
+                                {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
+                            )
+                        else:
+                            db_collection.update_one(
+                                {"serial_no": st.session_state.edit_serial},
+                                {"$set": {"worker": new_worker}}
+                            )
+                        st.success("저장되었습니다!")
                         st.rerun()
 
-                # 2. 연혁 데이터 편집 (Form 바깥으로 배치)
+                # 연혁 데이터 편집
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
                 df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
+                
                 unique_k = f"{st.session_state.edit_serial}_{time.time()}"
                 edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{unique_k}")
                 
-                # 3. 버튼들 (Form과 완벽히 분리)
-                col_save, col_close = st.columns(2)
-                
-                with col_save:
-                    if st.button("💾 연혁 전체 저장", key=f"save_{unique_k}"):
-                        db_collection.update_one(
-                            {"serial_no": st.session_state.edit_serial},
-                            {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
-                        )
-                        st.success("연혁이 업데이트되었습니다!")
-                        st.rerun()
-                
-                with col_close:
-                    # 닫기 버튼이 눌리면 세션을 비우고 리런
-                    if st.button("❌ 닫기", key=f"close_{unique_k}"):
-                        st.session_state.edit_serial = None
-                        st.rerun()
-            else:
-                st.error("데이터를 찾을 수 없습니다.")
-                if st.button("❌ 닫기"):
-                    st.session_state.edit_serial = None
+                if st.button("💾 연혁 전체 저장", key=f"save_{unique_k}"):
+                    db_collection.update_one(
+                        {"serial_no": st.session_state.edit_serial},
+                        {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
+                    )
+                    st.success("업데이트 완료!")
                     st.rerun()
 
+            # -------------------------------------------------------------
+        # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
         # -------------------------------------------------------------
-    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
-    # -------------------------------------------------------------
-    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
-        st.title("🔧 툴 상세 스펙 마스터 관리")
-        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
-        
-        spec_master_col = get_spec_master_collection()
-        
-        if spec_master_col is None:
-            st.error("데이터베이스와 통신할 수 없습니다.")
-        else:
-            with st.form("spec_input_form_master", clear_on_submit=True):
-                st.subheader("➕ 하위 상세 스펙 신규 등록")
-                ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
-                ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
-                ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
-                
-                if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
-                    if not ins_name:
-                        st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
-                    else:
-                        spec_master_col.insert_one({
-                            "main_type": ins_type,
-                            "spec_name": ins_name,
-                            "memo": ins_memo
-                        })
-                        st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
-                        time.sleep(0.5)
-                        st.rerun()
+        elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+            st.title("🔧 툴 상세 스펙 마스터 관리")
+            st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
+            
+            spec_master_col = get_spec_master_collection()
+            
+            if spec_master_col is None:
+                st.error("데이터베이스와 통신할 수 없습니다.")
+            else:
+                with st.form("spec_input_form_master", clear_on_submit=True):
+                    st.subheader("➕ 하위 상세 스펙 신규 등록")
+                    ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
+                    ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
+                    ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
+                    
+                    if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
+                        if not ins_name:
+                            st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
+                        else:
+                            spec_master_col.insert_one({
+                                "main_type": ins_type,
+                                "spec_name": ins_name,
+                                "memo": ins_memo
+                            })
+                            st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
+                            time.sleep(0.5)
+                            st.rerun()
 
             st.write("<br><hr>", unsafe_allow_html=True)
             st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
