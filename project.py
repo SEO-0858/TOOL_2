@@ -1185,11 +1185,20 @@ else:
                 edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{ctx_key}")
                 
                 if st.button("💾 연혁 전체 저장", key=f"save_{ctx_key}"):
+                    # 1. 수정된 연혁 내용 합치기
+                    updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
+                    
+                    # 2. 연혁 저장 + 상단의 기계번호/작업자 정보를 현재 상태로 동기화
+                    # 이렇게 해야 현황판 등 다른 화면에 바뀐 내용이 즉시 반영됩니다.
                     db_collection.update_one(
                         {"serial_no": ctx_key},
-                        {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
+                        {"$set": {
+                            "note": updated_note,
+                            "machine_no": new_machine,  # 상단 입력창의 값을 강제 동기화
+                            "worker": new_worker        # 상단 입력창의 값을 강제 동기화
+                        }}
                     )
-                    st.success("연혁이 업데이트되었습니다!")
+                    st.success("연혁 및 상태 정보가 업데이트되었습니다!")
                     st.rerun()
 
        
