@@ -144,7 +144,7 @@ def get_now_kst():
 
 now = get_now_kst()
 today = now.date()
-mmdd = today.strftime("%m%d") 
+mmdd = today.strftime("%Y-%m-%d %H:%M")
 
 # 📱 QR 스캔 시 URL 파라미터 읽기
 query_params = st.query_params
