@@ -1229,51 +1229,50 @@ else:
             else:
                 st.error("데이터를 찾을 수 없습니다.")
 
-            # -------------------------------------------------------------
-        # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
-        # -------------------------------------------------------------
-        elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
-            st.title("🔧 툴 상세 스펙 마스터 관리")
-            st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
-            
-            spec_master_col = get_spec_master_collection()
-            
-            if spec_master_col is None:
-                st.error("데이터베이스와 통신할 수 없습니다.")
-            else:
-                with st.form("spec_input_form_master", clear_on_submit=True):
-                    st.subheader("➕ 하위 상세 스펙 신규 등록")
-                    ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
-                    ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
-                    ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
-                    
-                    if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
-                        if not ins_name:
-                            st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
-                        else:
-                            spec_master_col.insert_one({
-                                "main_type": ins_type,
-                                "spec_name": ins_name,
-                                "memo": ins_memo
-                            })
-                            st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
-                            time.sleep(0.5)
-                            st.rerun()
+       
+    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
+    elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
+        st.title("🔧 툴 상세 스펙 마스터 관리")
+        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
+        
+        spec_master_col = get_spec_master_collection()
+        
+        if spec_master_col is None:
+            st.error("데이터베이스와 통신할 수 없습니다.")
+        else:
+            with st.form("spec_input_form_master", clear_on_submit=True):
+                st.subheader("➕ 하위 상세 스펙 신규 등록")
+                ins_type = st.selectbox("1. 툴 대분류 선택", ["전착툴", "레진툴", "메탈툴", "코어툴"])
+                ins_name = st.text_input("2. 세부 스펙 이름 기입", placeholder="예: 파이90-20-200메쉬").strip()
+                ins_memo = st.text_input("3. 비고/메모 (입도, 제조사 등)", placeholder="예: A사 정품 / #400")
+                
+                if st.form_submit_button("💾 스펙 리스트에 최종 등록"):
+                    if not ins_name:
+                        st.error("⚠️ 스펙 이름을 기입해야 등록 처리가 가능합니다!")
+                    else:
+                        spec_master_col.insert_one({
+                            "main_type": ins_type,
+                            "spec_name": ins_name,
+                            "memo": ins_memo
+                        })
+                        st.success(f"🎉 '{ins_name}' 스펙이 마스터 리스트에 성공적으로 안착되었습니다.")
+                        time.sleep(0.5)
+                        st.rerun()
 
-            st.write("<br><hr>", unsafe_allow_html=True)
-            st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
-            all_specs_list = list(spec_master_col.find({}))
-            
-            if not all_specs_list:
-                st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
-            else:
-                for spec in all_specs_list:
-                    col_sp1, col_sp2 = st.columns([4, 1])
-                    with col_sp1:
-                        st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
-                    with col_sp2:
-                        if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
-                            spec_master_col.delete_one({"_id": spec["_id"]})
-                            st.success("리스트에서 정상 제거되었습니다.")
-                            time.sleep(0.5)
-                            st.rerun()                            
+        st.write("<br><hr>", unsafe_allow_html=True)
+        st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
+        all_specs_list = list(spec_master_col.find({}))
+        
+        if not all_specs_list:
+            st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
+        else:
+            for spec in all_specs_list:
+                col_sp1, col_sp2 = st.columns([4, 1])
+                with col_sp1:
+                    st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
+                with col_sp2:
+                    if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
+                        spec_master_col.delete_one({"_id": spec["_id"]})
+                        st.success("리스트에서 정상 제거되었습니다.")
+                        time.sleep(0.5)
+                        st.rerun()                            
