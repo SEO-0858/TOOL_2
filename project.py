@@ -1163,6 +1163,7 @@ else:
             if st.button("❌ 닫기 (상세 창 닫기)", key=f"close_{ctx_key}"):
                 st.session_state.edit_serial = None
                 st.rerun()
+            
 
             st.subheader(f"🛠 툴 정보 및 연혁 관리: {ctx_key}")
             
@@ -1177,20 +1178,34 @@ else:
                     
                     if st.form_submit_button("💾 기본 정보 저장"):
                         old_machine = target_tool.get('machine_no', '')
-                        log_msg = ""
-                        if old_machine != new_machine:
-                            # 날짜 형식: 년도 포함
-                            timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                            log_msg = f"\n[{timestamp}] 기계 변경: {old_machine} -> {new_machine}"
-                        
-                        updated_note = (target_tool.get('note', '') + log_msg).strip()
-                        db_collection.update_one(
-                            {"serial_no": ctx_key},
-                            {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
-                        )
-                        st.success("저장되었습니다!")
-                        st.rerun()
-
+                        old_worker = target_tool.get('worker', '')
+                    
+                    log_entries = []
+                    
+                    # 기계 번호 변경 감지
+                    if old_machine != new_machine:
+                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                        log_entries.append(f"[{timestamp}] 기계 변경: {old_machine} -> {new_machine}")
+                    
+                    # 작업자 변경 감지
+                    if old_worker != new_worker:
+                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                        log_entries.append(f"[{timestamp}] 작업자 변경: {old_worker} -> {new_worker}")
+                    
+                    # 로그 생성 및 저장
+                    log_msg = "\n" + "\n".join(log_entries) if log_entries else ""
+                    updated_note = (target_tool.get('note', '') + log_msg).strip()
+                    
+                    db_collection.update_one(
+                        {"serial_no": ctx_key},
+                        {"$set": {
+                            "machine_no": new_machine, 
+                            "worker": new_worker, 
+                            "note": updated_note
+                        }}
+                    )
+                    st.success("정보가 저장되었습니다!")
+                    st.rerun()
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
