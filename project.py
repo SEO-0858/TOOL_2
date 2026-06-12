@@ -1,8 +1,7 @@
 import streamlit as st
 from pymongo import MongoClient
-from datetime import datetime, timedelta
+import datetime
 from datetime import timedelta, datetime as dt_class
-from datetime import datetime
 import qrcode
 from io import BytesIO
 import base64
@@ -1169,9 +1168,7 @@ else:
                         old_machine = target_tool.get('machine_no', '')
                         log_msg = ""
                         if old_machine != new_machine:
-                            # datetime.now() 호출 시 에러 방지를 위해 명확히 수정
-                            timestamp = datetime.now().strftime('%m-%d %H:%M')
-                            log_msg = f"\n[{timestamp}] 위치 변경: {old_machine} -> {new_machine}"
+                            log_msg = f"\n[{datetime.now().strftime('%m-%d %H:%M')}] 위치 변경: {old_machine} -> {new_machine}"
                         
                         updated_note = (target_tool.get('note', '') + log_msg).strip()
                         
