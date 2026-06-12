@@ -1105,6 +1105,7 @@ else:
     
     
     elif tool_menu == "🖥️ 실시간 기계 정보창":
+        ctx_key = None
         # 1. 데이터 로딩
         active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
         machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
