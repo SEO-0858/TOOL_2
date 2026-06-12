@@ -1105,9 +1105,14 @@ else:
     
         # [실시간 기계 정보창 로직 전체]
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
-        now_kst = get_now_kst()
-        st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+        active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
+        machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
+                            for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+    
+        if 'edit_serial' in st.session_state and st.session_state.edit_serial:
+            st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+            now_kst = get_now_kst()
+            st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # 1. 레이아웃 및 데이터 매핑 (기존 기능 유지)
         layout = [
