@@ -1,6 +1,6 @@
 import streamlit as st
 from pymongo import MongoClient
-import datetime
+from datetime import datetime, timedelta
 from datetime import timedelta, datetime as dt_class
 from datetime import datetime
 import qrcode
@@ -1185,7 +1185,7 @@ else:
                         )
                         st.success("정보가 저장되었습니다!")
                         st.rerun()
-                        
+
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
