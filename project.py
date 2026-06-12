@@ -1105,16 +1105,15 @@ else:
     
     
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        # 1. 데이터 로딩 (가장 먼저 실행)
+        # 1. 데이터 로딩
         active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
         machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
                             for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
         
-        # 2. 상세 수정창 혹은 메인 현황판 (if-else로 완벽하게 분리)
+        # 2. 상세 수정창 혹은 메인 현황판
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
             ctx_key = st.session_state.edit_serial
             
-            # [상세 수정창 로직 시작]
             if st.button("❌ 닫기 (상세 창 닫기)", key="close_detail_view"):
                 st.session_state.edit_serial = None
                 st.rerun()
@@ -1129,16 +1128,10 @@ else:
                     new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
                     
                     if st.form_submit_button("💾 기본 정보 저장"):
-                        old_machine = target_tool.get('machine_no', '')
-                        old_worker = target_tool.get('worker', '')
                         timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                        log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker}"
+                        log_msg = f"\n[{timestamp}] 기계:{target_tool.get('machine_no')}→{new_machine} / 작업자:{target_tool.get('worker')}→{new_worker}"
                         updated_note = (target_tool.get('note', '') + log_msg).strip()
-                        
-                        db_collection.update_one(
-                            {"serial_no": ctx_key},
-                            {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
-                        )
+                        db_collection.update_one({"serial_no": ctx_key}, {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}})
                         st.success("정보가 저장되었습니다!")
                         st.rerun()
 
@@ -1149,19 +1142,15 @@ else:
                 
                 if st.button("💾 연혁 전체 저장", key=f"save_{ctx_key}"):
                     updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
-                    db_collection.update_one(
-                        {"serial_no": ctx_key},
-                        {"$set": {"note": updated_note, "machine_no": new_machine, "worker": new_worker}}
-                    )
+                    db_collection.update_one({"serial_no": ctx_key}, {"$set": {"note": updated_note, "machine_no": new_machine, "worker": new_worker}})
                     st.success("연혁 및 상태 정보가 업데이트되었습니다!")
                     st.rerun()
             else:
                 st.error("툴 정보를 찾을 수 없습니다.")
                 st.session_state.edit_serial = None
-            # [상세 수정창 로직 끝]
-
+        
         else:
-            # 3. 메인 현황판 출력 (기존 레이아웃 유지)
+            # 3. 메인 현황판 (대표님 사진 속 레이아웃 그대로 복구)
             st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
             now_kst = get_now_kst()
             st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
