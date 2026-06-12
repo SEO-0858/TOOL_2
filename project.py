@@ -1197,7 +1197,12 @@ else:
                 note_lines = raw_note.split('\n') if raw_note else ["기록 없음"]
                 df = pd.DataFrame(note_lines, columns=["연혁 및 기록 내용"])
                 
-                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+                edited_df = st.data_editor(
+                    df, 
+                    use_container_width=True, 
+                    num_rows="dynamic", 
+                    key=f"history_editor_{st.session_state.edit_serial}" # ◀◀ 핵심 수정 부분
+                )
                 
                 if st.button("💾 연혁 전체 저장"):
                     updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
