@@ -1,14 +1,14 @@
 import streamlit as st
 from pymongo import MongoClient
-import datetime
-from datetime import timedelta, datetime as dt_class
-import qrcode
-from io import BytesIO
-import base64
+import datetime  # 기존 코드에서 datetime.datetime.utcnow() 등을 썼다면 필요합니다.
+from datetime import datetime as dt, timedelta
+import pandas as pd
 import re
 import time
-from datetime import datetime as dt_datetime
-import pandas as pd
+import base64
+from io import BytesIO
+import qrcode
+dt_class = dt
 
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 필수 함수입니다."""
