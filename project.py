@@ -1179,7 +1179,10 @@ else:
                         updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
                         db_collection.update_one(
                             {"serial_no": ctx_key},
-                            {"$set": {"note": updated_note}}
+                            {"$set": {"note": updated_note,
+                                      "machine_no": new_machine, # 이 부분이 누락되어 있었습니다!
+                                        "worker": new_worker
+                                        }}
                         )
                         st.success("연혁이 업데이트되었습니다!")
                         st.rerun()
