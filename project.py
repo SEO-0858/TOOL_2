@@ -1147,15 +1147,16 @@ else:
                     else:
                         st.info("비어있음")
 
-        # 4. 상세 수정창 (자동 로그 기록 로직 포함)
+        
+        # 4. 상세 수정창 (저장 로직 및 자동 로그 기록 보강)
         if 'edit_serial' in st.session_state and st.session_state.edit_serial:
             st.divider()
             st.subheader(f"🛠 툴 정보 및 연혁 관리: {st.session_state.edit_serial}")
             
+            # DB에서 실시간 데이터 재조회
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
-                # [기본 정보 수정 및 자동 로그 기록]
                 with st.form("edit_basic_info"):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -1163,15 +1164,21 @@ else:
                     with col2:
                         new_worker = st.text_input("담당 작업자", value=target_tool.get('worker', ''))
                     
-                    if st.form_submit_button("💾 기본 정보 저장"):
-                        # 변경 감지 및 자동 로그 생성
+                    submit_button = st.form_submit_button("💾 기본 정보 저장")
+                    
+                    if submit_button:
+                        # 1. 위치 변경 시 자동 로그 생성
                         old_machine = target_tool.get('machine_no', '')
                         log_msg = ""
                         if old_machine != new_machine:
-                            log_msg = f"\n[{datetime.now().strftime('%m-%d %H:%M')}] 위치 변경: {old_machine} -> {new_machine}"
+                            # 한국 시간 기준으로 로그 기록
+                            timestamp = dt.now().strftime('%m-%d %H:%M')
+                            log_msg = f"\n[{timestamp}] 위치 변경: {old_machine} -> {new_machine}"
                         
+                        # 2. 업데이트할 데이터 구성
                         updated_note = (target_tool.get('note', '') + log_msg).strip()
                         
+                        # 3. DB 업데이트 실행 (즉시 반영)
                         db_collection.update_one(
                             {"serial_no": st.session_state.edit_serial},
                             {"$set": {
@@ -1180,8 +1187,26 @@ else:
                                 "note": updated_note
                             }}
                         )
-                        st.success("정보가 저장되었습니다!")
-                        st.rerun()
+                        
+                        st.success("데이터베이스에 저장되었습니다!")
+                        st.rerun() # UI를 강제로 새로고침하여 바뀐 데이터를 즉시 표시
+
+                # [연혁 데이터 편집 부분]
+                st.write("#### 📜 연혁 데이터 (기록 관리)")
+                raw_note = target_tool.get("note", "")
+                note_lines = raw_note.split('\n') if raw_note else ["기록 없음"]
+                df = pd.DataFrame(note_lines, columns=["연혁 및 기록 내용"])
+                
+                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+                
+                if st.button("💾 연혁 전체 저장"):
+                    updated_note = "\n".join(edited_df["연혁 및 기록 내용"].tolist())
+                    db_collection.update_one(
+                        {"serial_no": st.session_state.edit_serial},
+                        {"$set": {"note": updated_note}}
+                    )
+                    st.success("연혁이 업데이트되었습니다!")
+                    st.rerun()
 
                 # [연혁 데이터 편집]
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
