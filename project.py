@@ -1158,7 +1158,7 @@ else:
             target_tool = db_collection.find_one({"serial_no": st.session_state.edit_serial})
             
             if target_tool:
-                # [기본 정보 수정 및 자동 로그 저장]
+            # 1. 기본 정보 수정 폼 (Form 안에는 저장 버튼만)
                 with st.form("edit_basic_info"):
                     col1, col2 = st.columns(2)
                     new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
@@ -1168,9 +1168,7 @@ else:
                         old_machine = target_tool.get('machine_no', '')
                         log_msg = ""
                         if old_machine != new_machine:
-                            # 년도 포함 날짜 형식으로 수정
                             timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                            # '위치 변경' -> '기계 변경'으로 용어 수정
                             log_msg = f"\n[{timestamp}] 기계 변경: {old_machine} -> {new_machine}"
                         
                         updated_note = (target_tool.get('note', '') + log_msg).strip()
@@ -1181,16 +1179,16 @@ else:
                         st.success("정보가 저장되었습니다!")
                         st.rerun()
 
-                # [연혁 데이터 편집부]
+                # 2. 연혁 데이터 편집 (Form 바깥으로 배치)
                 st.write("#### 📜 연혁 데이터 (기록 관리)")
                 raw_note = target_tool.get("note", "")
                 df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
-                
                 unique_k = f"{st.session_state.edit_serial}_{time.time()}"
                 edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{unique_k}")
                 
-                # 버튼 로직: 닫기 버튼을 먼저 체크하거나 버튼 간에 key를 확실히 분리
+                # 3. 버튼들 (Form과 완벽히 분리)
                 col_save, col_close = st.columns(2)
+                
                 with col_save:
                     if st.button("💾 연혁 전체 저장", key=f"save_{unique_k}"):
                         db_collection.update_one(
@@ -1201,33 +1199,15 @@ else:
                         st.rerun()
                 
                 with col_close:
-                    # 닫기 버튼 클릭 시 세션 초기화 후 즉시 리런
+                    # 닫기 버튼이 눌리면 세션을 비우고 리런
                     if st.button("❌ 닫기", key=f"close_{unique_k}"):
                         st.session_state.edit_serial = None
                         st.rerun()
-        
-
-
-
-#-------툴 상세스펙 마스터 관리------------------------------------------------------------------------------------------------------------------------------
-
-    elif tool_menu == "툴 상세스펙 마스터 관리":
-        # 🔧 아이콘을 빼고 텍스트로만 설정하여 문법 오류 방지
-        st.title("툴 상세 스펙 마스터 관리")
-        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다.")
-        
-        spec_master_col = get_spec_master_collection()
-        if spec_master_col is None:
-            st.error("데이터베이스와 통신할 수 없습니다.")
-        else:
-            with st.form("spec_input_form_master", clear_on_submit=True):
-                ins_type = st.selectbox("1. 툴 대분류 선택", ["진착툴", "레진툴", "에탄툴", "코어툴"])
-                ins_name = st.text_input("2. 세부 스펙 이름 기입")
-                ins_memo = st.text_input("3. 비고/메모")
-                if st.form_submit_button("스펙 리스트에 최종 등록"):
-                    # 등록 로직...
-                    st.success("등록되었습니다.")
-
+            else:
+                st.error("데이터를 찾을 수 없습니다.")
+                if st.button("❌ 닫기"):
+                    st.session_state.edit_serial = None
+                    st.rerun()
 
         # -------------------------------------------------------------
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)
