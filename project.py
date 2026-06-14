@@ -755,9 +755,14 @@ else:
                                 has_history_log = "상태:" in note_content or "호기" in note_content
                                 has_pending_log = "상태: 재사용대기" in note_content
                                 
-                                if db_current_status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
-                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
+                                # [수정 후: note 텍스트 대신 실제 DB 데이터를 직접 확인]
+                                last_mach = item.get("last_active_machine")
+                                last_count = item.get("last_active_count")
 
+                                # 가동 이력이 하나라도 있으면 경고창을 띄움
+                                if last_mach or (last_count and last_count > 0):
+                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {last_mach}, 실적갯수: {last_count}개)")
+                                    
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
                                 
