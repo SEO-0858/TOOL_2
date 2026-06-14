@@ -735,7 +735,7 @@ else:
                                                 # [수정된 부분]
                         # 기입 대기 라벨을 붙이기 전에 상태가 '폐기'인지 먼저 체크합니다.
                         if db_current_status == "폐기":
-                            expander_title = f"🔴 [폐기] | 🆔 {s_no} ({spec_info}) | 정보: 모든 데이터 폐기 처리됨"
+                            expander_title = f"🔴 [폐기] | 🆔 {s_no} ({spec_info}) | 정보: 이 시리얼 넘버의 TOOL은 사용이 완료된 툴입니다..!"
                         elif not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
