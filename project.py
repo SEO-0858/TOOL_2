@@ -732,7 +732,11 @@ else:
                             
                         spec_info = item.get('detail_spec', '스펙없음') # DB에서 상세스펙을 가져옴
                         
-                        if not item.get('worker') or not item.get('machine_no'):
+                                                # [수정된 부분]
+                        # 기입 대기 라벨을 붙이기 전에 상태가 '폐기'인지 먼저 체크합니다.
+                        if db_current_status == "폐기":
+                            expander_title = f"🔴 [폐기] | 🆔 {s_no} ({spec_info}) | 정보: 모든 데이터 폐기 처리됨"
+                        elif not item.get('worker') or not item.get('machine_no'):
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
