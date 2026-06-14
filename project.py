@@ -28,16 +28,36 @@ def get_status_info(item, current_now):
             return "#008850", "정상 가동 중", f"{hours}시간 {mins}분 남음"
     except:
         return "#808080", "상태 정보 없음", "-"
+    
+def get_tool_type_name(serial_no):
+    """시리얼 번호 첫 글자로 툴 타입을 반환하는 함수"""
+    if not serial_no or len(serial_no) == 0: return "알수없음"
+    t_code = serial_no[0]
+    mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
+    return mapping.get(t_code, "기타")    
 
-def render_tool_ui(item, color_hex, status_label, time_text):
-    """UI를 그리는 필수 함수입니다."""
+def render_tool_ui(item, current_now):
+    """실시간 기계 정보창 UI를 그리는 함수"""
+    # 1. 상태 정보 가져오기 (기존 함수 활용)
+    color, status_text, time_msg = get_status_info(item, current_now)
+    tool_type = get_tool_type_name(item.get('serial_no', ''))
+    
+    # 2. UI 표시 (HTML 스타일)
     st.markdown(f"""
-    <div style="border-left: 8px solid {color_hex}; padding: 10px; margin-bottom: 5px; background-color: #f9f9f9; border-radius: 4px;">
-        <h4 style="margin: 0; font-size: 16px;">🆔 {item.get('serial_no')} ({item.get('detail_spec', '-')})</h4>
-        <p style="margin: 5px 0; font-size: 13px;">
-            <b>작업자:</b> {item.get('worker', '-')} | <b>시간:</b> {item.get('start_time', '-')[-8:]} <br>
-            <span style="color: {color_hex}; font-weight: bold;">{status_label} ({time_text})</span>
-        </p>
+    <div style="padding: 10px; border-radius: 10px; border: 1px solid #ddd; background-color: #f9f9f9;">
+        <h4 style="margin: 0; color: #333;">🆔 {item.get('serial_no')} </h4>
+        <div style="margin: 5px 0; font-weight: bold; color: #555;">
+            [{tool_type}툴] | 상태: <span style="color: {color};">{status_text}</span>
+        </div>
+        <div style="font-size: 0.9em; color: #666;">
+            🛠 스펙: {item.get('detail_spec', '-')}
+        </div>
+        <div style="font-size: 0.9em; color: #666;">
+            ⏳ 드레싱 주기: {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분
+        </div>
+        <div style="font-size: 0.8em; color: #d9534f; margin-top: 5px;">
+            {time_msg}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
