@@ -36,27 +36,21 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(t_code, "기타")    
 
-def render_tool_ui(item, current_now):
-    """실시간 기계 정보창 UI를 그리는 함수"""
-    # 1. 상태 정보 가져오기 (기존 함수 활용)
-    color, status_text, time_msg = get_status_info(item, current_now)
+def render_tool_ui(item, color_hex, status_label, time_text):
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     
-    # 2. UI 표시 (HTML 스타일)
     st.markdown(f"""
-    <div style="padding: 10px; border-radius: 10px; border: 1px solid #ddd; background-color: #f9f9f9;">
-        <h4 style="margin: 0; color: #333;">🆔 {item.get('serial_no')} </h4>
-        <div style="margin: 5px 0; font-weight: bold; color: #555;">
-            [{tool_type}툴] | 상태: <span style="color: {color};">{status_text}</span>
+    <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
+        <h4 style="margin: 0; font-size: 15px;">🆔 {item.get('serial_no')}</h4>
+        <div style="font-size: 13px; font-weight: bold; color: #444;">
+            [{tool_type}툴] | {status_label}
         </div>
-        <div style="font-size: 0.9em; color: #666;">
-            🛠 스펙: {item.get('detail_spec', '-')}
+        <div style="font-size: 12px; color: #666;">
+            🛠 {item.get('detail_spec', '-')} <br>
+            ⏳ 주기: {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분
         </div>
-        <div style="font-size: 0.9em; color: #666;">
-            ⏳ 드레싱 주기: {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분
-        </div>
-        <div style="font-size: 0.8em; color: #d9534f; margin-top: 5px;">
-            {time_msg}
+        <div style="font-size: 11px; color: #d9534f; margin-top: 3px;">
+            {time_text}
         </div>
     </div>
     """, unsafe_allow_html=True)
