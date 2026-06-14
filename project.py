@@ -164,7 +164,7 @@ def generate_app_qr_bytes(serial_text):
 
 # 🟣 [재사용대기 팝업 대화창 정의]
 @st.dialog("📋 재사용대기 전환 추가 정보 기입")
-def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins):
+def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins,ed_spec):
     st.write("🛠️ 이 툴을 보관 후 다시 사용하기 위해 기계 가공 실적을 입력해 주세요.")
     
     pop_worker_name = st.text_input("👤 보관 처리 작업자 성명", value=ed_worker, key=f"pop_worker_reuse_{s_no}")
@@ -184,7 +184,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         pop_mach_name = f"{pop_mach_num}호기"
         
         # [2단계 수정] 작업자 이름 부분에 pop_worker_name 사용
-        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {pop_worker_name}, 스펙: {spec},가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
+        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, 작업자: {pop_worker_name}, [스펙: {ed_spec}],가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
@@ -892,7 +892,7 @@ else:
                                         st.stop()
 
                                     if ed_status == "재사용대기":
-                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins)
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins,ed_spec)
                                         st.stop()
                                     
                                     if ed_status == "폐기":
