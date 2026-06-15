@@ -595,55 +595,44 @@ else:
 
             # 인쇄용 HTML을 아예 버튼과 함께 하나로 만듭니다.
 
+            # 기존 버튼 코드 대신 아래 내용을 사용하세요.
+
+            # 1. 인쇄용 HTML을 숨김 영역에 생성
             print_final_html = f"""
-            <div style="text-align: center;">
-                <button onclick="
+            <div id="qr-area" style="display:none;">
+                <div style='display: flex; flex-wrap: wrap; gap: 20px;'>
+                    {html_printable_content}
+                </div>
+            </div>
+
+            <script>
+                function openPrintWindow() {{
                     var win = window.open('', '_blank');
-                    var htmlContent = `
-                        <html>
-                            <head>
-                                <style>
-                                    @page {{ size: auto; margin: 5mm; }} 
-                                    body {{ display: flex; flex-direction: column; align-items: center; margin: 0; padding: 0; }}
-                                    img {{ display: block; }}
-                                </style>
-                            </head>
-                            <body>
-                                ` + document.getElementById('qr-area').innerHTML + `
-                            </body>
-                        </html>`;
-                    
-                    win.document.write(htmlContent);
+                    win.document.write('<html><body>' + document.getElementById("qr-area").innerHTML + '</body></html>');
                     win.document.close();
                     
-                    // 핵심: 모든 이미지가 로딩된 후 인쇄되도록 대기
                     var images = win.document.getElementsByTagName('img');
                     var loadedCount = 0;
                     
                     function checkReady() {{
                         loadedCount++;
-                        if (loadedCount === images.length) {{
-                            win.print();
-                        }}
+                        if (loadedCount === images.length) win.print();
                     }}
                     
                     for (var i = 0; i < images.length; i++) {{
-                        if (images[i].complete) {{
-                            checkReady();
-                        }} else {{
-                            images[i].onload = checkReady;
-                        }}
+                        if (images[i].complete) checkReady();
+                        else images[i].onload = checkReady;
                     }}
-                    // 이미지가 아예 없을 경우를 대비한 안전 장치
                     if (images.length === 0) win.print();
-                " style="padding: 15px 30px; font-size: 18px; cursor: pointer;">
-                    🖨️ 인쇄 창 열기
-                </button>
-            </div>
-            <div id="qr-area" style="display:none;">
-                {html_printable_content}
-            </div>
+                }}
+            </script>
             """
+            st.components.v1.html(print_final_html, height=0) # 이 스크립트만 몰래 실행시킵니다.
+
+            # 2. 눈에 보이는 스트림릿 버튼 생성
+            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
+            # 버튼을 누르면 위에서 정의한 자바스크립트 함수를 호출
+                st.components.v1.html("<script>openPrintWindow();</script>", height=0)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
