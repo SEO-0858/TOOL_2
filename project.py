@@ -565,16 +565,13 @@ else:
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
             st.write("<br>", unsafe_allow_html=True)
             
-            # 1. 인쇄용 HTML 데이터 준비 (시리얼 번호 포함)
+            # 1. 인쇄용 HTML 데이터 준비
             serials_to_print = st.session_state.current_view_serials
             html_content = ""
             
             for s_no in serials_to_print:
-                # QR 생성
                 qr_bytes = generate_app_qr_bytes(s_no)
                 base64_qr = base64.b64encode(qr_bytes).decode("utf-8")
-                
-                # HTML 구조 (이미지 + 시리얼 번호)
                 html_content += f"""
                 <div class='qr-item'>
                     <img src="data:image/png;base64,{base64_qr}">
@@ -582,62 +579,49 @@ else:
                 </div>
                 """
 
-            # 2. 인쇄 버튼 및 CSS 제어 스크립트
+            # 2. 인쇄 버튼 스크립트
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                var style = `
-                    <style>
-                        @page {{ size: 29mm 90mm; margin: 0; }} 
-                        body {{ margin: 0; padding: 0; }}
-                        .label-page {{ 
-                            width: 29mm; height: 85mm; 
-                            display: flex; flex-direction: column; 
-                            align-items: center; justify-content: space-evenly; 
-                            page-break-after: always;
-                        }}
-                        .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
-                        img {{ width: 20mm !important; height: 20mm !important; display: block; }}
-                        span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
-                    </style>`;
-                
+                var style = `<style>
+                    @page {{ size: 29mm 90mm; margin: 0; }} 
+                    body {{ margin: 0; padding: 0; }}
+                    .label-page {{ width: 29mm; height: 85mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
+                    .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
+                    img {{ width: 20mm !important; height: 20mm !important; display: block; }}
+                    span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
+                </style>`;
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
-                
                 setTimeout(function() {{
                     var body = printWindow.document.body;
                     var items = document.getElementById('print-area').getElementsByClassName('qr-item');
-                    
                     for (var i = 0; i < items.length; i += 3) {{
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
-                        for (var j = i; j < i + 3 && j < items.length; j++) {{
-                            pageDiv.appendChild(items[j].cloneNode(true));
-                        }}
+                        for (var j = i; j < i + 3 && j < items.length; j++) {{ pageDiv.appendChild(items[j].cloneNode(true)); }}
                         body.appendChild(pageDiv);
                     }}
                     printWindow.document.close();
                     printWindow.print();
                 }}, 500);
-            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 5px;">
-                🖨️ 시리얼 넘버 포함 3개씩 인쇄
+            " style="padding: 15px; font-size: 16px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold;">
+                🖨️ 시리얼 넘버 포함 3개씩 인쇄하기
             </button>
-
-            <div style='display:none;' id='print-area'>
-                {html_content}
-            </div>
+            <div style='display:none;' id='print-area'>{html_content}</div>
             """
-
-            # 3. 인쇄 버튼 렌더링
-            st.components.v1.html(print_script, height=60)
             
-            # 4. 기존 화면용 그리드 표시
+            # ★ 여기서 버튼 먼저 띄우기
+            st.components.v1.html(print_script, height=70)
+            
+            # 3. 화면용 그리드 표시
+            st.write("<br><h5>발행된 QR 목록:</h5>", unsafe_allow_html=True)
             grid_cols = st.columns(4)
             for idx, s_no in enumerate(serials_to_print):
                 with grid_cols[idx % 4]:
-                    st.image(generate_app_qr_bytes(s_no), width=100)
+                    st.image(generate_app_qr_bytes(s_no), width=80)
                     st.markdown(f"**🆔 {s_no}**")
 
-            if st.button("❌ 인쇄 완료 - 화면에서 QR코드 목록 지우기"):
+            if st.button("❌ 인쇄 완료 - 화면에서 목록 지우기"):
                 st.session_state.show_qr_grid = False
                 st.session_state.current_view_serials = []
                 st.rerun()
