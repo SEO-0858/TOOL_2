@@ -9,6 +9,8 @@ import base64
 from io import BytesIO
 import qrcode
 dt_class = dt
+import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
+from datetime import datetime, timedelta
 
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 필수 함수입니다."""
@@ -29,7 +31,7 @@ def get_status_info(item, current_now):
     except:
         return "#808080", "상태 정보 없음", "-"
 
-from datetime import datetime
+
 
 def get_remaining_time(target_time_str):
     """DB 시간 문자열을 받아 남은 시간을 계산하는 함수"""
