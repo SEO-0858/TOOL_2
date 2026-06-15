@@ -11,6 +11,7 @@ import qrcode
 dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
 from datetime import timedelta
+st.cache_data.clear()
 
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 필수 함수입니다."""
