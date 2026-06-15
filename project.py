@@ -599,29 +599,53 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                printWindow.document.write('<html><head><style>@page {{ margin: 0; }} img {{ display: block; }}</style></head><body>' + document.getElementById('print-area').innerHTML + '</body></html>');
+                printWindow.document.write(`
+                    <html>
+                        <head>
+                            <style>
+                                @page {{ size: 62mm auto; margin: 0; }} 
+                                body {{ 
+                                    margin: 0; 
+                                    padding: 0; 
+                                    display: flex; 
+                                    flex-direction: column; 
+                                    align-items: center; 
+                                }}
+                                #print-area {{ 
+                                    width: 58mm;  /* 라벨 너비에 맞춰 58mm로 고정 */
+                                    display: flex; 
+                                    flex-direction: column; 
+                                    align-items: center; 
+                                    gap: 5px; 
+                                }}
+                                img {{ width: 100%; display: block; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div id='print-area'>` + document.getElementById('print-area').innerHTML + `</div>
+                        </body>
+                    </html>
+                `);
                 printWindow.document.close();
                 
-                // 이미지 로딩 대기 로직
+                // 이미지 로딩 대기 후 인쇄
                 var imgs = printWindow.document.getElementsByTagName('img');
                 var loaded = 0;
                 for(var i=0; i<imgs.length; i++) {{
-                    imgs[i].onload = function() {{ 
-                        loaded++; 
-                        if(loaded === imgs.length) printWindow.print(); 
-                    }};
-                    // 이미 로딩된 경우 대비
+                    imgs[i].onload = function() {{ loaded++; if(loaded === imgs.length) printWindow.print(); }};
                     if(imgs[i].complete) loaded++;
                 }}
                 if(loaded === imgs.length) printWindow.print();
             " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #ff4b4b; border: none; border-radius: 5px;">
-                🖨️ 인쇄하기 (클릭하세요)
+                🖨️ 인쇄하기 (클릭)
             </button>
 
-            <div style='display:none;'>{qr_html_content}</div>
+            <div style='display:none;' id='print-area'>
+                {qr_html_content}
+            </div>
             """
-            # 3. 화면에 출력
             st.components.v1.html(print_script, height=60)
+
 
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
