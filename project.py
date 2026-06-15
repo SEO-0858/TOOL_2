@@ -592,20 +592,17 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                
-                // 1. 핵심: @page를 아예 지정하지 않고, 
-                // 브라우저가 인쇄할 때 프린터 설정(Brother QL-800)을 직접 따르게 함
                 var style = `
                     <style>
+                        @page {{ size: 29mm 90mm; margin: 0; }} 
                         body {{ margin: 0; padding: 0; }}
                         .label-page {{ 
-                            width: 29mm; height: 90.3mm; 
+                            width: 29mm; height: 85mm; 
                             display: flex; flex-direction: column; 
-                            align-items: center; justify-content: center;
-                            /* 강제로 페이지를 여기서 끝냄 */
-                            break-after: page;
+                            align-items: center; justify-content: space-evenly; 
+                            page-break-after: always;
                         }}
-                        img {{ width: 23mm; height: 23mm; display: block; margin: 1mm 0; }}
+                        img {{ width: 22mm !important; height: 22mm !important; display: block; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
@@ -617,20 +614,16 @@ else:
                     for (var i = 0; i < imgs.length; i += 3) {{
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
-                        
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
                             pageDiv.appendChild(imgs[j].cloneNode(true));
                         }}
                         body.appendChild(pageDiv);
                     }}
-                    
                     printWindow.document.close();
-                    
-                    // 인쇄 호출
                     printWindow.print();
                 }}, 500);
-            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #dc3545; border: none; border-radius: 5px;">
-                🖨️ 최종 인쇄 (강제 강제 출력)
+            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 5px;">
+                🖨️ 인쇄 (최종)
             </button>
 
             <div style='display:none;' id='print-area'>
