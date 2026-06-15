@@ -82,7 +82,7 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(serial_no[0], "기타")
 
-def render_tool_ui(item, color_hex, status_label, time_text, db_status):
+def render_tool_ui(item, color_hex, status_label, db_status):
     now = get_now_kst()
     color, status_label, time_text = get_status_info(item, now)
     # 1. 툴 타입 및 작업자 정보 가져오기
@@ -1222,7 +1222,7 @@ else:
                         for item in machine_tool_map[m_no]:
                             color, label, text = get_status_info(item, now_kst)
                             db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
-                            render_tool_ui(item, color, label, text, db_status)
+                            render_tool_ui(item, "none", "none", db_status)
                             if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
                                 st.session_state.edit_serial = item['serial_no']
                                 st.rerun()
