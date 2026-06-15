@@ -34,13 +34,13 @@ def get_status_info(item, current_now):
 
         # 상태 판단 로직
         if total_seconds < 0:
-            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {int(abs(total_seconds)//3600)}시간 지남"
+            return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"⚠️ {int(abs(total_seconds)//3600)}시간 지남"
         elif total_seconds <= 3600:
-            return "#FFAA00", "주의(임박)", f"⏳ 약 {int(total_seconds // 60)}분 남음"
+            return "#FFAA00", "※ 주의(임박) ※", f"⏳ 약 {int(total_seconds // 60)}분 남음"
         else:
             hours = int(total_seconds // 3600)
             mins = int((total_seconds % 3600) // 60)
-            return "#008850", "★ 정상 가동 중 ", f"⏱️ {hours}시간 {mins}분 남음"
+            return "#008850", "※ 정상 가동 중 ※", f"⏱️ {hours}시간 {mins}분 남음"
     except Exception as e:
         return "#808080", "형식 오류", "-"
 
