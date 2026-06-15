@@ -611,7 +611,7 @@ else:
                                 #print-area {{ 
                                     width: 58mm; 
                                     position: relative; 
-                                    left: 2mm; /* 왼쪽으로 치우치면 여기서 값을 조정하세요 */
+                                    left: 3mm; /* 왼쪽으로 치우치면 여기서 값을 조정하세요 */
                                     display: flex; flex-direction: column; align-items: center; 
                                 }}
                                 img {{ width: 95%; display: block; }} /* 약간 여유를 줌 */
