@@ -41,7 +41,7 @@ def get_remaining_time(target_time_str):
         target_str = str(target_time_str).strip()
         target_dt = target_dt.replace(tzinfo=None)
         now = datetime.datetime.now().replace(tzinfo=None)
-        delta = target_dt - now
+        delta = target_dt.replace(tzinfo=None) - datetime.datetime.now().replace(tzinfo=None)
         
         if delta.total_seconds() <= 0: return "시간 초과"
         
