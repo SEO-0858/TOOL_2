@@ -602,7 +602,7 @@ else:
                             width: 29mm; height: 90.3mm; 
                             display: flex; flex-direction: column; 
                             align-items: center; justify-content: center; 
-                            gap: 2mm; /* QR 사이 간격을 명시적으로 지정 */
+                            gap: 1mm; /* QR 사이 간격을 명시적으로 지정 */
                             page-break-after: always;
                         }}
                         img {{ width: 23mm !important; height: 23mm !important; display: block; }}
