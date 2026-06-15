@@ -593,17 +593,20 @@ else:
             <button onclick="
                 var printWindow = window.open('', '_blank');
                 
-                // 1. 스타일: 라벨 1장당 1개 QR 출력 (가장 안정적)
+                // 라벨 크기를 90.3mm로 고정하고, 그 안에 3개를 세로로 정렬
                 var style = `
                     <style>
-                        @page {{ size: 62mm 62mm; margin: 0; }} 
+                        @page {{ size: 29mm 90.3mm; margin: 0; }} 
                         body {{ margin: 0; padding: 0; }}
                         .label-page {{ 
-                            width: 62mm; height: 62mm; 
-                            display: flex; align-items: center; justify-content: center; 
+                            width: 29mm; height: 90.3mm; 
+                            display: flex; flex-direction: column; 
+                            align-items: center; justify-content: space-between; 
                             page-break-after: always;
+                            padding: 2mm 0; /* 위아래 여백 */
+                            box-sizing: border-box;
                         }}
-                        img {{ width: 55mm; height: 55mm; display: block; }}
+                        img {{ width: 25mm; height: 25mm; display: block; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
@@ -612,19 +615,23 @@ else:
                     var body = printWindow.document.body;
                     var imgs = document.getElementById('print-area').getElementsByTagName('img');
                     
-                    // 1개씩 페이지 할당 (QL-800은 이게 제일 정확합니다)
-                    for (var i = 0; i < imgs.length; i++) {{
+                    // 3개씩 묶어서 한 라벨지에 출력
+                    for (var i = 0; i < imgs.length; i += 3) {{
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
-                        pageDiv.appendChild(imgs[i].cloneNode(true));
+                        
+                        // 3개씩 자식으로 추가
+                        for (var j = i; j < i + 3 && j < imgs.length; j++) {{
+                            pageDiv.appendChild(imgs[j].cloneNode(true));
+                        }}
                         body.appendChild(pageDiv);
                     }}
                     
                     printWindow.document.close();
                     printWindow.print();
                 }}, 500);
-            " style="padding: 15px; font-size: 16px; cursor: pointer; color: white; background-color: #d9534f; border: none; border-radius: 5px;">
-                🖨️ 라벨지 한 장당 1개씩 인쇄
+            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
+                🖨️ 라벨 1장에 3개씩 인쇄
             </button>
 
             <div style='display:none;' id='print-area'>
