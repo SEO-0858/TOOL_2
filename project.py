@@ -33,24 +33,36 @@ def get_status_info(item, current_now):
 
 
 
+import datetime
+
 def get_remaining_time(target_time_str):
-    # 1. 데이터가 없으면 "-" 반환
-    if not target_time_str or target_time_str == "": return "-"
+    # 1. 값이 없으면 바로 탈출
+    if not target_time_str:
+        return "-"
     
     try:
+        # 2. 데이터 형식 강제 변환 (시간대 정보가 있다면 제거)
         target_str = str(target_time_str).strip()
-        target_dt = target_dt.replace(tzinfo=None)
-        now = datetime.datetime.now()             # 시간대 정보 없는 현재 시간
+        target_dt = datetime.datetime.strptime(target_str, "%Y-%m-%d %H:%M:%S")
+        
+        # 3. 시간대 정보가 없는 순수 시간과 비교 (오프셋 에러 방지)
+        now = datetime.datetime.now().replace(tzinfo=None)
+        
         delta = target_dt - now
         
-        if delta.total_seconds() <= 0: return "시간 초과"
+        # 4. 시간 계산
+        if delta.total_seconds() <= 0:
+            return "시간 초과"
         
         total_seconds = int(delta.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        
         return f"{hours}시간 {minutes}분 {seconds}초 남음"
-    except:
-        return "-"
+    except Exception as e:
+        # 에러가 나도 죽지 않게 함
+        return "형식 확인 필요"
     
 
 def get_tool_type_name(serial_no):
