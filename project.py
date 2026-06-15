@@ -72,12 +72,11 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(serial_no[0], "기타")
 
-
 def render_tool_ui(item, color_hex, status_label, db_status):
-    # 1단계: DB에서 가져온 시간으로 남은 시간 계산 (이게 있어야 ⏳ 시간이 뜹니다!)
+    # 시간 계산 (딱 한 번만)
     time_text = get_remaining_time(item.get('target_time'))
     
-    # 2단계: 화면 그리기
+    # 이제 그냥 화면에 그립니다.
     st.markdown(f"""
     <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
         <h4 style="margin: 0; font-size: 15px;">{item.get('serial_no')}</h4>
@@ -93,7 +92,7 @@ def render_tool_ui(item, color_hex, status_label, db_status):
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
 
 def get_spec_master_collection():
     mongo_uri = st.secrets["database"]["MONGO_URI"]
