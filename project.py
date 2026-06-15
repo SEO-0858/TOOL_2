@@ -613,7 +613,7 @@ else:
                                     width: 58mm; 
                                     position: relative; 
                                     left: 4mm; /* 이 값을 조절해서 왼쪽 여백을 만드세요! */
-                                    padding-top: 20mm; /* 이 값을 조절해서 위쪽 여백을 만드세요! */
+                                    padding-top: 1mm; /* 이 값을 조절해서 위쪽 여백을 만드세요! */
                                     display: flex; flex-direction: column; align-items: center; 
                                     gap: 15px; /* QR코드 사이 간격도 여기서 조절 가능 */
                                 }}
