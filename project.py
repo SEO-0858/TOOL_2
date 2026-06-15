@@ -610,7 +610,7 @@ else:
             </div>
             """
 
-            st.components.v1.html(print_final_html, height=100)
+            st.components.v1.html(print_final_html, height=80)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
