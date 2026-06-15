@@ -1065,9 +1065,9 @@ else:
                                             raw_date = fresh_data.get('input_date', str(today))
                                             try:
                                                 date_obj = dt_class.strptime(raw_date, "%Y-%m-%d")
-                                                formatted_date = date_obj.strftime("%m/%d")
+                                                formatted_date = date_obj.strftime("%Y-%m-%d")
                                             except:
-                                                formatted_date = raw_date[-5:].replace("-", "/")
+                                                formatted_date = raw_date
                                                 
                                             formatted_time = fresh_data.get('init_time', get_now_kst().strftime("%H:%M"))
                                         else:
