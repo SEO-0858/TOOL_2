@@ -592,20 +592,16 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
+                // 1. 헤더 스타일: 각 페이지를 62mm 높이로 고정
+                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} body {{ margin: 0; padding: 0; }} .page {{ height: 60mm; width: 62mm; page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; }} img {{ width: 80%; display: block; }}</style></head><body></body></html>');
                 
-                // 1. 새 창에 HTML 작성
-                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} .page {{ height: 80mm; page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; }} img {{ width: 80%; }}</style></head><body></body></html>');
-                
-                // 2. 내용 렌더링을 위한 시간 확보 (500ms 지연)
                 setTimeout(function() {{
                     var body = printWindow.document.body;
-                    var qrContent = document.getElementById('print-area').innerHTML;
-                    
-                    // 3개씩 묶기 로직
                     var tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = qrContent;
+                    tempDiv.innerHTML = document.getElementById('print-area').innerHTML;
                     var imgs = tempDiv.getElementsByTagName('img');
                     
+                    // 3개씩 묶기 (3개 미만이면 한 페이지에 1~2개만 출력)
                     for (var i = 0; i < imgs.length; i += 3) {{
                         var pageDiv = printWindow.document.createElement('div');
                         pageDiv.className = 'page';
@@ -617,7 +613,7 @@ else:
                     
                     printWindow.document.close();
                     
-                    // 3. 이미지 로딩 완료 후 인쇄
+                    // 이미지 로딩 대기 후 인쇄
                     var finalImgs = printWindow.document.getElementsByTagName('img');
                     var loaded = 0;
                     function tryPrint() {{
