@@ -919,7 +919,7 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
-                                    ed_limit = st.number_input("⚙️ Limit 사용 한도 횟수 재설정",min_value=0 ,value=int(item.get('use_limit', 10000)), step=1000, key=f"lim_{s_no}")
+                                   
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
@@ -1036,7 +1036,7 @@ else:
                                             "machine_no": "" if ed_status in ["사용전", "폐기"] else full_mach_name,
                                             "dressing_hours": ed_hours,
                                             "dressing_mins": ed_mins,
-                                            "use_limit": ed_limit,  
+                                            "use_limit": 0,  
                                             "start_time": start_time_val,
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
