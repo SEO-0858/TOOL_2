@@ -38,12 +38,9 @@ def get_remaining_time(target_time_str):
     if not target_time_str or target_time_str == "": return "-"
     
     try:
-        # 2. 공백 제거 후 시간 변환
         target_str = str(target_time_str).strip()
-        target_dt = datetime.datetime.strptime(target_str, "%Y-%m-%d %H:%M:%S")
-        
-        # 3. 시간대 정보(tzinfo)를 떼어내고 비교
-        now = datetime.datetime.now()
+        target_dt = target_dt.replace(tzinfo=None)
+        now = datetime.datetime.now().replace(tzinfo=None)
         delta = target_dt - now
         
         if delta.total_seconds() <= 0: return "시간 초과"
@@ -69,8 +66,8 @@ def render_tool_ui(item, color_hex, status_label, time_text, db_status):
     db_status = item.get('status', '사용중')
     target_time_val = item.get('target_time')
     time_text = get_remaining_time(target_time_val) # 시간 계산
-    render_tool_ui(item, color_hex, status_label, db_status, time_text)
-            # 3. HTML 레이아웃 구성 (타이머를 맨 아래 배치)
+    
+    
 
     st.markdown(f"""
     <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
