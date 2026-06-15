@@ -72,20 +72,31 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(serial_no[0], "기타")
 
-def render_tool_ui(item, color_hex, status_label, db_status):
-    # 시간 계산 (딱 한 번만)
-    time_text = get_remaining_time(item.get('target_time'))
+def render_tool_ui(item, color_hex, status_label, time_text, db_status):
+    # 1. 툴 타입 및 작업자 정보 가져오기
+    tool_type = get_tool_type_name(item.get('serial_no', ''))
+    worker_name = item.get('worker', '-')
+    db_status = item.get('status', '사용중')
+    target_time_val = item.get('target_time')
+    time_text = get_remaining_time(target_time_val) # 시간 계산
     
-    # 이제 그냥 화면에 그립니다.
+    
+
     st.markdown(f"""
     <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
-        <h4 style="margin: 0; font-size: 15px;">{item.get('serial_no')}</h4>
-        <div style="font-size: 14px; color: #222; margin: 5px 0;">
-            {db_status} | <span style="color: {color_hex};">{status_label}</span>
+        <h4 style="margin: 0; font-size: 15px;">🆔 {item.get('serial_no')}</h4>
+        <div style="font-size: 14px; font-weight: bold; color: #222; margin: 5px 0;">
+            [{db_status}] | <span style="color: {color_hex};">{status_label}</span>
         </div>
-        <div style="font-size: 13px; font-weight: bold; color: #444;">{get_tool_type_name(item.get('serial_no'))}</div>
-        <div style="font-size: 13px; color: #333; margin-top: 2px;">👤 작업자: {item.get('worker', '-')}</div>
-        <div style="font-size: 12px; color: #666; margin-top: 2px;">⚙️ {item.get('detail_spec', '-')}</div>
+        <div style="font-size: 13px; font-weight: bold; color: #444;">
+            [{tool_type}툴]
+        </div>
+        <div style="font-size: 13px; color: #333; margin-top: 2px;">
+            👤 <b>작업자:</b> {worker_name}
+        </div>
+        <div style="font-size: 12px; color: #666; margin-top: 2px;">
+            🛠 {item.get('detail_spec', '-')}
+        </div>
         <hr style="margin: 5px 0;">
         <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
             ⏳ {time_text}
@@ -1300,4 +1311,4 @@ else:
                         spec_master_col.delete_one({"_id": spec["_id"]})
                         st.success("리스트에서 정상 제거되었습니다.")
                         time.sleep(0.5)
-                                                 
+                                                   
