@@ -623,7 +623,7 @@ else:
                     printWindow.print();
                 }}, 500);
             " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 5px;">
-                🖨️ 인쇄 (최종)
+                🖨️ 인쇄하기 버튼을 잘보고 누르세요!!
             </button>
 
             <div style='display:none;' id='print-area'>
