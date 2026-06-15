@@ -915,7 +915,7 @@ else:
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
-                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=72, value=0, step=1, key=f"eh_{s_no}")
+                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=100, value=0, step=1, key=f"eh_{s_no}")
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
