@@ -84,22 +84,28 @@ def get_tool_type_name(serial_no):
     return mapping.get(serial_no[0], "기타")
 
 def render_tool_ui(item, color_hex, status_label, db_status):
+    """
+    모든 화면에서 동일한 기준(KST)으로 시간과 상태를 계산하여 출력합니다.
+    외부에서 인자를 넘겨줄 필요 없이, item(DB 데이터)을 바탕으로 직접 계산합니다.
+    """
+    # 1. 전역 한국 시간 기준으로 현재 시간 확보
     now = get_now_kst()
+    
+    # 2. 공통 계산 함수 호출 (색상, 상태라벨, 남은시간 텍스트를 한 번에 가져옴)
     color, status_label, time_text = get_status_info(item, now)
-    # 1. 툴 타입 및 작업자 정보 가져오기
+    
+    # 3. 툴 기본 정보 가져오기
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     worker_name = item.get('worker', '-')
-    db_status = item.get('status', '사용중')
-    target_time_val = item.get('target_time')
-    time_text = get_remaining_time(target_time_val) # 시간 계산
+    # db_status는 인자로 전달받은 값을 그대로 활용
     
-    
-
+    # 4. HTML 기반 UI 출력
+    # (주의: 인자로 전달된 color_hex 대신, 위에서 계산된 color 변수를 사용해야 시간이 일치합니다.)
     st.markdown(f"""
-    <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
+    <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color}; background-color: #f9f9f9; margin-bottom: 5px;">
         <h4 style="margin: 0; font-size: 15px;">🆔 {item.get('serial_no')}</h4>
         <div style="font-size: 14px; font-weight: bold; color: #222; margin: 5px 0;">
-            [{db_status}] | <span style="color: {color_hex};">{status_label}</span>
+            [{db_status}] | <span style="color: {color};">{status_label}</span>
         </div>
         <div style="font-size: 13px; font-weight: bold; color: #444;">
             [{tool_type}툴]
