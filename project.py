@@ -605,20 +605,16 @@ else:
                             <style>
                                 @page {{ size: 62mm auto; margin: 0; }} 
                                 body {{ 
-                                    margin: 0; 
-                                    padding: 0; 
-                                    display: flex; 
-                                    flex-direction: column; 
-                                    align-items: center; 
+                                    margin: 0; padding: 0; 
+                                    display: flex; justify-content: center; 
                                 }}
                                 #print-area {{ 
-                                    width: 58mm;  /* 라벨 너비에 맞춰 58mm로 고정 */
-                                    display: flex; 
-                                    flex-direction: column; 
-                                    align-items: center; 
-                                    gap: 5px; 
+                                    width: 58mm; 
+                                    position: relative; 
+                                    left: 2mm; /* 왼쪽으로 치우치면 여기서 값을 조정하세요 */
+                                    display: flex; flex-direction: column; align-items: center; 
                                 }}
-                                img {{ width: 100%; display: block; }}
+                                img {{ width: 95%; display: block; }} /* 약간 여유를 줌 */
                             </style>
                         </head>
                         <body>
@@ -628,7 +624,6 @@ else:
                 `);
                 printWindow.document.close();
                 
-                // 이미지 로딩 대기 후 인쇄
                 var imgs = printWindow.document.getElementsByTagName('img');
                 var loaded = 0;
                 for(var i=0; i<imgs.length; i++) {{
