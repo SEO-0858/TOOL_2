@@ -585,24 +585,32 @@ else:
             html_printable_content += "</div>"
             st.write("<br>", unsafe_allow_html=True)
             
-                # [최종 수정] 팝업 없는 직접 인쇄 방식
-                # 기존의 st.components.v1.html(...) 대신 이걸 사용하세요.
-            if st.button("🖨️ 인쇄용 새 창 열기"):
-                # 인쇄용 내용을 새 탭에 띄우고 자동으로 인쇄 명령을 넣습니다.
-                print_html = f"""
-                <html>
-                    <body>
-                        {html_printable_content}
-                        <script>
-                            window.onload = function() {{ window.print(); }}
-                        </script>
-                    </body>
-                </html>
-                """
-                # 데이터 URI로 새 창을 엽니다.
-                b64_html = base64.b64encode(print_html.encode()).decode()
-                js_code = f"window.open('data:text/html;base64,{b64_html}');"
-                st.components.v1.html(f"<script>{js_code}</script>", height=0)
+        # 기존의 st.button("🖨️ 인쇄용 새 창 열기") 로직을 다 지우고 아래 코드를 넣으세요.
+
+            html_printable_content = f"""
+                <div id='print-target-area' style='display: flex; flex-wrap: wrap; gap: 20px;'>
+                    {html_printable_content} 
+                </div>
+            """
+
+            # 인쇄용 HTML을 아예 버튼과 함께 하나로 만듭니다.
+            print_final_html = f"""
+            <div style="text-align: center;">
+                <button onclick="
+                    var win = window.open('', '_blank');
+                    win.document.write('<html><body>' + document.getElementById('qr-area').innerHTML + '</body></html>');
+                    win.document.close();
+                    win.print();
+                " style="padding: 15px 30px; font-size: 18px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 5px;">
+                    🖨️ 인쇄 창 열기
+                </button>
+            </div>
+            <div id="qr-area" style="display:none;">
+                {html_printable_content}
+            </div>
+            """
+
+            st.components.v1.html(print_final_html, height=100)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
