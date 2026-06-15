@@ -585,28 +585,24 @@ else:
             html_printable_content += "</div>"
             st.write("<br>", unsafe_allow_html=True)
             
-            # [최종 수정] 팝업 없는 직접 인쇄 방식
-            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기", key=f"print_btn_{len(st.session_state.current_view_serials)}"):
-                # 인쇄용 CSS를 포함한 HTML 구조
-                print_style = """
-                <style>
-                    @media print {
-                        .no-print { display: none; }
-                        .print-only { display: block; }
-                    }
-                </style>
+                # [최종 수정] 팝업 없는 직접 인쇄 방식
+                # 기존의 st.components.v1.html(...) 대신 이걸 사용하세요.
+            if st.button("🖨️ 인쇄용 새 창 열기"):
+                # 인쇄용 내용을 새 탭에 띄우고 자동으로 인쇄 명령을 넣습니다.
+                print_html = f"""
+                <html>
+                    <body>
+                        {html_printable_content}
+                        <script>
+                            window.onload = function() {{ window.print(); }}
+                        </script>
+                    </body>
+                </html>
                 """
-                # 인쇄 내용을 감싸는 HTML
-                print_body = f"<div class='print-only'>{html_printable_content}</div>"
-                
-                # HTML 렌더링 후 자동으로 브라우저 인쇄 함수를 호출
-                st.components.v1.html(f"""
-                    {print_style}
-                    {print_body}
-                    <script>
-                        window.print();
-                    </script>
-                """, height=0)
+                # 데이터 URI로 새 창을 엽니다.
+                b64_html = base64.b64encode(print_html.encode()).decode()
+                js_code = f"window.open('data:text/html;base64,{b64_html}');"
+                st.components.v1.html(f"<script>{js_code}</script>", height=0)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
