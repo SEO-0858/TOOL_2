@@ -22,7 +22,7 @@ def show_machine_dashboard():
     if st.button("🔄 실시간 정보 즉시 갱신"):
         st.rerun()
     now_kst = get_now_kst()
-    st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+    st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M')}")
     # 1. 레이아웃 및 데이터 매핑 (기존 기능 유지)
     layout = [
         [27, 28, 29, 30, 31, 9, 8, 7],
