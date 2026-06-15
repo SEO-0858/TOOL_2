@@ -11,30 +11,41 @@ import qrcode
 dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
 from datetime import timedelta
+import pytz
 st.cache_data.clear()
 
+# thr.py 파일 내부
 def get_status_info(item, current_now):
-    """툴 상태 정보를 계산하는 필수 함수입니다."""
+    """툴 상태 정보를 계산하는 함수"""
     try:
-        # DB의 target_time 형식이 "YYYY-MM-DD HH:MM:SS"라고 가정합니다.
-        target_dt = datetime.strptime(item.get("target_time", "2026-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        # DB의 target_time 값을 가져옵니다.
+        target_time_str = item.get("target_time")
+        
+        # 값이 없거나 '-' 이면 바로 "상태 정보 없음" 반환
+        if not target_time_str or target_time_str == "-":
+            return "#808080", "상태 정보 없음", "-"
+            
+        # 시간 문자열을 datetime 객체로 변환
+        target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+        
+        # 시간 차이 계산
         time_diff = target_dt - current_now
         total_seconds = time_diff.total_seconds()
 
+        # 상태 판단 로직
         if total_seconds < 0:
-            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {str(abs(time_diff)).split('.')[0]} 지남"
+            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {int(abs(total_seconds)//3600)}시간 지남"
         elif total_seconds <= 3600:
-            return "#FFAA00", "주의(임박)", f"약 {int(total_seconds // 60)}분 남음"
+            return "#FFAA00", "주의(임박)", f"⏳ 약 {int(total_seconds // 60)}분 남음"
         else:
             hours = int(total_seconds // 3600)
             mins = int((total_seconds % 3600) // 60)
-            return "#008850", "정상 가동 중", f"{hours}시간 {mins}분 남음"
-    except:
-        return "#808080", "상태 정보 없음", "-"
+            return "#008850", "정상 가동 중", f"⏱️ {hours}시간 {mins}분 남음"
+    except Exception as e:
+        return "#808080", "형식 오류", "-"
 
 
 
-import datetime
 
 def get_remaining_time(target_time_str):
     # 1. 값이 없으면 바로 탈출
@@ -72,7 +83,9 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(serial_no[0], "기타")
 
-def render_tool_ui(item, color_hex, status_label, time_text, db_status):
+def render_tool_ui(item, color_hex, status_label, db_status):
+    now = get_now_kst()
+    color, status_label, time_text = get_status_info(item, now)
     # 1. 툴 타입 및 작업자 정보 가져오기
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     worker_name = item.get('worker', '-')
@@ -125,17 +138,16 @@ if 'sidebar_errors' not in st.session_state:
 # 파일 최상단 import 아래에 이 함수를 추가하세요
 def get_elapsed_time_str(start_time_val):
     try:
-        # 데이터가 없으면 빈 문자열 반환
         if not start_time_val or start_time_val == "-":
             return ""
         
-        # 문자열을 datetime 객체로 변환 (기존에 이미 dt_class를 사용 중이므로 안전합니다)
-        # 만약 start_time_val이 이미 datetime 객체라면 바로 사용
         start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
         
-        # 현재 시간과 차이 계산 (UTC+9 적용)
-        now_kst = dt_class.utcnow() + timedelta(hours=9)
+        # [핵심 수정] 여기서 직접 계산하지 말고 위에서 정의한 함수를 호출하세요!
+        now_kst = get_now_kst() 
         diff = now_kst - start_dt
+        
+        # ... 이하 동일 ...
         
         hours = int(diff.total_seconds() // 3600)
         minutes = int((diff.total_seconds() % 3600) // 60)
@@ -203,7 +215,8 @@ def validate_process(current_status, next_status):
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    return datetime.datetime.now()
+    
+    return datetime.datetime.now(pytz.timezone('Asia/Seoul')).replace(tzinfo=None)
 
 now = get_now_kst()
 today = now.date()
@@ -1178,6 +1191,8 @@ else:
         # [실시간 기계 정보창 로직 전체]
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+        if st.button("🔄 실시간 정보 즉시 갱신"):
+            st.rerun()
         now_kst = get_now_kst()
         st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -1208,7 +1223,7 @@ else:
                         for item in machine_tool_map[m_no]:
                             color, label, text = get_status_info(item, now_kst)
                             db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
-                            render_tool_ui(item, color, label, text, db_status)
+                            render_tool_ui(item, "none", "none", db_status)
                             if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
                                 st.session_state.edit_serial = item['serial_no']
                                 st.rerun()
@@ -1311,4 +1326,4 @@ else:
                         spec_master_col.delete_one({"_id": spec["_id"]})
                         st.success("리스트에서 정상 제거되었습니다.")
                         time.sleep(0.5)
-                        st.rerun()                            
+                        st.rerun()                          
