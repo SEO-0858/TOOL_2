@@ -11,6 +11,7 @@ import qrcode
 dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
 from datetime import timedelta
+import pytz
 st.cache_data.clear()
 
 # thr.py 파일 내부
@@ -215,7 +216,7 @@ def validate_process(current_status, next_status):
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
     
-    return datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    return datetime.datetime.now(pytz.timezone('Asia/Seoul')).replace(tzinfo=None)
 
 now = get_now_kst()
 today = now.date()
