@@ -146,7 +146,7 @@ def get_elapsed_time_str(start_time_val):
         start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
         
         # 현재 시간과 차이 계산 (UTC+9 적용)
-        now_kst = dt_class.utcnow() + timedelta(hours=9)
+        now_kst = datetime.datetime.now()
         diff = now_kst - start_dt
         
         hours = int(diff.total_seconds() // 3600)
