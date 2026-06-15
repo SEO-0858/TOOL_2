@@ -214,6 +214,7 @@ def validate_process(current_status, next_status):
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
+    
     return datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 
 now = get_now_kst()
