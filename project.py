@@ -592,20 +592,20 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                // 핵심: 높이를 90.3mm보다 아주 조금 더 크게 잡아서 
-                // 브라우저가 강제로 줄바꿈하는 것을 방지합니다.
+                
+                // 1. 핵심: @page를 아예 지정하지 않고, 
+                // 브라우저가 인쇄할 때 프린터 설정(Brother QL-800)을 직접 따르게 함
                 var style = `
                     <style>
-                        @page {{ size: 29mm 90.3mm; margin: 0; }} 
                         body {{ margin: 0; padding: 0; }}
                         .label-page {{ 
                             width: 29mm; height: 90.3mm; 
                             display: flex; flex-direction: column; 
-                            align-items: center; justify-content: center; 
-                            gap: 1mm; /* QR 사이 간격을 명시적으로 지정 */
-                            page-break-after: always;
+                            align-items: center; justify-content: center;
+                            /* 강제로 페이지를 여기서 끝냄 */
+                            break-after: page;
                         }}
-                        img {{ width: 23mm !important; height: 23mm !important; display: block; }}
+                        img {{ width: 23mm; height: 23mm; display: block; margin: 1mm 0; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
@@ -618,7 +618,6 @@ else:
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
                         
-                        // 3개 추가
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
                             pageDiv.appendChild(imgs[j].cloneNode(true));
                         }}
@@ -626,10 +625,12 @@ else:
                     }}
                     
                     printWindow.document.close();
+                    
+                    // 인쇄 호출
                     printWindow.print();
                 }}, 500);
-            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
-                🖨️ 3개씩 모아 인쇄하기
+            " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #dc3545; border: none; border-radius: 5px;">
+                🖨️ 최종 인쇄 (강제 강제 출력)
             </button>
 
             <div style='display:none;' id='print-area'>
