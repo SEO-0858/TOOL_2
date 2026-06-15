@@ -1356,29 +1356,31 @@ else:
                         st.rerun()
 
         st.write("<br><hr>", unsafe_allow_html=True)
-        st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
-        # 📋 현재 등록된 전 공정 공용 스펙 명부
-        all_specs_list = list(spec_master_col.find({}))
         
-        if not all_specs_list:
-            st.info("💡 아직 등록된 스펙이 없습니다.")
+        # 💡 토글 스위치 삽입 (이거 하나로 리스트 전체를 제어합니다)
+        show_list = st.toggle("📋 전체 스펙 명부 보기/숨기기", value=True)
+        
+        if show_list:
+            all_specs_list = list(spec_master_col.find({}))
+            
+            if not all_specs_list:
+                st.info("💡 아직 등록된 스펙이 없습니다.")
+            else:
+                for spec in all_specs_list:
+                    # 각 항목은 개별적으로 열어볼 수 있는 expander 사용
+                    with st.expander(f"[{spec['main_type']}] {spec['spec_name']}"):
+                        col_sp1, col_sp2, col_sp3 = st.columns([4, 1, 1])
+                        with col_sp1:
+                            st.markdown(f"**상세 메모:** {spec.get('memo', '내용 없음')}")
+                        with col_sp2:
+                            if st.button("✏️ 수정", key=f"edit_mst_{spec['_id']}"):
+                                st.session_state.edit_target = spec
+                                st.rerun()
+                        with col_sp3:
+                            if st.button("🗑️ 삭제", key=f"del_mst_{spec['_id']}"):
+                                spec_master_col.delete_one({"_id": spec["_id"]})
+                                st.success("삭제되었습니다.")
+                                time.sleep(0.5)
+                                st.rerun()
         else:
-            for spec in all_specs_list:
-                # 💡 expander를 사용하여 평소에는 제목만 보여줍니다!
-                with st.expander(f"[{spec['main_type']}] {spec['spec_name']}"):
-                    col_sp1, col_sp2, col_sp3 = st.columns([4, 1, 1])
-                    
-                    with col_sp1:
-                        st.markdown(f"**상세 정보:** {spec.get('memo', '내용 없음')}")
-                    
-                    with col_sp2:
-                        if st.button("✏️ 수정", key=f"edit_mst_{spec['_id']}"):
-                            st.session_state.edit_target = spec
-                            st.rerun()
-                    
-                    with col_sp3:
-                        if st.button("🗑️ 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
-                            spec_master_col.delete_one({"_id": spec["_id"]})
-                            st.success("리스트에서 제거되었습니다.")
-                            time.sleep(0.5)
-                            st.rerun()
+            st.caption("🔒 스펙 명부가 숨겨져 있습니다.")
