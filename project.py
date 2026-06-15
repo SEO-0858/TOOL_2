@@ -596,6 +596,7 @@ else:
             """
 
             # 2. 버튼 클릭 시 인쇄를 실행하는 자바스크립트를 아예 버튼과 한몸으로 만듭니다.
+            # 기존 CSS 스타일 부분을 아래와 같이 수정하세요.
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
@@ -611,10 +612,12 @@ else:
                                 #print-area {{ 
                                     width: 58mm; 
                                     position: relative; 
-                                    left: 4mm; /* 왼쪽으로 치우치면 여기서 값을 조정하세요 */
+                                    left: 4mm; /* 이 값을 조절해서 왼쪽 여백을 만드세요! */
+                                    padding-top: 20mm; /* 이 값을 조절해서 위쪽 여백을 만드세요! */
                                     display: flex; flex-direction: column; align-items: center; 
+                                    gap: 15px; /* QR코드 사이 간격도 여기서 조절 가능 */
                                 }}
-                                img {{ width: 95%; display: block; }} /* 약간 여유를 줌 */
+                                img {{ width: 90%; display: block; }} 
                             </style>
                         </head>
                         <body>
@@ -624,6 +627,7 @@ else:
                 `);
                 printWindow.document.close();
                 
+                // 이미지 로딩 대기 후 인쇄
                 var imgs = printWindow.document.getElementsByTagName('img');
                 var loaded = 0;
                 for(var i=0; i<imgs.length; i++) {{
