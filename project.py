@@ -62,7 +62,7 @@ def get_tool_type_name(serial_no):
     mapping = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
     return mapping.get(serial_no[0], "기타")
 
-def render_tool_ui(item, color_hex, status_label, db_status):
+def render_tool_ui(item, color_hex, status_label, time_text, db_status):
     # 1. 툴 타입 및 작업자 정보 가져오기
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     worker_name = item.get('worker', '-')
