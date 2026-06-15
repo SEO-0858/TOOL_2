@@ -1274,6 +1274,7 @@ else:
                             {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
                         )
                         st.success("정보가 저장되었습니다!")
+                        time.sleep(1)
                         st.rerun()
 
                 # 연혁 데이터 편집
@@ -1287,7 +1288,7 @@ else:
                         {"serial_no": ctx_key},
                         {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
                     )
-                    time.sleep(1)
+                
                     st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
        
