@@ -14,6 +14,79 @@ from datetime import timedelta
 import pytz
 st.cache_data.clear()
 
+
+           # 실시간 툴드레싱 알림판 show_live_dashboard() 호출부--------------
+@st.fragment(run_every="60s")
+def show_live_dashboard():
+    """60초마다 자동 새로고침되는 실시간 알림판 대시보드"""
+    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
+    
+    if not active_tools:
+        st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
+        return
+
+    st.markdown("### 📊 실시간 가동 현황 목록")
+    current_now = get_now_kst()
+    
+    for item in active_tools:
+        target_time_str = item.get("target_time")
+        try:
+            target_dt = dt_class.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+            time_diff = target_dt - current_now
+            total_seconds = time_diff.total_seconds()
+            
+            if total_seconds <= 0:
+                status_label = "🚨 드레싱/교체 필요 (시간초과)"
+                color_hex = "#FF4B4B"
+                time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
+            elif total_seconds <= 3600:
+                status_label = "🟡 주의 (1시간 이내 임박)"
+                color_hex = "#FFAA00"
+                time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
+            else:
+                status_label = "🟢 정상 가동 중"
+                color_hex = "#00B050"
+                hours_left = int(total_seconds // 3600)
+                mins_left = int((total_seconds % 3600) // 60)
+                time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
+            
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
+                        <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
+                        <p style="margin: 5px 0; font-size: 15px;">
+                            <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
+                            <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
+                            <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+                
+                if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
+                    t_hours = int(item.get('dressing_hours', 4))
+                    t_mins = int(item.get('dressing_mins', 0))
+                    new_total_mins = (t_hours * 60) + t_mins
+                    click_now = get_now_kst()
+                    new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
+                    new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    db_collection.update_one(
+                        {"serial_no": item['serial_no']},
+                        {"$set": {
+                            "start_time": new_start,
+                            "target_time": new_target,
+                            "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
+                        }}
+                    )
+                    st.success(f"🎉 타이머가 현재 시간 기준으로 리셋되었습니다!")
+                    st.rerun()
+        except Exception as e:
+            st.error(f"아이템 렌더링 오류: {e}")
+
+
 # thr.py 파일 내부
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 함수"""
@@ -687,76 +760,19 @@ else:
                                 st.session_state.reset_success = True
                                 st.rerun()
 
-    # 2) ⚠️ 실시간 툴 드레싱 알림판
+
+
+    
+
+    # 2) ⚠️ 실시간 툴 드레싱 알림판 메뉴 호출부 (이 부분만 교체하세요)
     elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
-        st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링 (모든 툴 대상)")
+        st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링")
         st.write("<br>", unsafe_allow_html=True)
         
-        try:
-            active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
-            if not active_tools:
-                st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
-            else:
-                st.markdown("### 📊 실시간 가동 현황 목록")
-                current_now = get_now_kst()
-                
-                for item in active_tools:
-                    target_time_str = item.get("target_time")
-                    target_dt = dt_class.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-                    time_diff = target_dt - current_now
-                    total_seconds = time_diff.total_seconds()
-                    
-                    if total_seconds <= 0:
-                        status_label = "🚨 드레싱/교체 필요 (시간초과)"
-                        color_hex = "#FF4B4B"
-                        time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
-                    elif total_seconds <= 3600:
-                        status_label = "🟡 주의 (1시간 이내 임박)"
-                        color_hex = "#FFAA00"
-                        time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
-                    else:
-                        status_label = "🟢 정상 가동 중"
-                        color_hex = "#00B050"
-                        hours_left = int(total_seconds // 3600)
-                        mins_left = int((total_seconds % 3600) // 60)
-                        time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
-                    
-                    with st.container():
-                        st.markdown(
-                            f"""
-                            <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
-                                <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
-                                <p style="margin: 5px 0; font-size: 15px;">
-                                    <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
-                                    <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
-                                    <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
-                                </p>
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
-                        
-                        if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
-                            t_hours = int(item.get('dressing_hours', 4))
-                            t_mins = int(item.get('dressing_mins', 0))
-                            new_total_mins = (t_hours * 60) + t_mins
-                            click_now = get_now_kst()
-                            new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
-                            new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
-                            
-                            db_collection.update_one(
-                                {"serial_no": item['serial_no']},
-                                {"$set": {
-                                    "start_time": new_start,
-                                    "target_time": new_target,
-                                    "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
-                                }}
-                            )
-                            st.success(f"🎉 타이머가 현재 시간 기준으로 리셋되었습니다!")
-                            st.rerun()
-                            
-        except Exception as e:
-            st.error(f"알림판 연동 오류: {e}")
+        # 60초마다 자동 갱신되는 대시보드 함수 호출
+        show_live_dashboard()
+
+
 
     # 3) 📂 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
