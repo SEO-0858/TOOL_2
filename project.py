@@ -430,6 +430,7 @@ def confirm_and_save(serial, data):
             upsert=True
         )
         st.toast("✅ 저장 완료되었습니다!", icon="🎉")
+        time.sleep(1.5)
         st.rerun()
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
