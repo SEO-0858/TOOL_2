@@ -620,20 +620,9 @@ else:
 
             <div style='display:none;'>{qr_html_content}</div>
             """
-
             # 3. 화면에 출력
             st.components.v1.html(print_script, height=60)
-            
 
-            
-
-            
-
-
-            # 2. 눈에 보이는 스트림릿 버튼 생성
-            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
-            # 버튼을 누르면 위에서 정의한 자바스크립트 함수를 호출
-                st.components.v1.html("<script>openPrintWindow();</script>", height=0)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
