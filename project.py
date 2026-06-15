@@ -137,17 +137,16 @@ if 'sidebar_errors' not in st.session_state:
 # 파일 최상단 import 아래에 이 함수를 추가하세요
 def get_elapsed_time_str(start_time_val):
     try:
-        # 데이터가 없으면 빈 문자열 반환
         if not start_time_val or start_time_val == "-":
             return ""
         
-        # 문자열을 datetime 객체로 변환 (기존에 이미 dt_class를 사용 중이므로 안전합니다)
-        # 만약 start_time_val이 이미 datetime 객체라면 바로 사용
         start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
         
-        # 현재 시간과 차이 계산 (UTC+9 적용)
-        now_kst = datetime.datetime.now()
+        # [핵심 수정] 여기서 직접 계산하지 말고 위에서 정의한 함수를 호출하세요!
+        now_kst = get_now_kst() 
         diff = now_kst - start_dt
+        
+        # ... 이하 동일 ...
         
         hours = int(diff.total_seconds() // 3600)
         minutes = int((diff.total_seconds() % 3600) // 60)
