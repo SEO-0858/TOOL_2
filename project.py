@@ -40,7 +40,7 @@ def get_status_info(item, current_now):
         else:
             hours = int(total_seconds // 3600)
             mins = int((total_seconds % 3600) // 60)
-            return "#008850", "정상 가동 중", f"⏱️ {hours}시간 {mins}분 남음"
+            return "#008850", "★ 정상 가동 중 ", f"⏱️ {hours}시간 {mins}분 남음"
     except Exception as e:
         return "#808080", "형식 오류", "-"
 
