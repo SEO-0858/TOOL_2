@@ -605,7 +605,7 @@ else:
                     printWindow.print();
                 }}, 500);
             " style="padding: 15px; font-size: 16px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold;">
-                🖨️ 시리얼 넘버 포함 3개씩 인쇄하기
+                🖨️ 해당 QR코드 인쇄하기
             </button>
             <div style='display:none;' id='print-area'>{html_content}</div>
             """
