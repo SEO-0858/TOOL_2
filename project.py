@@ -599,29 +599,43 @@ else:
             <div style="text-align: center;">
                 <button onclick="
                     var win = window.open('', '_blank');
-                    win.document.write(`
+                    var htmlContent = `
                         <html>
                             <head>
                                 <style>
-                                    @page {{ size: auto; margin: 0mm; }} 
-                                    body {{ 
-                                        display: flex; 
-                                        justify-content: center; 
-                                        align-items: center; 
-                                        height: 100vh; 
-                                        margin: 0;
-                                        padding: 0;
-                                    }}
-                                    #content {{ text-align: center; }}
+                                    @page {{ size: auto; margin: 5mm; }} 
+                                    body {{ display: flex; flex-direction: column; align-items: center; margin: 0; padding: 0; }}
+                                    img {{ display: block; }}
                                 </style>
                             </head>
                             <body>
-                                <div id='content'>` + document.getElementById('qr-area').innerHTML + `</div>
+                                ` + document.getElementById('qr-area').innerHTML + `
                             </body>
-                        </html>
-                    `);
+                        </html>`;
+                    
+                    win.document.write(htmlContent);
                     win.document.close();
-                    win.print();
+                    
+                    // 핵심: 모든 이미지가 로딩된 후 인쇄되도록 대기
+                    var images = win.document.getElementsByTagName('img');
+                    var loadedCount = 0;
+                    
+                    function checkReady() {{
+                        loadedCount++;
+                        if (loadedCount === images.length) {{
+                            win.print();
+                        }}
+                    }}
+                    
+                    for (var i = 0; i < images.length; i++) {{
+                        if (images[i].complete) {{
+                            checkReady();
+                        }} else {{
+                            images[i].onload = checkReady;
+                        }}
+                    }}
+                    // 이미지가 아예 없을 경우를 대비한 안전 장치
+                    if (images.length === 0) win.print();
                 " style="padding: 15px 30px; font-size: 18px; cursor: pointer;">
                     🖨️ 인쇄 창 열기
                 </button>
@@ -630,7 +644,6 @@ else:
                 {html_printable_content}
             </div>
             """
-            st.components.v1.html(print_final_html, height=100)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
