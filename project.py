@@ -1178,6 +1178,8 @@ else:
         # [실시간 기계 정보창 로직 전체]
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+        if st.button("🔄 실시간 정보 즉시 갱신"):
+            st.rerun()
         now_kst = get_now_kst()
         st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -1311,4 +1313,4 @@ else:
                         spec_master_col.delete_one({"_id": spec["_id"]})
                         st.success("리스트에서 정상 제거되었습니다.")
                         time.sleep(0.5)
-                                                   
+                        st.rerun()                          
