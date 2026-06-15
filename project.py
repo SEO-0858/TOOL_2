@@ -34,26 +34,28 @@ def get_status_info(item, current_now):
 
 
 def get_remaining_time(target_time_str):
-    """DB 시간 문자열을 받아 남은 시간을 계산하는 함수"""
+    """DB 시간 문자열을 안전하게 계산하는 함수"""
+    # 1. 데이터가 아예 없거나 None이면 바로 반환
+    if not target_time_str or target_time_str == "":
+        return "-"
+    
     try:
-        # DB의 문자열을 시간 객체로 변환
-        target_dt = datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-        now = datetime.now()
+        # 2. 형식이 맞는지 확인하며 계산
+        target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+        now = get_now_kst()
         
-        # 시간 차이 계산
         delta = target_dt - now
-        
         if delta.total_seconds() <= 0:
             return "시간 초과"
         
-        # 초를 시, 분, 초로 변환
         total_seconds = int(delta.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         
         return f"{hours}시간 {minutes}분 {seconds}초 남음"
     except:
-        return "시간 형식 오류"
+        # 3. 형식이 이상하면 그냥 "-"로 표시
+        return "-"
     
     
 def get_tool_type_name(serial_no):
