@@ -13,28 +13,38 @@ import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능
 from datetime import timedelta
 st.cache_data.clear()
 
+# thr.py 파일 내부
 def get_status_info(item, current_now):
-    """툴 상태 정보를 계산하는 필수 함수입니다."""
+    """툴 상태 정보를 계산하는 함수"""
     try:
-        # DB의 target_time 형식이 "YYYY-MM-DD HH:MM:SS"라고 가정합니다.
-        target_dt = datetime.strptime(item.get("target_time", "2026-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        # DB의 target_time 값을 가져옵니다.
+        target_time_str = item.get("target_time")
+        
+        # 값이 없거나 '-' 이면 바로 "상태 정보 없음" 반환
+        if not target_time_str or target_time_str == "-":
+            return "#808080", "상태 정보 없음", "-"
+            
+        # 시간 문자열을 datetime 객체로 변환
+        target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+        
+        # 시간 차이 계산
         time_diff = target_dt - current_now
         total_seconds = time_diff.total_seconds()
 
+        # 상태 판단 로직
         if total_seconds < 0:
-            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {str(abs(time_diff)).split('.')[0]} 지남"
+            return "#FF4B4B", "드레싱/교체 필요", f"⚠️ {int(abs(total_seconds)//3600)}시간 지남"
         elif total_seconds <= 3600:
-            return "#FFAA00", "주의(임박)", f"약 {int(total_seconds // 60)}분 남음"
+            return "#FFAA00", "주의(임박)", f"⏳ 약 {int(total_seconds // 60)}분 남음"
         else:
             hours = int(total_seconds // 3600)
             mins = int((total_seconds % 3600) // 60)
-            return "#008850", "정상 가동 중", f"{hours}시간 {mins}분 남음"
-    except:
-        return "#808080", "상태 정보 없음", "-"
+            return "#008850", "정상 가동 중", f"⏱️ {hours}시간 {mins}분 남음"
+    except Exception as e:
+        return "#808080", "형식 오류", "-"
 
 
 
-import datetime
 
 def get_remaining_time(target_time_str):
     # 1. 값이 없으면 바로 탈출
