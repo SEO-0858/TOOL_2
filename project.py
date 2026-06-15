@@ -10,7 +10,7 @@ from io import BytesIO
 import qrcode
 dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 def get_status_info(item, current_now):
     """툴 상태 정보를 계산하는 필수 함수입니다."""
@@ -193,7 +193,7 @@ def validate_process(current_status, next_status):
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    return datetime.datetime.utcnow() + timedelta(hours=9)
+    return datetime.datetime.now(datetime.timezone.utc) + timedelta(hours=9)
 
 now = get_now_kst()
 today = now.date()
