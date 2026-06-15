@@ -34,30 +34,28 @@ def get_status_info(item, current_now):
 
 
 def get_remaining_time(target_time_str):
-    """DB 시간 문자열을 안전하게 계산하는 함수"""
-    # 1. 데이터가 아예 없거나 None이면 바로 반환
-    if not target_time_str or target_time_str == "":
-        return "-"
+    # 1. 데이터가 없으면 "-" 반환
+    if not target_time_str or target_time_str == "": return "-"
     
     try:
-        # 2. 형식이 맞는지 확인하며 계산
-        target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-        now = get_now_kst()
+        # 2. 공백 제거 후 시간 변환
+        target_str = str(target_time_str).strip()
+        target_dt = datetime.datetime.strptime(target_str, "%Y-%m-%d %H:%M:%S")
         
+        # 3. 시간대 정보(tzinfo)를 떼어내고 비교
+        now = datetime.datetime.now()
         delta = target_dt - now
-        if delta.total_seconds() <= 0:
-            return "시간 초과"
+        
+        if delta.total_seconds() <= 0: return "시간 초과"
         
         total_seconds = int(delta.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
-        
         return f"{hours}시간 {minutes}분 {seconds}초 남음"
     except:
-        # 3. 형식이 이상하면 그냥 "-"로 표시
         return "-"
     
-    
+
 def get_tool_type_name(serial_no):
     """시리얼 번호 첫 글자로 툴 타입을 반환하는 함수"""
     if not serial_no or len(serial_no) == 0: return "알수없음"
@@ -68,12 +66,12 @@ def render_tool_ui(item, color_hex, status_label, time_text, db_status):
     # 1. 툴 타입 및 작업자 정보 가져오기
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     worker_name = item.get('worker', '-')
-    
-    # 2. 남은 시간 계산 (테스트했던 로직 사용)
-    target_time_str = item.get('target_time')
-    time_text = get_remaining_time(target_time_str) if target_time_str else "주기 관리 미적용"
+    db_status = item.get('status', '사용중')
+    target_time_val = item.get('target_time')
+    time_text = get_remaining_time(target_time_val) # 시간 계산
+    render_tool_ui(item, color_hex, status_label, db_status, time_text)
+            # 3. HTML 레이아웃 구성 (타이머를 맨 아래 배치)
 
-    # 3. HTML 레이아웃 구성 (타이머를 맨 아래 배치)
     st.markdown(f"""
     <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color_hex}; background-color: #f9f9f9; margin-bottom: 5px;">
         <h4 style="margin: 0; font-size: 15px;">🆔 {item.get('serial_no')}</h4>
