@@ -589,55 +589,53 @@ else:
 
             # 1. 인쇄 대상 QR 코드들을 숨겨진 HTML 영역으로 만듭니다.
             # (이 부분은 기존에 생성하신 html_printable_content를 활용하세요)
-            qr_html_content = f"""
-                <div id='print-area' style='display: flex; flex-wrap: wrap; gap: 20px;'>
-                    {html_printable_content}
-                </div>
-            """
-
-            # 2. 버튼 클릭 시 인쇄를 실행하는 자바스크립트를 아예 버튼과 한몸으로 만듭니다.
-            # 기존 CSS 스타일 부분을 아래와 같이 수정하세요.
-            # CSS 스타일 부분에 page-break-after 속성을 추가합니다.
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                // 3개씩 묶을 컨테이너 생성
-                var originalArea = document.getElementById('print-area').innerHTML;
-                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} body {{ margin: 0; }} .page {{ height: auto; page-break-after: always; display: flex; flex-direction: column; align-items: center; }} img {{ width: 90%; margin: 5mm 0; }}</style></head><body>' + originalArea + '</body></html>');
                 
-                // JS로 3개마다 <div class='page'>로 묶기
-                var imgs = printWindow.document.getElementsByTagName('img');
-                for (var i = 0; i < imgs.length; i += 3) {{
-                    var pageDiv = printWindow.document.createElement('div');
-                    pageDiv.className = 'page';
-                    for (var j = i; j < i + 3 && j < imgs.length; j++) {{
-                        pageDiv.appendChild(imgs[j].cloneNode(true));
+                // 1. 새 창에 HTML 작성
+                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} .page {{ height: 80mm; page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; }} img {{ width: 80%; }}</style></head><body></body></html>');
+                
+                // 2. 내용 렌더링을 위한 시간 확보 (500ms 지연)
+                setTimeout(function() {{
+                    var body = printWindow.document.body;
+                    var qrContent = document.getElementById('print-area').innerHTML;
+                    
+                    // 3개씩 묶기 로직
+                    var tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = qrContent;
+                    var imgs = tempDiv.getElementsByTagName('img');
+                    
+                    for (var i = 0; i < imgs.length; i += 3) {{
+                        var pageDiv = printWindow.document.createElement('div');
+                        pageDiv.className = 'page';
+                        for (var j = i; j < i + 3 && j < imgs.length; j++) {{
+                            pageDiv.appendChild(imgs[j].cloneNode(true));
+                        }}
+                        body.appendChild(pageDiv);
                     }}
-                    printWindow.document.body.appendChild(pageDiv);
-                }}
-                
-                // 이전 내용 삭제 및 인쇄 실행
-                printWindow.document.body.removeChild(printWindow.document.body.firstChild);
-                printWindow.document.close();
-                
-                // 이미지 로딩 대기
-                var images = printWindow.document.getElementsByTagName('img');
-                var loaded = 0;
-                function tryPrint() {{
-                    loaded++;
-                    if (loaded === images.length) printWindow.print();
-                }}
-                for (var i = 0; i < images.length; i++) {{
-                    if (images[i].complete) tryPrint();
-                    else images[i].onload = tryPrint;
-                }}
-                if (images.length === 0) printWindow.print();
+                    
+                    printWindow.document.close();
+                    
+                    // 3. 이미지 로딩 완료 후 인쇄
+                    var finalImgs = printWindow.document.getElementsByTagName('img');
+                    var loaded = 0;
+                    function tryPrint() {{
+                        loaded++;
+                        if (loaded === finalImgs.length) printWindow.print();
+                    }}
+                    for (var k = 0; k < finalImgs.length; k++) {{
+                        if (finalImgs[k].complete) tryPrint();
+                        else finalImgs[k].onload = tryPrint;
+                    }}
+                    if (finalImgs.length === 0) printWindow.print();
+                }}, 500); 
             " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
                 🖨️ 3개씩 모아 인쇄하기
             </button>
 
             <div style='display:none;' id='print-area'>
-                {qr_html_content}
+                {html_printable_content}
             </div>
             """
             st.components.v1.html(print_script, height=60)
