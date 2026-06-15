@@ -40,8 +40,8 @@ def get_remaining_time(target_time_str):
     try:
         target_str = str(target_time_str).strip()
         target_dt = target_dt.replace(tzinfo=None)
-        now = datetime.datetime.now().replace(tzinfo=None)
-        delta = target_dt.replace(tzinfo=None) - datetime.datetime.now().replace(tzinfo=None)
+        now = datetime.datetime.now()             # 시간대 정보 없는 현재 시간
+        delta = target_dt - now
         
         if delta.total_seconds() <= 0: return "시간 초과"
         
@@ -190,7 +190,7 @@ def validate_process(current_status, next_status):
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
 def get_now_kst():
-    return datetime.datetime.now(datetime.timezone.utc) + timedelta(hours=9)
+    return datetime.datetime.now()
 
 now = get_now_kst()
 today = now.date()
