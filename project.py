@@ -565,38 +565,24 @@ else:
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
             st.write("<br>", unsafe_allow_html=True)
             
-            html_printable_content = "<div id='print-target-area' style='display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; padding: 10px;'>"
+            # 1. 인쇄용 HTML 데이터 준비 (시리얼 번호 포함)
+            serials_to_print = st.session_state.current_view_serials
+            html_content = ""
             
-            grid_cols = st.columns(4)
-            for idx, s_no in enumerate(st.session_state.current_view_serials):
+            for s_no in serials_to_print:
+                # QR 생성
                 qr_bytes = generate_app_qr_bytes(s_no)
                 base64_qr = base64.b64encode(qr_bytes).decode("utf-8")
                 
-                with grid_cols[idx % 4]:
-                    st.image(qr_bytes, width=130)
-                    st.markdown(f"**🆔 {s_no}**")
-                
-                html_printable_content += f"""
-                <div style="width: 140px; text-align: center; border: 1px dashed #ccc; padding: 8px; background: white; margin-bottom:10px; page-break-inside: avoid;">
-                    <img src="data:image/png;base64,{base64_qr}" style="width: 120px; height: 120px;" />
-                    <div style="font-family: monospace; font-size: 11px; font-weight: bold; margin-top: 4px; color:#000;">ID: {s_no}</div>
-                </div>
-                """
-            html_printable_content += "</div>"
-            st.write("<br>", unsafe_allow_html=True)
-            
-                      
-
-            # 1. 인쇄 대상 QR 코드들을 숨겨진 HTML 영역으로 만듭니다.
-            # (이 부분은 기존에 생성하신 html_printable_content를 활용하세요)
-            html_content = ""
-            for item in qr_scanned_serial: # your_qr_data_list는 기존에 사용하시던 리스트 이름으로 바꾸세요!
+                # HTML 구조 (이미지 + 시리얼 번호)
                 html_content += f"""
                 <div class='qr-item'>
-                    <img src="{item['image']}">
-                    <span>{item['serial_number']}</span>
+                    <img src="data:image/png;base64,{base64_qr}">
+                    <span>{s_no}</span>
                 </div>
                 """
+
+            # 2. 인쇄 버튼 및 CSS 제어 스크립트
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
@@ -619,7 +605,6 @@ else:
                 
                 setTimeout(function() {{
                     var body = printWindow.document.body;
-                    // 이제 print-area 안에 있는 클래스명이 qr-item인 것들을 가져옵니다.
                     var items = document.getElementById('print-area').getElementsByClassName('qr-item');
                     
                     for (var i = 0; i < items.length; i += 3) {{
@@ -634,7 +619,7 @@ else:
                     printWindow.print();
                 }}, 500);
             " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 5px;">
-                🖨️ 시리얼 넘버 포함 인쇄
+                🖨️ 시리얼 넘버 포함 3개씩 인쇄
             </button>
 
             <div style='display:none;' id='print-area'>
@@ -642,12 +627,17 @@ else:
             </div>
             """
 
-            # 3. 마지막으로 출력
+            # 3. 인쇄 버튼 렌더링
             st.components.v1.html(print_script, height=60)
-
-
             
-            if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
+            # 4. 기존 화면용 그리드 표시
+            grid_cols = st.columns(4)
+            for idx, s_no in enumerate(serials_to_print):
+                with grid_cols[idx % 4]:
+                    st.image(generate_app_qr_bytes(s_no), width=100)
+                    st.markdown(f"**🆔 {s_no}**")
+
+            if st.button("❌ 인쇄 완료 - 화면에서 QR코드 목록 지우기"):
                 st.session_state.show_qr_grid = False
                 st.session_state.current_view_serials = []
                 st.rerun()
