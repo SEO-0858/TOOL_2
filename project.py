@@ -589,6 +589,14 @@ else:
 
             # 1. 인쇄 대상 QR 코드들을 숨겨진 HTML 영역으로 만듭니다.
             # (이 부분은 기존에 생성하신 html_printable_content를 활용하세요)
+            html_content = ""
+            for item in qr_scanned_serial: # your_qr_data_list는 기존에 사용하시던 리스트 이름으로 바꾸세요!
+                html_content += f"""
+                <div class='qr-item'>
+                    <img src="{item['image']}">
+                    <span>{item['serial_number']}</span>
+                </div>
+                """
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
@@ -602,16 +610,16 @@ else:
                             align-items: center; justify-content: space-evenly; 
                             page-break-after: always;
                         }}
-                        .qr-item {{ display: flex; flex-direction: column; align-items: center; }}
+                        .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
                         img {{ width: 20mm !important; height: 20mm !important; display: block; }}
-                        span {{ font-size: 8px; margin-top: 2px; font-family: monospace; }}
+                        span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
                 
                 setTimeout(function() {{
                     var body = printWindow.document.body;
-                    // 이제 img뿐만 아니라 텍스트도 포함된 qr-item들을 가져옵니다
+                    // 이제 print-area 안에 있는 클래스명이 qr-item인 것들을 가져옵니다.
                     var items = document.getElementById('print-area').getElementsByClassName('qr-item');
                     
                     for (var i = 0; i < items.length; i += 3) {{
@@ -630,9 +638,11 @@ else:
             </button>
 
             <div style='display:none;' id='print-area'>
-                {html_printable_content_with_id} 
+                {html_content}
             </div>
             """
+
+            # 3. 마지막으로 출력
             st.components.v1.html(print_script, height=60)
 
 
