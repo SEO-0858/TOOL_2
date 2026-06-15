@@ -601,49 +601,46 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                printWindow.document.write(`
-                    <html>
-                        <head>
-                            <style>
-                                @page {{ size: 62mm auto; margin: 0; }} 
-                                body {{ margin: 0; padding: 0; display: flex; justify-content: center; }}
-                                #print-area {{ 
-                                    width: 58mm; 
-                                    display: flex; flex-direction: column; align-items: center; 
-                                }}
-                                /* 핵심: 3개마다 페이지를 강제로 나눕니다 */
-                                .qr-wrapper {{ 
-                                    width: 100%; 
-                                    page-break-after: always; 
-                                }}
-                                img {{ width: 95%; display: block; margin: 10mm 0; }} 
-                            </style>
-                        </head>
-                        <body>
-                            <div id='print-area'>` + document.getElementById('print-area').innerHTML + `</div>
-                        </body>
-                    </html>
-                `);
+                // 3개씩 묶을 컨테이너 생성
+                var originalArea = document.getElementById('print-area').innerHTML;
+                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} body {{ margin: 0; }} .page {{ height: auto; page-break-after: always; display: flex; flex-direction: column; align-items: center; }} img {{ width: 90%; margin: 5mm 0; }}</style></head><body>' + originalArea + '</body></html>');
                 
-                // JS로 3개마다 <div class='qr-wrapper'>로 감싸는 로직이 필요합니다.
-                var area = printWindow.document.getElementById('print-area');
-                var items = area.getElementsByTagName('div'); // 기존 QR아이템들
-                var wrapper;
-                for(var i=0; i<items.length; i++) {{
-                    if(i % 3 === 0) {{
-                        wrapper = printWindow.document.createElement('div');
-                        wrapper.className = 'qr-wrapper';
-                        area.appendChild(wrapper);
+                // JS로 3개마다 <div class='page'>로 묶기
+                var imgs = printWindow.document.getElementsByTagName('img');
+                for (var i = 0; i < imgs.length; i += 3) {{
+                    var pageDiv = printWindow.document.createElement('div');
+                    pageDiv.className = 'page';
+                    for (var j = i; j < i + 3 && j < imgs.length; j++) {{
+                        pageDiv.appendChild(imgs[j].cloneNode(true));
                     }}
-                    wrapper.appendChild(items[i]);
+                    printWindow.document.body.appendChild(pageDiv);
                 }}
-
+                
+                // 이전 내용 삭제 및 인쇄 실행
+                printWindow.document.body.removeChild(printWindow.document.body.firstChild);
                 printWindow.document.close();
-                // (이하 로딩 로직 동일)
-            " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #007bff; border: none; border-radius: 5px;">
-                🖨️ 인쇄하기 (3개씩 페이지 나누기)
+                
+                // 이미지 로딩 대기
+                var images = printWindow.document.getElementsByTagName('img');
+                var loaded = 0;
+                function tryPrint() {{
+                    loaded++;
+                    if (loaded === images.length) printWindow.print();
+                }}
+                for (var i = 0; i < images.length; i++) {{
+                    if (images[i].complete) tryPrint();
+                    else images[i].onload = tryPrint;
+                }}
+                if (images.length === 0) printWindow.print();
+            " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
+                🖨️ 3개씩 모아 인쇄하기
             </button>
+
+            <div style='display:none;' id='print-area'>
+                {qr_html_content}
+            </div>
             """
+            st.components.v1.html(print_script, height=60)
 
 
             
