@@ -592,8 +592,22 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                // 1. 헤더 스타일: 각 페이지를 62mm 높이로 고정
-                printWindow.document.write('<html><head><style>@page {{ size: 62mm auto; margin: 0; }} body {{ margin: 0; padding: 0; }} .page {{ height: 60mm; width: 62mm; page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; }} img {{ width: 80%; display: block; }}</style></head><body></body></html>');
+                
+                // 1. 스타일 최적화: @page와 .page 클래스로 라벨 경계 명확화
+                var style = `
+                    <style>
+                        @page {{ size: 62mm 62mm; margin: 0; }} 
+                        body {{ margin: 0; padding: 0; }}
+                        .page {{ 
+                            width: 62mm; height: 62mm; 
+                            display: flex; flex-direction: column; 
+                            align-items: center; justify-content: center; 
+                            page-break-after: always; overflow: hidden;
+                        }}
+                        img {{ width: 80%; height: auto; display: block; margin: 2mm 0; }}
+                    </style>`;
+                
+                printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
                 
                 setTimeout(function() {{
                     var body = printWindow.document.body;
@@ -601,10 +615,11 @@ else:
                     tempDiv.innerHTML = document.getElementById('print-area').innerHTML;
                     var imgs = tempDiv.getElementsByTagName('img');
                     
-                    // 3개씩 묶기 (3개 미만이면 한 페이지에 1~2개만 출력)
+                    // 3개씩 묶기
                     for (var i = 0; i < imgs.length; i += 3) {{
                         var pageDiv = printWindow.document.createElement('div');
                         pageDiv.className = 'page';
+                        // 3개 묶음 추가
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
                             pageDiv.appendChild(imgs[j].cloneNode(true));
                         }}
@@ -612,20 +627,8 @@ else:
                     }}
                     
                     printWindow.document.close();
-                    
-                    // 이미지 로딩 대기 후 인쇄
-                    var finalImgs = printWindow.document.getElementsByTagName('img');
-                    var loaded = 0;
-                    function tryPrint() {{
-                        loaded++;
-                        if (loaded === finalImgs.length) printWindow.print();
-                    }}
-                    for (var k = 0; k < finalImgs.length; k++) {{
-                        if (finalImgs[k].complete) tryPrint();
-                        else finalImgs[k].onload = tryPrint;
-                    }}
-                    if (finalImgs.length === 0) printWindow.print();
-                }}, 500); 
+                    printWindow.print();
+                }}, 500);
             " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
                 🖨️ 3개씩 모아 인쇄하기
             </button>
