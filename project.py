@@ -594,14 +594,35 @@ else:
             """
 
             # 인쇄용 HTML을 아예 버튼과 함께 하나로 만듭니다.
+
             print_final_html = f"""
             <div style="text-align: center;">
                 <button onclick="
                     var win = window.open('', '_blank');
-                    win.document.write('<html><body>' + document.getElementById('qr-area').innerHTML + '</body></html>');
+                    win.document.write(`
+                        <html>
+                            <head>
+                                <style>
+                                    @page {{ size: auto; margin: 0mm; }} 
+                                    body {{ 
+                                        display: flex; 
+                                        justify-content: center; 
+                                        align-items: center; 
+                                        height: 100vh; 
+                                        margin: 0;
+                                        padding: 0;
+                                    }}
+                                    #content {{ text-align: center; }}
+                                </style>
+                            </head>
+                            <body>
+                                <div id='content'>` + document.getElementById('qr-area').innerHTML + `</div>
+                            </body>
+                        </html>
+                    `);
                     win.document.close();
                     win.print();
-                " style="padding: 15px 30px; font-size: 18px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 5px;">
+                " style="padding: 15px 30px; font-size: 18px; cursor: pointer;">
                     🖨️ 인쇄 창 열기
                 </button>
             </div>
@@ -609,8 +630,7 @@ else:
                 {html_printable_content}
             </div>
             """
-
-            st.components.v1.html(print_final_html, height=80)
+            st.components.v1.html(print_final_html, height=100)
             
             if st.button("❌ 인쇄 완료 - 화면에서 이 QR코드 목록 지우기", type="secondary"):
                 st.session_state.show_qr_grid = False
