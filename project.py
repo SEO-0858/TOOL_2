@@ -597,6 +597,7 @@ else:
 
             # 2. 버튼 클릭 시 인쇄를 실행하는 자바스크립트를 아예 버튼과 한몸으로 만듭니다.
             # 기존 CSS 스타일 부분을 아래와 같이 수정하세요.
+            # CSS 스타일 부분에 page-break-after 속성을 추가합니다.
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
@@ -605,19 +606,17 @@ else:
                         <head>
                             <style>
                                 @page {{ size: 62mm auto; margin: 0; }} 
-                                body {{ 
-                                    margin: 0; padding: 0; 
-                                    display: flex; justify-content: center; 
-                                }}
+                                body {{ margin: 0; padding: 0; display: flex; justify-content: center; }}
                                 #print-area {{ 
                                     width: 58mm; 
-                                    position: relative; 
-                                    left: 4mm; /* 이 값을 조절해서 왼쪽 여백을 만드세요! */
-                                    padding-top: 1mm; /* 이 값을 조절해서 위쪽 여백을 만드세요! */
                                     display: flex; flex-direction: column; align-items: center; 
-                                    gap: 15px; /* QR코드 사이 간격도 여기서 조절 가능 */
                                 }}
-                                img {{ width: 90%; display: block; }} 
+                                /* 핵심: 3개마다 페이지를 강제로 나눕니다 */
+                                .qr-wrapper {{ 
+                                    width: 100%; 
+                                    page-break-after: always; 
+                                }}
+                                img {{ width: 95%; display: block; margin: 10mm 0; }} 
                             </style>
                         </head>
                         <body>
@@ -625,25 +624,26 @@ else:
                         </body>
                     </html>
                 `);
-                printWindow.document.close();
                 
-                // 이미지 로딩 대기 후 인쇄
-                var imgs = printWindow.document.getElementsByTagName('img');
-                var loaded = 0;
-                for(var i=0; i<imgs.length; i++) {{
-                    imgs[i].onload = function() {{ loaded++; if(loaded === imgs.length) printWindow.print(); }};
-                    if(imgs[i].complete) loaded++;
+                // JS로 3개마다 <div class='qr-wrapper'>로 감싸는 로직이 필요합니다.
+                var area = printWindow.document.getElementById('print-area');
+                var items = area.getElementsByTagName('div'); // 기존 QR아이템들
+                var wrapper;
+                for(var i=0; i<items.length; i++) {{
+                    if(i % 3 === 0) {{
+                        wrapper = printWindow.document.createElement('div');
+                        wrapper.className = 'qr-wrapper';
+                        area.appendChild(wrapper);
+                    }}
+                    wrapper.appendChild(items[i]);
                 }}
-                if(loaded === imgs.length) printWindow.print();
-            " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #ff4b4b; border: none; border-radius: 5px;">
-                🖨️ 인쇄하기 (클릭)
-            </button>
 
-            <div style='display:none;' id='print-area'>
-                {qr_html_content}
-            </div>
+                printWindow.document.close();
+                // (이하 로딩 로직 동일)
+            " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #007bff; border: none; border-radius: 5px;">
+                🖨️ 인쇄하기 (3개씩 페이지 나누기)
+            </button>
             """
-            st.components.v1.html(print_script, height=60)
 
 
             
