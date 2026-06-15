@@ -1357,44 +1357,28 @@ else:
 
         st.write("<br><hr>", unsafe_allow_html=True)
         st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
+        # 📋 현재 등록된 전 공정 공용 스펙 명부
         all_specs_list = list(spec_master_col.find({}))
         
         if not all_specs_list:
-            st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
+            st.info("💡 아직 등록된 스펙이 없습니다.")
         else:
             for spec in all_specs_list:
-                # 1366번 줄부터 아래 코드로 교체하세요
-                col_sp1, col_sp2, col_sp3 = st.columns([4, 1, 1]) 
-                with col_sp1:
-                    st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
-                with col_sp2:
-                    # ✏️ [수정] 버튼 추가
-                    if st.button("✏️ 수정", key=f"edit_mst_{spec['_id']}"):
-                        st.session_state.edit_target = spec
-                        st.rerun()
-                with col_sp3:
-                    # 🗑️ [삭제] 버튼
-                    if st.button("🗑️ 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
-                        spec_master_col.delete_one({"_id": spec["_id"]})
-                        st.success("리스트에서 정상 제거되었습니다.")
-                        time.sleep(0.5)
-                        st.rerun()
-
-            # 📋 수정 모드일 때 나타나는 입력 폼 (이 코드는 1373번 줄 이후에 바로 붙이세요)
-            if "edit_target" in st.session_state and st.session_state.edit_target.get('_id') == spec.get('_id'):
-                st.warning("🔄 수정 모드입니다. 내용을 고치고 '수정사항 반영'을 누르세요.")
-                target = st.session_state.edit_target
-                with st.form(f"spec_edit_form_{target['_id']}"):
-                    new_type = st.selectbox("툴 대분류", ["전착툴", "레진툴", "메탈툴", "코어툴"], 
-                                          index=["전착툴", "레진툴", "메탈툴", "코어툴"].index(target['main_type']))
-                    new_name = st.text_input("세부 스펙 이름", value=target['spec_name'])
-                    new_memo = st.text_input("비고/메모", value=target.get('memo', ''))
+                # 💡 expander를 사용하여 평소에는 제목만 보여줍니다!
+                with st.expander(f"[{spec['main_type']}] {spec['spec_name']}"):
+                    col_sp1, col_sp2, col_sp3 = st.columns([4, 1, 1])
                     
-                    if st.form_submit_button("💾 수정사항 반영"):
-                        spec_master_col.update_one({"_id": target["_id"]}, 
-                                                  {"$set": {"main_type": new_type, "spec_name": new_name, "memo": new_memo}})
-                        del st.session_state.edit_target
-                        st.rerun()
-                    if st.form_submit_button("❌ 취소"):
-                        del st.session_state.edit_target
-                        st.rerun()
+                    with col_sp1:
+                        st.markdown(f"**상세 정보:** {spec.get('memo', '내용 없음')}")
+                    
+                    with col_sp2:
+                        if st.button("✏️ 수정", key=f"edit_mst_{spec['_id']}"):
+                            st.session_state.edit_target = spec
+                            st.rerun()
+                    
+                    with col_sp3:
+                        if st.button("🗑️ 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
+                            spec_master_col.delete_one({"_id": spec["_id"]})
+                            st.success("리스트에서 제거되었습니다.")
+                            time.sleep(0.5)
+                            st.rerun()
