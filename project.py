@@ -1197,6 +1197,9 @@ else:
         # [실시간 기계 정보창 로직 전체]
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+        time.sleep(1)
+        now_kst = get_now_kst()
+        st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
         if st.button("🔄 실시간 정보 즉시 갱신"):
             st.rerun()
         now_kst = get_now_kst()
