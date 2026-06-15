@@ -593,33 +593,33 @@ else:
             <button onclick="
                 var printWindow = window.open('', '_blank');
                 
-                // 1. 스타일 최적화: @page와 .page 클래스로 라벨 경계 명확화
+                // 1. 라벨 규격에 맞춘 스타일
                 var style = `
                     <style>
                         @page {{ size: 62mm 62mm; margin: 0; }} 
                         body {{ margin: 0; padding: 0; }}
-                        .page {{ 
+                        .label-page {{ 
                             width: 62mm; height: 62mm; 
                             display: flex; flex-direction: column; 
                             align-items: center; justify-content: center; 
-                            page-break-after: always; overflow: hidden;
+                            page-break-after: always; /* 핵심: 여기서 페이지를 확실히 나눔 */
                         }}
-                        img {{ width: 80%; height: auto; display: block; margin: 2mm 0; }}
+                        img {{ width: 85%; height: auto; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
                 
                 setTimeout(function() {{
                     var body = printWindow.document.body;
-                    var tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = document.getElementById('print-area').innerHTML;
-                    var imgs = tempDiv.getElementsByTagName('img');
+                    // 기존 print-area 안의 모든 이미지를 가져옴
+                    var imgs = document.getElementById('print-area').getElementsByTagName('img');
                     
-                    // 3개씩 묶기
+                    // QR코드 3개씩을 한 라벨 페이지에 넣기
                     for (var i = 0; i < imgs.length; i += 3) {{
-                        var pageDiv = printWindow.document.createElement('div');
-                        pageDiv.className = 'page';
-                        // 3개 묶음 추가
+                        var pageDiv = document.createElement('div');
+                        pageDiv.className = 'label-page';
+                        
+                        // 3개 혹은 남은 개수만큼 추가
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
                             pageDiv.appendChild(imgs[j].cloneNode(true));
                         }}
@@ -629,8 +629,8 @@ else:
                     printWindow.document.close();
                     printWindow.print();
                 }}, 500);
-            " style="padding: 10px 20px; font-size: 16px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
-                🖨️ 3개씩 모아 인쇄하기
+            " style="padding: 15px; font-size: 16px; cursor: pointer; color: white; background-color: #d9534f; border: none; border-radius: 5px;">
+                🖨️ 규격에 맞게 3개씩 인쇄
             </button>
 
             <div style='display:none;' id='print-area'>
