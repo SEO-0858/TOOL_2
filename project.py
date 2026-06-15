@@ -1197,9 +1197,10 @@ else:
         # [실시간 기계 정보창 로직 전체]
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
-        time.sleep(1)
-        now_kst = get_now_kst()
-        st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+        main_container = st.empty()
+        with main_container.container():
+            now_kst = get_now_kst()
+            st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
         if st.button("🔄 실시간 정보 즉시 갱신"):
             st.rerun()
         now_kst = get_now_kst()
@@ -1286,9 +1287,10 @@ else:
                         {"serial_no": ctx_key},
                         {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
                     )
+                    time.sleep(1)
                     st.success("연혁이 업데이트되었습니다!")
                     st.rerun()
-        st.rerun()
+       
        
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
