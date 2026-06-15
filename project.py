@@ -602,20 +602,23 @@ else:
                             align-items: center; justify-content: space-evenly; 
                             page-break-after: always;
                         }}
-                        img {{ width: 22mm !important; height: 22mm !important; display: block; }}
+                        .qr-item {{ display: flex; flex-direction: column; align-items: center; }}
+                        img {{ width: 20mm !important; height: 20mm !important; display: block; }}
+                        span {{ font-size: 8px; margin-top: 2px; font-family: monospace; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
                 
                 setTimeout(function() {{
                     var body = printWindow.document.body;
-                    var imgs = document.getElementById('print-area').getElementsByTagName('img');
+                    // 이제 img뿐만 아니라 텍스트도 포함된 qr-item들을 가져옵니다
+                    var items = document.getElementById('print-area').getElementsByClassName('qr-item');
                     
-                    for (var i = 0; i < imgs.length; i += 3) {{
+                    for (var i = 0; i < items.length; i += 3) {{
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
-                        for (var j = i; j < i + 3 && j < imgs.length; j++) {{
-                            pageDiv.appendChild(imgs[j].cloneNode(true));
+                        for (var j = i; j < i + 3 && j < items.length; j++) {{
+                            pageDiv.appendChild(items[j].cloneNode(true));
                         }}
                         body.appendChild(pageDiv);
                     }}
@@ -623,11 +626,11 @@ else:
                     printWindow.print();
                 }}, 500);
             " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 5px;">
-                🖨️ 인쇄하기 버튼을 잘보고 누르세요!!
+                🖨️ 시리얼 넘버 포함 인쇄
             </button>
 
             <div style='display:none;' id='print-area'>
-                {html_printable_content}
+                {html_printable_content_with_id} 
             </div>
             """
             st.components.v1.html(print_script, height=60)
