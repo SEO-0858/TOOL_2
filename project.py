@@ -592,18 +592,20 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
+                // 핵심: 높이를 90.3mm보다 아주 조금 더 크게 잡아서 
+                // 브라우저가 강제로 줄바꿈하는 것을 방지합니다.
                 var style = `
                     <style>
                         @page {{ size: 29mm 90.3mm; margin: 0; }} 
-                        body {{ margin: 0; padding: 0; overflow: hidden; }}
+                        body {{ margin: 0; padding: 0; }}
                         .label-page {{ 
                             width: 29mm; height: 90.3mm; 
                             display: flex; flex-direction: column; 
-                            align-items: center; justify-content: space-evenly; 
+                            align-items: center; justify-content: center; 
+                            gap: 2mm; /* QR 사이 간격을 명시적으로 지정 */
                             page-break-after: always;
                         }}
-                        /* QR코드를 25mm로 강제 고정 */
-                        img {{ width: 25mm !important; height: 25mm !important; object-fit: contain; display: block; }}
+                        img {{ width: 23mm !important; height: 23mm !important; display: block; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
@@ -616,22 +618,18 @@ else:
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
                         
-                        // 3개 추가 (이미지 크기를 25mm로 통일)
+                        // 3개 추가
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
-                            var imgNode = imgs[j].cloneNode(true);
-                            imgNode.style.width = '25mm';
-                            imgNode.style.height = '25mm';
-                            pageDiv.appendChild(imgNode);
+                            pageDiv.appendChild(imgs[j].cloneNode(true));
                         }}
                         body.appendChild(pageDiv);
                     }}
                     
                     printWindow.document.close();
-                    // 인쇄 호출
                     printWindow.print();
                 }}, 500);
             " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
-                🖨️ 최종 인쇄 (정밀 배치)
+                🖨️ 3개씩 모아 인쇄하기
             </button>
 
             <div style='display:none;' id='print-area'>
