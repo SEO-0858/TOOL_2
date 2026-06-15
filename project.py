@@ -586,7 +586,7 @@ else:
             st.write("<br>", unsafe_allow_html=True)
             
             # [최종 수정] 팝업 없는 직접 인쇄 방식
-            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기"):
+            if st.button("🖨️ 생성된 QR코드 전체 프린터로 인쇄하기", key=f"print_btn_{len(st.session_state.current_view_serials)}"):
                 # 인쇄용 CSS를 포함한 HTML 구조
                 print_style = """
                 <style>
