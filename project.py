@@ -592,21 +592,18 @@ else:
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
-                
-                // 라벨 크기를 90.3mm로 고정하고, 그 안에 3개를 세로로 정렬
                 var style = `
                     <style>
                         @page {{ size: 29mm 90.3mm; margin: 0; }} 
-                        body {{ margin: 0; padding: 0; }}
+                        body {{ margin: 0; padding: 0; overflow: hidden; }}
                         .label-page {{ 
                             width: 29mm; height: 90.3mm; 
                             display: flex; flex-direction: column; 
-                            align-items: center; justify-content: space-between; 
+                            align-items: center; justify-content: space-evenly; 
                             page-break-after: always;
-                            padding: 2mm 0; /* 위아래 여백 */
-                            box-sizing: border-box;
                         }}
-                        img {{ width: 25mm; height: 25mm; display: block; }}
+                        /* QR코드를 25mm로 강제 고정 */
+                        img {{ width: 25mm !important; height: 25mm !important; object-fit: contain; display: block; }}
                     </style>`;
                 
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
@@ -615,23 +612,26 @@ else:
                     var body = printWindow.document.body;
                     var imgs = document.getElementById('print-area').getElementsByTagName('img');
                     
-                    // 3개씩 묶어서 한 라벨지에 출력
                     for (var i = 0; i < imgs.length; i += 3) {{
                         var pageDiv = document.createElement('div');
                         pageDiv.className = 'label-page';
                         
-                        // 3개씩 자식으로 추가
+                        // 3개 추가 (이미지 크기를 25mm로 통일)
                         for (var j = i; j < i + 3 && j < imgs.length; j++) {{
-                            pageDiv.appendChild(imgs[j].cloneNode(true));
+                            var imgNode = imgs[j].cloneNode(true);
+                            imgNode.style.width = '25mm';
+                            imgNode.style.height = '25mm';
+                            pageDiv.appendChild(imgNode);
                         }}
                         body.appendChild(pageDiv);
                     }}
                     
                     printWindow.document.close();
+                    // 인쇄 호출
                     printWindow.print();
                 }}, 500);
             " style="padding: 10px; font-size: 14px; cursor: pointer; color: white; background-color: #28a745; border: none; border-radius: 5px;">
-                🖨️ 라벨 1장에 3개씩 인쇄
+                🖨️ 최종 인쇄 (정밀 배치)
             </button>
 
             <div style='display:none;' id='print-area'>
