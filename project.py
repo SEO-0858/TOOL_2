@@ -1334,7 +1334,9 @@ else:
         
         # 실제 재고 컬렉션 연결 (기존 DB 연결 함수 활용)
         db = get_database() 
-        tool_col = db["tool_inventory"] 
+        tool_col = db["tool_inventory"]
+        count = tool_col.count_documents({})
+        st.write(f"현재 DB에 등록된 툴 개수: {count}개")
         
         with st.form("spec_input_form_master", clear_on_submit=True):
             st.subheader("➕ 신규 툴 재고 등록")
