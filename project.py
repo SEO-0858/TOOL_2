@@ -1035,6 +1035,31 @@ else:
                                     # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
                                    
                                     st.markdown("🛠 **상세 스펙 선택**")
+                                    tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
+                                    current_db_type = tool_type_map.get(s_no[0], "알수없음")
+                                    
+                                    st.write(f"--- [디버그 정보] ---")
+                                    st.write(f"현재 시리얼번호: {s_no}")
+                                    st.write(f"시리얼 앞자리(s_no[0]): {s_no[0]}")
+                                    st.write(f"매핑된 툴타입(current_db_type): {current_db_type}")
+                                    
+                                    # DB 조회 확인
+                                    all_types_in_db = db_collection.distinct("tool_type")
+                                    st.write(f"DB에 존재하는 전체 툴타입 리스트: {all_types_in_db}")
+                                    
+                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    st.write(f"조회된 스펙 개수: {len(spec_options)}")
+                                    st.write(f"조회된 스펙 리스트: {spec_options}")
+                                    st.write(f"--------------------")
+                                    
+                                    # 이후 로직
+                                    if not spec_options:
+                                        spec_options = ["스펙없음"]
+
+
+
+
+
                                     # 🛠 1. 툴 타입 매핑 (DB에 저장된 영문값과 100% 일치)
                                     tool_type_map = {
                                         '1': 'COR', 
