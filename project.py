@@ -656,7 +656,7 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","📥 툴 입고 처리 (바코드 스캔)"]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
         
@@ -1384,3 +1384,43 @@ else:
                                 st.rerun()
         else:
             st.caption("🔒 스펙 명부가 숨겨져 있습니다.")
+
+
+
+    # 5) 📥 툴 입고 처리 메뉴 로직
+    elif tool_menu == "📥 툴 입고 처리 (바코드 스캔)":
+        st.title("📥 업체 바코드 스캔 및 자동 입고")
+        st.write("바코드 리더기로 라벨을 찍으면 자동으로 상세 정보가 등록됩니다.")
+        
+        # 바코드 입력창 (리더기가 찍으면 바로 데이터가 들어옴)
+        barcode_input = st.text_input("업체 바코드를 리더기로 찍으세요", key="barcode_scan_input")
+        
+        if barcode_input:
+            try:
+                # 1. 데이터 분리 (JUN|D100_25T_0.3R_#200|KI)
+                parts = barcode_input.split('|')
+                if len(parts) != 3:
+                    st.error("❌ 바코드 형식이 틀렸습니다. [대분류|상세스펙|업체] 형식을 확인하세요.")
+                else:
+                    cat, spec, vendor = parts
+                    now = get_now_kst()
+                    
+                    # 2. 신규 데이터 생성
+                    new_tool = {
+                        "serial_no": f"{cat}{now.strftime('%Y%m%d%H%M%S')}", # 고유 시리얼 생성
+                        "tool_type": cat,
+                        "detail_spec": spec,
+                        "worker": vendor,
+                        "status": "사용전",
+                        "input_date": now.strftime("%Y-%m-%d"),
+                        "init_time": now.strftime("%H:%M"),
+                        "note": f"[{now.strftime('%Y-%m-%d %H:%M')} 바코드 입고 등록] 업체: {vendor}"
+                    }
+                    
+                    # 3. DB 저장
+                    db_collection.insert_one(new_tool)
+                    st.success(f"✅ [{spec}] 툴이 성공적으로 입고되었습니다!")
+                    st.balloons()
+                    
+            except Exception as e:
+                st.error(f"입고 처리 중 오류 발생: {e}")
