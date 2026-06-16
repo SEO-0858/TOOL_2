@@ -1,9 +1,11 @@
 import streamlit as st
 from datetime import datetime
+from datetime import datetime as dt, timedelta
 
 # 한국 시간 구하는 함수 (기존 thr.py에 있는 것과 동일하게)
 def get_now_kst():
-    return datetime.now() # 필요 시 timezone 설정 추가
+    # UTC 시간에 9시간을 더해 한국 시간으로 만듭니다
+    return datetime.utcnow() + timedelta(hours=9)
 
 def add_new_tool(barcode_input, db_collection):
     try:
