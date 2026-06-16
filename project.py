@@ -1035,15 +1035,27 @@ else:
                                     # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
                                    
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                    
-                                    # 툴 타입 매핑 및 DB 조회 로직
+    
+                                    # [디버그 추가] 현재 이 툴의 시리얼 앞자리와 매핑된 타입이 뭔지 화면에 출력
                                     tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
                                     current_db_type = tool_type_map.get(s_no[0], "MET")
                                     
+                                    # 🔍 화면에 출력해서 확인해보세요 (잘 나오는지)
+                                    st.write(f"디버그: 시리얼 앞자리={s_no[0]}, 검색할 툴타입={current_db_type}")
+                                    
+                                    # DB 조회
                                     spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    
+                                    # [디버그 추가] 결과 개수 확인
+                                    st.write(f"디버그: DB에서 찾은 스펙 개수={len(spec_options)}")
+                                    
                                     if not spec_options:
                                         spec_options = ["스펙없음"]
 
+                                    # 스펙 선택창
+                                    current_spec = item.get('detail_spec', '')
+                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_selectbox_{s_no}")
                                     # 툴마다 고유한 selectbox key 부여
                                     current_spec = item.get('detail_spec', '')
                                     default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
