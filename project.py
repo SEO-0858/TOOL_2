@@ -1406,3 +1406,11 @@ else:
                 st.balloons()
             else:
                 st.error(result)
+                # 입고 내역을 보여주는 코드 (추가)
+        st.subheader("📋 오늘 입고된 툴 현황")
+
+        # DB에서 오늘 날짜인 것만 찾아와서 화면에 표로 보여줌
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        recent_tools = list(db_collection.find({"input_date": today_str}).sort("_id", -1))
+
+        st.table(recent_tools) # 데이터를 깔끔하게 표로 출력
