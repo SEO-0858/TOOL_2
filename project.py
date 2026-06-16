@@ -17,7 +17,7 @@ import mong
 
 
 if st.button("재고 데이터베이스 초기화"):
-    added_count = mongo_tool.initialize_db()
+    added_count = mong.initialize_db()
     st.success(f"데이터베이스 초기화 완료! {added_count}개의 툴이 새로 등록되었습니다.")
 
 
