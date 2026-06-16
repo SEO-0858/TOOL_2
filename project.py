@@ -14,6 +14,16 @@ from datetime import timedelta
 import pytz
 
 
+# 툴 타입 매핑 (시리얼 넘버 첫 자리에 따른 툴 종류)
+# 이 규칙은 나중에 툴 종류가 추가/변경되어도 여기만 수정하면 됩니다.
+TOOL_TYPE_MAP = {
+    '1': '전착툴',
+    '2': '레진툴',
+    '3': '메탈툴',
+    '4': '코어툴'
+}
+
+
 st.cache_data.clear()
 
 #실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
@@ -627,8 +637,16 @@ if qr_scanned_serial:
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
-    
+        # 1. 시리얼 첫 글자(예: '3')를 보고 어떤 툴 타입인지 결정
+    tool_type_map = {'1': '전착툴', '2': '레진툴', '3': '메탈툴', '4': '코어툴'}
+    current_tool_type = tool_type_map.get(qr_scanned_serial[0], "전착툴") # 시리얼 첫자리로 이름 매칭
+
+    # 2. 해당 타입(예: '메탈툴')의 데이터만 DB에서 골라오기
+    spec_docs = list(get_spec_master_collection().find({"main_type": current_tool_type}))
+    spec_opts = [s['spec_name'] for s in spec_docs] if spec_docs else ["스펙없음"]
+
+    # 3. 기존에 있던 u_spec 선택창 코드는 그대로 유지
+    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec')) if existing_data.get('detail_spec') in spec_opts else 0)
     st.divider()
     
     st.markdown("### ⏳ 드레싱 및 특이사항")
@@ -1019,10 +1037,23 @@ else:
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
-                                    st.markdown("🛠 **상세 스펙 선택**")
                                     spec_master_col = get_spec_master_collection()
-                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
-                                    spec_options = [s['spec_name'] for s in spec_docs]
+
+                                    # 1. 1단계에서 만든 매핑 규칙 (만약 상단에 없다면 여기에 적으셔도 됩니다)
+                                    tool_type_map = {'1': '전착툴', '2': '레진툴', '3': '메탈툴', '4': '코어툴'}
+
+                                    # 2. 현재 시리얼 넘버(s_no)의 첫 글자를 이용해 타입 결정
+                                    current_type = tool_type_map.get(s_no[0], "전착툴") 
+
+                                    # 3. 해당 타입만 골라서 가져오기!
+                                    spec_docs = list(spec_master_col.find({"main_type": current_type}))
+                                    spec_options = [s['spec_name'] for s in spec_docs] or ["스펙없음"]
+
+                                    current_spec = item.get('detail_spec', '')
+                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_{s_no}")
+                                    
                                     # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
                                     ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
@@ -1393,6 +1424,5 @@ else:
                                 st.success("삭제되었습니다.")
                                 time.sleep(0.5)
                                 st.rerun()
-
 
 
