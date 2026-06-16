@@ -1040,16 +1040,19 @@ else:
                                     tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
                                     current_db_type = tool_type_map.get(s_no[0], "MET")
                                     
-                                    # 🔍 화면에 출력해서 확인해보세요 (잘 나오는지)
-                                    st.write(f"디버그: 시리얼 앞자리={s_no[0]}, 검색할 툴타입={current_db_type}")
+                                        # 🔍 상세 디버그: DB에 데이터가 있기는 한가?
+                                    st.write(f"디버그: 시리얼={s_no}, 툴타입={current_db_type}")
                                     
-                                    # DB 조회
-                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    # 1. 일단 툴타입이 current_db_type인 녀석들을 1개만 찾아보자
+                                    sample_doc = db_collection.find_one({"tool_type": current_db_type})
+                                    st.write(f"디버그: 찾은 샘플 문서={sample_doc}")
                                     
-                                    # [디버그 추가] 결과 개수 확인
-                                    st.write(f"디버그: DB에서 찾은 스펙 개수={len(spec_options)}")
-                                    
-                                    if not spec_options:
+                                    # 2. 샘플 문서가 있다면 그 안에 어떤 필드들이 있는지 확인
+                                    if sample_doc:
+                                        st.write(f"디버그: 문서의 필드 목록={list(sample_doc.keys())}")
+                                        spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    else:
+                                        st.write("디버그: 해당 툴타입으로 검색되는 데이터가 DB에 전혀 없습니다!")
                                         spec_options = ["스펙없음"]
 
                                     # 스펙 선택창
