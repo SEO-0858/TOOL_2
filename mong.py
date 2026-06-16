@@ -1,21 +1,34 @@
-# mong.py
 import streamlit as st
+from datetime import datetime
 
-# 하위 종목(마스터) 리스트를 DB에서 가져오는 함수
-def get_master_specs(db):
-    # db는 project.py에서 연결된 mongo 클라이언트를 넘겨받습니다
-    collection = db['master_tool_collection'] # 대표님 DB의 마스터 컬렉션 이름으로 수정하세요
-    return list(collection.find())
+# 한국 시간 구하는 함수 (기존 thr.py에 있는 것과 동일하게)
+def get_now_kst():
+    return datetime.now() # 필요 시 timezone 설정 추가
 
-# 바코드 스캔 시 처리될 함수 (핵심)
-def process_barcode(barcode_data, db):
-    # 1. 마스터 데이터 가져오기
-    master_list = get_master_specs(db)
-    
-    # 2. 바코드가 마스터에 있는지 확인
-    found_tool = next((item for item in master_list if item['spec'] == barcode_data), None)
-    
-    if found_tool:
-        return {"status": "found", "data": found_tool}
-    else:
-        return {"status": "not_found", "message": "마스터에 없는 툴입니다."}
+def add_new_tool(barcode_input, db_collection):
+    try:
+        # 1. 데이터 분리
+        parts = barcode_input.split('|')
+        if len(parts) != 3:
+            return False, "바코드 형식이 틀렸습니다."
+        
+        cat, spec, vendor = parts
+        now = get_now_kst()
+        
+        # 2. 신규 데이터 생성
+        new_tool = {
+            "serial_no": f"{cat}{now.strftime('%Y%m%d%H%M%S')}",
+            "tool_type": cat,
+            "detail_spec": spec,
+            "worker": vendor,
+            "status": "사용전",
+            "input_date": now.strftime('%Y-%m-%d'),
+            "init_time": now.strftime('%H:%M'),
+            "note": f"{now.strftime('%Y-%m-%d %H:%M')} 바코드 입고 업체: {vendor}"
+        }
+        
+        # 3. DB 저장
+        db_collection.insert_one(new_tool)
+        return True, spec
+    except Exception as e:
+        return False, str(e)
