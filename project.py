@@ -20,10 +20,10 @@ import pytz
 
 st.cache_data.clear()
 tool_type_map = {
-    '1': 'JUN', 
-    '2': 'REJ', 
+    '1': 'COR', 
+    '2': 'JUN', 
     '3': 'MET', 
-    '4': 'COR'
+    '4': 'REJ'
 }
 
 
@@ -1037,19 +1037,25 @@ else:
                                         ed_worker = st.text_input("👷 교체 작업자 이름 기입", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
-                                    # 상세 스펙 선택창 추가
-                                    spec_master_col = get_spec_master_collection()
+                                        
+                                    # 상세 스펙 선택창 추가                                
+                                    tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
+                                    
+                                    # 2. 현재 시리얼의 첫 글자로 타입 결정 (매핑 안 되면 기본값 'MET')
+                                    current_db_type = tool_type_map.get(s_no[0], "MET")
+                                    
+                                    # 3. DB에서 직접 추출 (spec_master_col이 아니라 db_collection 사용!)
+                                    # spec_detail 필드에서, tool_type이 맞는 것만 중복 없이 가져오기
+                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    
+                                    if not spec_options:
+                                        spec_options = ["스펙없음"]
 
-                                    # 1. 1단계에서 만든 매핑 규칙 (만약 상단에 없다면 여기에 적으셔도 됩니다)
-                                    tool_type_map = {'1': '전착툴', '2': '레진툴', '3': '메탈툴', '4': '코어툴'}
-
-                                    # 2. 현재 시리얼 넘버(s_no)의 첫 글자를 이용해 타입 결정
-                                    current_type = tool_type_map.get(s_no[0], "전착툴") 
-
-                                    # 3. 해당 타입만 골라서 가져오기!
-                                    spec_docs = list(spec_master_col.find({"main_type": current_type}))
-                                    spec_options = [s['spec_name'] for s in spec_docs] or ["스펙없음"]
-
+                                    # 4. 스펙 선택창
+                                    current_spec = item.get('detail_spec', '')
+                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+                                    
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_{s_no}")
                                     current_spec = item.get('detail_spec', '')
                                     default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
 
