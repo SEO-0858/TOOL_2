@@ -1321,26 +1321,24 @@ else:
 
   
     
-    # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
-    elif tool_menu == "🖥️ 실시간 기계 정보창":
-        show_machine_dashboard()
-
-
-       
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
         st.title("🔧 툴 상세 스펙 마스터 관리")
         
-        # 1. DB 연결 (기존 함수는 DB 객체까지만 가져오도록 함)
-        # 만약 get_database()가 컬렉션까지 리턴한다면, 그 컬렉션의 부모인 db를 가져와야 합니다.
-        db = get_database() 
-        # 혹시 get_database()가 db['tools_management']를 리턴한다면, 
-        # 아래처럼 .parent_collection.database로 접근하거나 
-        # 아예 get_database()를 수정해야 합니다. 
-        # 여기서는 db['tool_inventory']를 직접 명시합니다.
-        tool_col = db["tool_inventory"] 
+        # [핵심 수정] 함수에 의존하지 않고 여기서 직접 연결을 명시합니다.
+        # 기존 thr.py의 secrets 설정을 그대로 가져오되, db 이름만 강제로 지정합니다.
+        mongo_uri = st.secrets["database"]["MONGO_URI"]
+        client = MongoClient(mongo_uri)
+        db = client["dashboard_db"]        # 여기서 데이터베이스를 확실하게 잡습니다!
+        tool_col = db["tool_inventory"]    # 여기서 컬렉션을 확실하게 잡습니다!
         
         st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다.")
         
+        # 데이터 개수 확인 (이제 42개가 떠야 정상입니다)
+        all_tools_list = list(tool_col.find({}))
+        st.write(f"현재 DB(dashboard_db > tool_inventory)에 등록된 툴 개수: {len(all_tools_list)}개")
+
+        # ... (이하 동일: 신규 등록 폼 및 리스트 출력 코드)
+    
         # 2. 신규 등록 폼
         with st.form("spec_input_form_master", clear_on_submit=True):
             st.subheader("➕ 신규 툴 재고 등록")
