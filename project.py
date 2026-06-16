@@ -1062,16 +1062,7 @@ else:
                                         spec_options, 
                                         index=default_index, 
                                         key=f"spec_{item['_id']}"
-    )
-  
-
-                                    # 스펙 선택창
-                                    current_spec = item.get('detail_spec', '')
-                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
-                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_selectbox_{s_no}")
-                                    # 툴마다 고유한 selectbox key 부여
-                                    current_spec = item.get('detail_spec', '')
-                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+                                    )
                                     
 
                                     # 드레싱 주기 및 기타 입력
