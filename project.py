@@ -20,10 +20,10 @@ import pytz
 
 st.cache_data.clear()
 tool_type_map = {
-    '1': 'COR', 
-    '2': 'JUN', 
+    '1': 'JUN', 
+    '2': 'REJ', 
     '3': 'MET', 
-    '4': 'REJ'
+    '4': 'COR'
 }
 
 
