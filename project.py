@@ -15,7 +15,103 @@ import pytz
 st.cache_data.clear()
 
 
-           # 실시간 툴드레싱 알림판 show_live_dashboard() 호출부--------------
+#실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
+@st.fragment(run_every="60s")
+def show_machine_dashboard():
+    st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
+    if st.button("🔄 실시간 정보 즉시 갱신"):
+        st.rerun()
+    now_kst = get_now_kst()
+    st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M')}")
+    # 1. 레이아웃 및 데이터 매핑 (기존 기능 유지)
+    layout = [
+        [27, 28, 29, 30, 31, 9, 8, 7],
+        [16, 17, 26, 32, 57],
+        [15, 18, 25, 33, 56],
+        [14, 19, 24, 34, 55, 6],
+        [13, 20, 35, 54, 5],
+        [12, 21, 36, 53, 4],
+        [11, 22, 37, 52, 3],
+        [10, 23, 38, 43],
+        [39, 40, 41, 42],
+        [44, 45, 46, 47, 48, 49, 50, 51]
+    ]
+
+    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
+    machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
+                        for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+
+    for row in layout:
+        cols = st.columns(len(row))
+        for i, m_no in enumerate(row):
+            with cols[i]:
+                st.markdown(f"**{m_no}호기**")
+                if m_no in machine_tool_map:
+                    for item in machine_tool_map[m_no]:
+                        color, label, text = get_status_info(item, now_kst)
+                        db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
+                        render_tool_ui(item, "none", "none", db_status)
+                        if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
+                            st.session_state.edit_serial = item['serial_no']
+                            st.rerun()
+                else:
+                    st.info("비어있음")
+
+    # 2. 상세 수정창 (데이터 로딩 및 관리)
+    if 'edit_serial' in st.session_state and st.session_state.edit_serial:
+        ctx_key = st.session_state.edit_serial
+        st.divider()
+        
+        # 닫기 버튼
+        if st.button("❌ 닫기 (상세 창 닫기)", key=f"close_{ctx_key}"):
+            st.session_state.edit_serial = None
+            st.rerun()
+
+        st.subheader(f"🛠 툴 정보 및 연혁 관리: {ctx_key}")
+        target_tool = db_collection.find_one({"serial_no": ctx_key})
+        
+        if target_tool:
+            with st.form("edit_basic_info"):
+                col1, col2 = st.columns(2)
+                new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
+                new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
+                
+                if st.form_submit_button("💾 기본 정보 저장"):
+                    old_machine = target_tool.get('machine_no', '')
+                    old_worker = target_tool.get('worker', '')
+                    
+                    # 항상 [기존→변경] 형식을 유지하는 로그 기록
+                    timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                    log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker}"
+                    
+                    updated_note = (target_tool.get('note', '') + log_msg).strip()
+                    
+                    db_collection.update_one(
+                        {"serial_no": ctx_key},
+                        {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
+                    )
+                    st.success("정보가 저장되었습니다!")
+                    st.rerun()
+
+            # 연혁 데이터 편집
+            st.write("#### 📜 연혁 데이터 (기록 관리)")
+            raw_note = target_tool.get("note", "")
+            df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
+            edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{ctx_key}")
+            
+            if st.button("💾 연혁 전체 저장", key=f"save_{ctx_key}"):
+                db_collection.update_one(
+                    {"serial_no": ctx_key},
+                    {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
+                )
+                st.success("연혁이 업데이트되었습니다!")
+                st.rerun()
+
+
+
+
+
+# 실시간 툴드레싱 알림판 show_live_dashboard() 호출부---------------------------------------------------------
 @st.fragment(run_every="60s")
 def show_live_dashboard():
     """60초마다 자동 새로고침되는 실시간 알림판 대시보드"""
@@ -1220,101 +1316,14 @@ else:
                         st.rerun()
 
 
-# 5) 🖥️ 실시간 기계 정보창 (Grid Layout)--------------------------------------------------------------------------------------------------
+
 
   
     
-        # [실시간 기계 정보창 로직 전체]
+    # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
-        st.title("🖥 실시간 기계 배치 및 툴 상세 현황")
-        if st.button("🔄 실시간 정보 즉시 갱신"):
-            st.rerun()
-        now_kst = get_now_kst()
-        st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+        show_machine_dashboard()
 
-        # 1. 레이아웃 및 데이터 매핑 (기존 기능 유지)
-        layout = [
-            [27, 28, 29, 30, 31, 9, 8, 7],
-            [16, 17, 26, 32, 57],
-            [15, 18, 25, 33, 56],
-            [14, 19, 24, 34, 55, 6],
-            [13, 20, 35, 54, 5],
-            [12, 21, 36, 53, 4],
-            [11, 22, 37, 52, 3],
-            [10, 23, 38, 43],
-            [39, 40, 41, 42],
-            [44, 45, 46, 47, 48, 49, 50, 51]
-        ]
-
-        active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-        machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
-                            for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
-
-        for row in layout:
-            cols = st.columns(len(row))
-            for i, m_no in enumerate(row):
-                with cols[i]:
-                    st.markdown(f"**{m_no}호기**")
-                    if m_no in machine_tool_map:
-                        for item in machine_tool_map[m_no]:
-                            color, label, text = get_status_info(item, now_kst)
-                            db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
-                            render_tool_ui(item, "none", "none", db_status)
-                            if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
-                                st.session_state.edit_serial = item['serial_no']
-                                st.rerun()
-                    else:
-                        st.info("비어있음")
-
-        # 2. 상세 수정창 (데이터 로딩 및 관리)
-        if 'edit_serial' in st.session_state and st.session_state.edit_serial:
-            ctx_key = st.session_state.edit_serial
-            st.divider()
-            
-            # 닫기 버튼
-            if st.button("❌ 닫기 (상세 창 닫기)", key=f"close_{ctx_key}"):
-                st.session_state.edit_serial = None
-                st.rerun()
-
-            st.subheader(f"🛠 툴 정보 및 연혁 관리: {ctx_key}")
-            target_tool = db_collection.find_one({"serial_no": ctx_key})
-            
-            if target_tool:
-                with st.form("edit_basic_info"):
-                    col1, col2 = st.columns(2)
-                    new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
-                    new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
-                    
-                    if st.form_submit_button("💾 기본 정보 저장"):
-                        old_machine = target_tool.get('machine_no', '')
-                        old_worker = target_tool.get('worker', '')
-                        
-                        # 항상 [기존→변경] 형식을 유지하는 로그 기록
-                        timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                        log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker}"
-                        
-                        updated_note = (target_tool.get('note', '') + log_msg).strip()
-                        
-                        db_collection.update_one(
-                            {"serial_no": ctx_key},
-                            {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
-                        )
-                        st.success("정보가 저장되었습니다!")
-                        st.rerun()
-
-                # 연혁 데이터 편집
-                st.write("#### 📜 연혁 데이터 (기록 관리)")
-                raw_note = target_tool.get("note", "")
-                df = pd.DataFrame(raw_note.split('\n') if raw_note else ["기록 없음"], columns=["연혁 및 기록 내용"])
-                edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{ctx_key}")
-                
-                if st.button("💾 연혁 전체 저장", key=f"save_{ctx_key}"):
-                    db_collection.update_one(
-                        {"serial_no": ctx_key},
-                        {"$set": {"note": "\n".join(edited_df["연혁 및 기록 내용"].tolist())}}
-                    )
-                    st.success("연혁이 업데이트되었습니다!")
-                    st.rerun()
 
        
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
@@ -1347,19 +1356,31 @@ else:
                         st.rerun()
 
         st.write("<br><hr>", unsafe_allow_html=True)
-        st.subheader("📋 현재 등록된 전 공정 공용 스펙 명부")
-        all_specs_list = list(spec_master_col.find({}))
         
-        if not all_specs_list:
-            st.info("💡 아직 등록된 스펙이 없습니다. 상단 양식에서 공정에 쓰일 툴 규격을 먼저 등록해 주세요.")
+        # 💡 토글 스위치 삽입 (이거 하나로 리스트 전체를 제어합니다)
+        show_list = st.toggle("📋 전체 스펙 명부 보기/숨기기", value=True)
+        
+        if show_list:
+            all_specs_list = list(spec_master_col.find({}))
+            
+            if not all_specs_list:
+                st.info("💡 아직 등록된 스펙이 없습니다.")
+            else:
+                for spec in all_specs_list:
+                    # 각 항목은 개별적으로 열어볼 수 있는 expander 사용
+                    with st.expander(f"[{spec['main_type']}] {spec['spec_name']}"):
+                        col_sp1, col_sp2, col_sp3 = st.columns([4, 1, 1])
+                        with col_sp1:
+                            st.markdown(f"**상세 메모:** {spec.get('memo', '내용 없음')}")
+                        with col_sp2:
+                            if st.button("✏️ 수정", key=f"edit_mst_{spec['_id']}"):
+                                st.session_state.edit_target = spec
+                                st.rerun()
+                        with col_sp3:
+                            if st.button("🗑️ 삭제", key=f"del_mst_{spec['_id']}"):
+                                spec_master_col.delete_one({"_id": spec["_id"]})
+                                st.success("삭제되었습니다.")
+                                time.sleep(0.5)
+                                st.rerun()
         else:
-            for spec in all_specs_list:
-                col_sp1, col_sp2 = st.columns([4, 1])
-                with col_sp1:
-                    st.markdown(f"• **[{spec['main_type']}]** {spec['spec_name']} *(메모: {spec.get('memo', '-')})*")
-                with col_sp2:
-                    if st.button("🗑️ 리스트 삭제", key=f"del_mst_{spec['_id']}", type="secondary"):
-                        spec_master_col.delete_one({"_id": spec["_id"]})
-                        st.success("리스트에서 정상 제거되었습니다.")
-                        time.sleep(0.5)
-                        st.rerun()                          
+            st.caption("🔒 스펙 명부가 숨겨져 있습니다.")
