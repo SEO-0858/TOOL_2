@@ -76,21 +76,38 @@ def show_machine_dashboard():
                 new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
                 new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
                 
+                # [수정] 드레싱 주기 입력창
+                col_h, col_m = st.columns(2)
+                new_hours = col_h.number_input("드레싱 시간(Hour)", min_value=0, value=int(target_tool.get('dressing_hours', 0)))
+                new_mins = col_m.number_input("드레싱 분(Minute)", min_value=0, max_value=59, value=int(target_tool.get('dressing_mins', 0)))
+                
                 if st.form_submit_button("💾 기본 정보 저장"):
                     old_machine = target_tool.get('machine_no', '')
                     old_worker = target_tool.get('worker', '')
                     
-                    # 항상 [기존→변경] 형식을 유지하는 로그 기록
+                    # 로그 기록
                     timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
-                    log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker}"
-                    
+                    log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker} / 주기:{new_hours}h {new_mins}m 변경(타이머 리셋)".format(timestamp)
                     updated_note = (target_tool.get('note', '') + log_msg).strip()
+                    
+                    # [핵심] 현재 시간 기준으로 마감 시간(target_time) 재계산
+                    click_now = get_now_kst()
+                    new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
+                    new_target = (click_now + timedelta(hours=int(new_hours), minutes=int(new_mins))).strftime("%Y-%m-%d %H:%M:%S")
                     
                     db_collection.update_one(
                         {"serial_no": ctx_key},
-                        {"$set": {"machine_no": new_machine, "worker": new_worker, "note": updated_note}}
+                        {"$set": {
+                            "machine_no": new_machine, 
+                            "worker": new_worker, 
+                            "dressing_hours": new_hours, 
+                            "dressing_mins": new_mins,
+                            "start_time": new_start,   # 시작 시간도 변경 시점으로 갱신
+                            "target_time": new_target, # 마감 시간 재계산 반영
+                            "note": updated_note
+                        }}
                     )
-                    st.success("정보가 저장되었습니다!")
+                    st.success("정보가 저장되었으며, 타이머가 현재 시간 기준으로 리셋되었습니다!")
                     st.rerun()
 
             # 연혁 데이터 편집
