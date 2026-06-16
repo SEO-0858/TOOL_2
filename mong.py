@@ -1,36 +1,65 @@
 import streamlit as st
-from datetime import datetime
-from datetime import datetime as dt, timedelta
+from pymongo import MongoClient
 
-# 한국 시간 구하는 함수 (기존 thr.py에 있는 것과 동일하게)
-def get_now_kst():
-    # UTC 시간에 9시간을 더해 한국 시간으로 만듭니다
-    return datetime.utcnow() + timedelta(hours=9)
+# 툴 상세 스펙 리스트 (나중에 관리 메뉴 만들어서 여기서 빼내시면 됩니다)
+ALL_TOOLS = [
+    {"tool_type": "COR", "spec_detail": "D90_5T_1.5T_#200"},
+    {"tool_type": "COR", "spec_detail": "D90_5T_1.5T_#100"},
+    {"tool_type": "MET", "spec_detail": "D100_3W_#325"},
+    {"tool_type": "MET", "spec_detail": "D100_3W_#170"},
+    {"tool_type": "MET", "spec_detail": "D80_40T_#325"},
+    {"tool_type": "MET", "spec_detail": "D90_50T_#325"},
+    {"tool_type": "MET", "spec_detail": "D80_40T_#600"},
+    {"tool_type": "MET", "spec_detail": "D90_50T_#600"},
+    {"tool_type": "MET", "spec_detail": "D100_20T_#80"},
+    {"tool_type": "JUN", "spec_detail": "D90_10T_A45_#500"},
+    {"tool_type": "JUN", "spec_detail": "D80_20T_1R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D90_17T_C2_#200"},
+    {"tool_type": "JUN", "spec_detail": "D60_50T_#200"},
+    {"tool_type": "JUN", "spec_detail": "D60_50T_#325"},
+    {"tool_type": "JUN", "spec_detail": "D102.12_41.8T_6.35R_#400"},
+    {"tool_type": "JUN", "spec_detail": "D80_45T_6.73R_#400"},
+    {"tool_type": "JUN", "spec_detail": "D90_16T_V45_#200"},
+    {"tool_type": "JUN", "spec_detail": "D90_16T_V45_#325"},
+    {"tool_type": "JUN", "spec_detail": "D80_15T_0.3R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D80_15T_0.8R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D80_20T_0.3R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D80_20T_0.3R_#325"},
+    {"tool_type": "JUN", "spec_detail": "D90_23T_0.3R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D100_25T_0.3R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D90_23T_0.3R_#325"},
+    {"tool_type": "JUN", "spec_detail": "D90_23T_0.3R_#400"},
+    {"tool_type": "JUN", "spec_detail": "D90_23T_1R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D100_25T_1R_#200"},
+    {"tool_type": "JUN", "spec_detail": "D100_25T_1R_#400"},
+    {"tool_type": "JUN", "spec_detail": "D90_17T_1R_#400"},
+    {"tool_type": "JUN", "spec_detail": "D90_14T_2R_17V_#400"},
+    {"tool_type": "REJ", "spec_detail": "D90_25T_#200"},
+    {"tool_type": "REJ", "spec_detail": "D90_50T_#200"},
+    {"tool_type": "REJ", "spec_detail": "D75_15V_#325"},
+    {"tool_type": "REJ", "spec_detail": "D90_15T_#325"},
+    {"tool_type": "REJ", "spec_detail": "D90_25T_#325"},
+    {"tool_type": "REJ", "spec_detail": "D90_50T_#325"},
+    {"tool_type": "REJ", "spec_detail": "D90_25T_#500"},
+    {"tool_type": "REJ", "spec_detail": "D90_50T_#500"},
+    {"tool_type": "REJ", "spec_detail": "D90_25T_#600"},
+    {"tool_type": "REJ", "spec_detail": "D90_50T_#600"},
+    {"tool_type": "REJ", "spec_detail": "D90_5T_#325"}
+]
 
-def add_new_tool(barcode_input, db_collection):
-    try:
-        # 1. 데이터 분리
-        parts = barcode_input.split('|')
-        if len(parts) != 3:
-            return False, "바코드 형식이 틀렸습니다."
-        
-        cat, spec, vendor = parts
-        now = get_now_kst()
-        
-        # 2. 신규 데이터 생성
-        new_tool = {
-            "serial_no": f"{cat}{now.strftime('%Y%m%d%H%M%S')}",
-            "tool_type": cat,
-            "detail_spec": spec,
-            "worker": vendor,
-            "status": "사용전",
-            "input_date": now.strftime('%Y-%m-%d'),
-            "init_time": now.strftime('%H:%M'),
-            "note": f"{now.strftime('%Y-%m-%d %H:%M')} 바코드 입고 업체: {vendor}"
-        }
-        
-        # 3. DB 저장
-        db_collection.insert_one(new_tool)
-        return True, spec
-    except Exception as e:
-        return False, str(e)
+def get_collection():
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
+    client = MongoClient(mongo_uri)
+    db = client["dashboard_db"]
+    return db["tool_inventory"]
+
+def initialize_db():
+    collection = get_collection()
+    count = 0
+    for tool in ALL_TOOLS:
+        if not collection.find_one({"tool_type": tool["tool_type"], "spec_detail": tool["spec_detail"]}):
+            tool["new_stock"] = 0
+            tool["used_stock"] = 0
+            collection.insert_one(tool)
+            count += 1
+    return count
