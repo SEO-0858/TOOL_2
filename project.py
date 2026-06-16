@@ -1396,32 +1396,13 @@ else:
         # 바코드 입력창 (리더기가 찍으면 바로 데이터가 들어옴)
         barcode_input = st.text_input("업체 바코드를 리더기로 찍으세요", key="barcode_scan_input")
         
+                # thr.py 수정 부분
         if barcode_input:
-            try:
-                # 1. 데이터 분리 (JUN|D100_25T_0.3R_#200|KI)
-                parts = barcode_input.split('|')
-                if len(parts) != 3:
-                    st.error("❌ 바코드 형식이 틀렸습니다. [대분류|상세스펙|업체] 형식을 확인하세요.")
-                else:
-                    cat, spec, vendor = parts
-                    now = get_now_kst()
-                    
-                    # 2. 신규 데이터 생성
-                    new_tool = {
-                        "serial_no": f"{cat}{now.strftime('%Y%m%d%H%M%S')}", # 고유 시리얼 생성
-                        "tool_type": cat,
-                        "detail_spec": spec,
-                        "worker": vendor,
-                        "status": "사용전",
-                        "input_date": now.strftime("%Y-%m-%d"),
-                        "init_time": now.strftime("%H:%M"),
-                        "note": f"[{now.strftime('%Y-%m-%d %H:%M')} 바코드 입고 등록] 업체: {vendor}"
-                    }
-                    
-                    # 3. DB 저장
-                    db_collection.insert_one(new_tool)
-                    st.success(f"✅ [{spec}] 툴이 성공적으로 입고되었습니다!")
-                    st.balloons()
-                    
-            except Exception as e:
-                st.error(f"입고 처리 중 오류 발생: {e}")
+            # 툴 입고 처리 (mong.py의 함수 호출)
+            success, result = mong.add_new_tool(barcode_input, db_collection)
+            
+            if success:
+                st.success(f"{result} 툴이 성공적으로 입고되었습니다!")
+                st.balloons()
+            else:
+                st.error(result)
