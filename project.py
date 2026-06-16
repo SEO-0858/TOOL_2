@@ -1033,51 +1033,51 @@ else:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
 
                                     # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
-                                    with st.form(key=f"edit_form_{s_no}"):
-                                        st.markdown("🛠 **상세 스펙 선택**")
-                                        
-                                        # 툴 타입 매핑 및 DB 조회 로직
-                                        tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
-                                        current_db_type = tool_type_map.get(s_no[0], "MET")
-                                        
-                                        spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
-                                        if not spec_options:
-                                            spec_options = ["스펙없음"]
+                                   
+                                    st.markdown("🛠 **상세 스펙 선택**")
+                                    
+                                    # 툴 타입 매핑 및 DB 조회 로직
+                                    tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
+                                    current_db_type = tool_type_map.get(s_no[0], "MET")
+                                    
+                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
+                                    if not spec_options:
+                                        spec_options = ["스펙없음"]
 
-                                        # 툴마다 고유한 selectbox key 부여
-                                        current_spec = item.get('detail_spec', '')
-                                        default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
-                                        ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_selectbox_{s_no}")
+                                    # 툴마다 고유한 selectbox key 부여
+                                    current_spec = item.get('detail_spec', '')
+                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_selectbox_{s_no}")
 
-                                        # 드레싱 주기 및 기타 입력
-                                        st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
-                                        col_eh, col_em = st.columns(2)
-                                        with col_eh:
-                                            ed_hours = st.number_input("시간(Hour)", min_value=0, value=item.get('dressing_hours', 0), key=f"eh_{s_no}")
-                                        with col_em:
-                                            ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=item.get('dressing_mins', 0), key=f"em_{s_no}")
-                                        
-                                        ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
+                                    # 드레싱 주기 및 기타 입력
+                                    st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
+                                    col_eh, col_em = st.columns(2)
+                                    with col_eh:
+                                        ed_hours = st.number_input("시간(Hour)", min_value=0, value=item.get('dressing_hours', 0), key=f"eh_{s_no}")
+                                    with col_em:
+                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=item.get('dressing_mins', 0), key=f"em_{s_no}")
+                                    
+                                    ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
 
-                                        # [핵심] 버튼은 반드시 폼 내부(들여쓰기 안쪽)에 있어야 함!
-                                        b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
+                                    # [핵심] 버튼은 반드시 폼 내부(들여쓰기 안쪽)에 있어야 함!
+                                    b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
 
-                                    # 버튼 클릭 처리도 폼 바깥에서 깔끔하게
-                                    if b_submit:
-                                        st.write("저장 중...")
-                                        # 여기서 DB 업데이트 로직 실행
+                                # 버튼 클릭 처리도 폼 바깥에서 깔끔하게
+                                if b_submit:
+                                    st.write("저장 중...")
+                                    # 여기서 DB 업데이트 로직 실행
 
-                                    # [사용중 툴 폐기 시 경고 및 사유 입력]
-                                    if ed_status == "폐기" and db_current_status == "사용중":
-                                        st.warning("⚠️ 경고: 현재 [사용중]인 툴을 폐기하려 합니다. 정말 진행하시겠습니까?")
-                                        confirm_waste = st.checkbox("위 내용을 확인했으며, 사용 중인 툴을 폐기하겠습니다.", key=f"confirm_{s_no}")
-                                        
-                                        if confirm_waste:
-                                            waste_reason = st.text_input("필수: 폐기 사유를 입력하세요", key=f"reason_{s_no}")
-                                            st.session_state[f"temp_reason_{s_no}"] = waste_reason
-                                        else:
-                                            st.info("폐기를 진행하려면 위 확인란을 체크하세요.")
-                                            st.stop()
+                                # [사용중 툴 폐기 시 경고 및 사유 입력]
+                                if ed_status == "폐기" and db_current_status == "사용중":
+                                    st.warning("⚠️ 경고: 현재 [사용중]인 툴을 폐기하려 합니다. 정말 진행하시겠습니까?")
+                                    confirm_waste = st.checkbox("위 내용을 확인했으며, 사용 중인 툴을 폐기하겠습니다.", key=f"confirm_{s_no}")
+                                    
+                                    if confirm_waste:
+                                        waste_reason = st.text_input("필수: 폐기 사유를 입력하세요", key=f"reason_{s_no}")
+                                        st.session_state[f"temp_reason_{s_no}"] = waste_reason
+                                    else:
+                                        st.info("폐기를 진행하려면 위 확인란을 체크하세요.")
+                                        st.stop()
                                     
                                 # PC 종합 통제 엔진 방어막 및 차단기 가동
                                 flow_error_msg = ""
