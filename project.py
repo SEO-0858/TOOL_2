@@ -1054,8 +1054,6 @@ else:
 
                                     ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=default_index, key=f"spec_{s_no}")
                                     
-                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
-                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
@@ -1063,7 +1061,6 @@ else:
                                     with col_em:
                                         ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
                                         
-                                   
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
                                     
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
