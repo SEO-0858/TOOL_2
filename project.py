@@ -13,7 +13,7 @@ import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능
 from datetime import timedelta
 import pytz
 st.cache_data.clear()
-import mongo_tool
+import mong
 
 
 if st.button("재고 데이터베이스 초기화"):
