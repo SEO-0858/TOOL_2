@@ -1035,6 +1035,10 @@ else:
                                     # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
                                    
                                     st.markdown("🛠 **상세 스펙 선택**")
+                                                                    # 🛠 깡그리 다 보여주는 디버그 코드
+                                    sample_data = db_collection.find_one() # 조건 없이 첫 번째 데이터를 가져옴
+                                    st.write(f"디버그: DB 데이터의 실제 필드명들={list(sample_data.keys())}")
+                                    st.write(f"디버그: 실제 데이터 예시={sample_data}")
     
                                     # [디버그 추가] 현재 이 툴의 시리얼 앞자리와 매핑된 타입이 뭔지 화면에 출력
                                     tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
