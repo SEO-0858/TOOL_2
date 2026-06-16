@@ -13,6 +13,7 @@ import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능
 from datetime import timedelta
 import pytz
 st.cache_data.clear()
+import mong
 
 
 #실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
