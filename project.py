@@ -1327,20 +1327,23 @@ else:
 
 
        
-    # ★ 6) 🔧 툴 상세스펙 마스터 관리 (실제 재고 DB 연동 버전)
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
         st.title("🔧 툴 상세 스펙 마스터 관리")
-        st.write("이곳에 등록된 툴은 즉시 재고 시스템에 반영됩니다.")
         
-        # 실제 재고 컬렉션 연결 (기존 DB 연결 함수 활용)
+        # 1. DB 연결 (기존 함수는 DB 객체까지만 가져오도록 함)
+        # 만약 get_database()가 컬렉션까지 리턴한다면, 그 컬렉션의 부모인 db를 가져와야 합니다.
         db = get_database() 
-        tool_col = db["tool_inventory"]
-        count = tool_col.count_documents({})
-        st.write(f"현재 DB에 등록된 툴 개수: {count}개")
+        # 혹시 get_database()가 db['tools_management']를 리턴한다면, 
+        # 아래처럼 .parent_collection.database로 접근하거나 
+        # 아예 get_database()를 수정해야 합니다. 
+        # 여기서는 db['tool_inventory']를 직접 명시합니다.
+        tool_col = db["tool_inventory"] 
         
+        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다.")
+        
+        # 2. 신규 등록 폼
         with st.form("spec_input_form_master", clear_on_submit=True):
             st.subheader("➕ 신규 툴 재고 등록")
-            # 약어 표준화 반영
             ins_type = st.selectbox("1. 툴 대분류 선택", ["COR", "JUN", "MET", "REJ"])
             ins_name = st.text_input("2. 상세 스펙 기입 (규격_메쉬 등)", placeholder="예: D90_5T_1.5T_#200").strip()
             ins_memo = st.text_input("3. 비고/메모", placeholder="예: 효성 / 면취용")
@@ -1349,7 +1352,7 @@ else:
                 if not ins_name:
                     st.error("⚠️ 상세 스펙 이름을 기입해야 합니다!")
                 else:
-                    # 중복 체크
+                    # 중복 체크 후 삽입
                     if tool_col.find_one({"tool_type": ins_type, "spec_detail": ins_name}):
                         st.warning("⚠️ 이미 동일한 스펙의 툴이 존재합니다.")
                     else:
@@ -1357,8 +1360,8 @@ else:
                             "tool_type": ins_type,
                             "spec_detail": ins_name,
                             "memo": ins_memo,
-                            "new_stock": 0,    # 초기 신규 재고
-                            "used_stock": 0    # 초기 사용 재고
+                            "new_stock": 0,
+                            "used_stock": 0
                         })
                         st.success(f"🎉 '{ins_name}' 툴이 재고 DB에 성공적으로 등록되었습니다.")
                         time.sleep(0.5)
@@ -1366,15 +1369,16 @@ else:
 
         st.write("<br><hr>", unsafe_allow_html=True)
         
+        # 3. 전체 목록 보기 (이제 데이터가 42개가 잘 뜰 것입니다)
         show_list = st.toggle("📋 전체 툴 명부 보기/숨기기", value=True)
         
         if show_list:
-            # DB에서 전체 툴 목록 조회
             all_tools_list = list(tool_col.find({}))
             
             if not all_tools_list:
                 st.info("💡 아직 등록된 툴이 없습니다.")
             else:
+                st.write(f"현재 총 {len(all_tools_list)}개의 툴이 등록되어 있습니다.")
                 for tool in all_tools_list:
                     with st.expander(f"[{tool['tool_type']}] {tool['spec_detail']}"):
                         col1, col2, col3 = st.columns([3, 1, 1])
