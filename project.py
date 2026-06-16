@@ -1035,29 +1035,35 @@ else:
                                     # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
                                    
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                                                    # 🛠 깡그리 다 보여주는 디버그 코드
-                                    sample_data = db_collection.find_one() # 조건 없이 첫 번째 데이터를 가져옴
-                                    st.write(f"디버그: DB 데이터의 실제 필드명들={list(sample_data.keys())}")
-                                    st.write(f"디버그: 실제 데이터 예시={sample_data}")
-    
-                                    # [디버그 추가] 현재 이 툴의 시리얼 앞자리와 매핑된 타입이 뭔지 화면에 출력
-                                    tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
+                                    # 🛠 1. 툴 타입 매핑 (DB에 저장된 영문값과 100% 일치)
+                                    tool_type_map = {
+                                        '1': 'COR', 
+                                        '2': 'JUN', 
+                                        '3': 'MET', 
+                                        '4': 'REJ'
+                                    }
+                                    
+                                    # 2. 시리얼 번호 첫 글자로 매핑된 타입 가져오기
                                     current_db_type = tool_type_map.get(s_no[0], "MET")
                                     
-                                        # 🔍 상세 디버그: DB에 데이터가 있기는 한가?
-                                    st.write(f"디버그: 시리얼={s_no}, 툴타입={current_db_type}")
+                                    # 3. DB에서 스펙 가져오기 (필드명: spec_detail)
+                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
                                     
-                                    # 1. 일단 툴타입이 current_db_type인 녀석들을 1개만 찾아보자
-                                    sample_doc = db_collection.find_one({"tool_type": current_db_type})
-                                    st.write(f"디버그: 찾은 샘플 문서={sample_doc}")
-                                    
-                                    # 2. 샘플 문서가 있다면 그 안에 어떤 필드들이 있는지 확인
-                                    if sample_doc:
-                                        st.write(f"디버그: 문서의 필드 목록={list(sample_doc.keys())}")
-                                        spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
-                                    else:
-                                        st.write("디버그: 해당 툴타입으로 검색되는 데이터가 DB에 전혀 없습니다!")
+                                    if not spec_options:
                                         spec_options = ["스펙없음"]
+
+                                    # 4. 스펙 선택창 출력
+                                    # 선택창의 값은 DB의 spec_detail 필드값과 비교
+                                    current_spec = item.get('spec_detail', '') 
+                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
+                                    
+                                    ed_spec = st.selectbox(
+                                        "상세 스펙을 선택하세요", 
+                                        spec_options, 
+                                        index=default_index, 
+                                        key=f"spec_{item['_id']}"
+    )
+  
 
                                     # 스펙 선택창
                                     current_spec = item.get('detail_spec', '')
