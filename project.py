@@ -14,12 +14,7 @@ from datetime import timedelta
 import pytz
 
 
-# 툴 타입 매핑 (시리얼 넘버 첫 자리에 따른 툴 종류)
-# 이 규칙은 나중에 툴 종류가 추가/변경되어도 여기만 수정하면 됩니다.
-
-
 st.cache_data.clear()
-
 
 #실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
 @st.fragment(run_every="60s")
@@ -632,16 +627,8 @@ if qr_scanned_serial:
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-        # 1. 시리얼 첫 글자(예: '3')를 보고 어떤 툴 타입인지 결정
-    tool_type_map = {'1': '전착툴', '2': '레진툴', '3': '메탈툴', '4': '코어툴'}
-    current_tool_type = tool_type_map.get(qr_scanned_serial[0], "전착툴") # 시리얼 첫자리로 이름 매칭
-
-    # 2. 해당 타입(예: '메탈툴')의 데이터만 DB에서 골라오기
-    spec_docs = list(get_spec_master_collection().find({"main_type": current_tool_type}))
-    spec_opts = [s['spec_name'] for s in spec_docs] if spec_docs else ["스펙없음"]
-
-    # 3. 기존에 있던 u_spec 선택창 코드는 그대로 유지
-    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec')) if existing_data.get('detail_spec') in spec_opts else 0)
+    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
+    
     st.divider()
     
     st.markdown("### ⏳ 드레싱 및 특이사항")
@@ -1031,94 +1018,36 @@ else:
                                         ed_worker = st.text_input("👷 교체 작업자 이름 기입", value=default_worker_view).strip()
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
-
-                                    # 1. 폼 시작 (각 툴마다 고유한 key를 가지도록 설정)
-                                   
+                                    # 상세 스펙 선택창 추가
                                     st.markdown("🛠 **상세 스펙 선택**")
-                                    tool_type_map = {'1': 'COR', '2': 'JUN', '3': 'MET', '4': 'REJ'}
-                                    current_db_type = tool_type_map.get(s_no[0], "알수없음")
-                                    
-                                    st.write(f"--- [디버그 정보] ---")
-                                    st.write(f"현재 시리얼번호: {s_no}")
-                                    st.write(f"시리얼 앞자리(s_no[0]): {s_no[0]}")
-                                    st.write(f"매핑된 툴타입(current_db_type): {current_db_type}")
-                                    
-                                    # DB 조회 확인
-                                    all_types_in_db = db_collection.distinct("tool_type")
-                                    st.write(f"DB에 존재하는 전체 툴타입 리스트: {all_types_in_db}")
-                                    
-                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
-                                    st.write(f"조회된 스펙 개수: {len(spec_options)}")
-                                    st.write(f"조회된 스펙 리스트: {spec_options}")
-                                    st.write(f"--------------------")
-                                    
-                                    # 이후 로직
-                                    if not spec_options:
-                                        spec_options = ["스펙없음"]
-
-
-
-
-
-                                    # 🛠 1. 툴 타입 매핑 (DB에 저장된 영문값과 100% 일치)
-                                    tool_type_map = {
-                                        '1': 'COR', 
-                                        '2': 'JUN', 
-                                        '3': 'MET', 
-                                        '4': 'REJ'
-                                    }
-                                    
-                                    # 2. 시리얼 번호 첫 글자로 매핑된 타입 가져오기
-                                    current_db_type = tool_type_map.get(s_no[0], "MET")
-                                    
-                                    # 3. DB에서 스펙 가져오기 (필드명: spec_detail)
-                                    spec_options = db_collection.distinct("spec_detail", {"tool_type": current_db_type})
-                                    
-                                    if not spec_options:
-                                        spec_options = ["스펙없음"]
-
-                                    # 4. 스펙 선택창 출력
-                                    # 선택창의 값은 DB의 spec_detail 필드값과 비교
-                                    current_spec = item.get('spec_detail', '') 
-                                    default_index = spec_options.index(current_spec) if current_spec in spec_options else 0
-                                    
-                                    ed_spec = st.selectbox(
-                                        "상세 스펙을 선택하세요", 
-                                        spec_options, 
-                                        index=default_index, 
-                                        key=f"spec_{item['_id']}"
-                                    )
-                                    
-
-                                    # 드레싱 주기 및 기타 입력
+                                    spec_master_col = get_spec_master_collection()
+                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
+                                    spec_options = [s['spec_name'] for s in spec_docs]
+                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
-                                        ed_hours = st.number_input("시간(Hour)", min_value=0, value=item.get('dressing_hours', 0), key=f"eh_{s_no}")
+                                        ed_hours = st.number_input("시간(Hour)", min_value=0, max_value=100, value=0, step=1, key=f"eh_{s_no}")
                                     with col_em:
-                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=item.get('dressing_mins', 0), key=f"em_{s_no}")
-                                    
+                                        ed_mins = st.number_input("분(Minute)", min_value=0, max_value=59, value=0, step=5, key=f"em_{s_no}")
+                                        
+                                   
                                     ed_note = st.text_area("📝 현장 특이사항", value=item.get('note', ''))
-
-                                    # [핵심] 버튼은 반드시 폼 내부(들여쓰기 안쪽)에 있어야 함!
+                                    
                                     b_submit = st.form_submit_button("💾 수정사항 최종 저장하기")
 
-                                # 버튼 클릭 처리도 폼 바깥에서 깔끔하게
-                                if b_submit:
-                                    st.write("저장 중...")
-                                    # 여기서 DB 업데이트 로직 실행
-
-                                # [사용중 툴 폐기 시 경고 및 사유 입력]
-                                if ed_status == "폐기" and db_current_status == "사용중":
-                                    st.warning("⚠️ 경고: 현재 [사용중]인 툴을 폐기하려 합니다. 정말 진행하시겠습니까?")
-                                    confirm_waste = st.checkbox("위 내용을 확인했으며, 사용 중인 툴을 폐기하겠습니다.", key=f"confirm_{s_no}")
-                                    
-                                    if confirm_waste:
-                                        waste_reason = st.text_input("필수: 폐기 사유를 입력하세요", key=f"reason_{s_no}")
-                                        st.session_state[f"temp_reason_{s_no}"] = waste_reason
-                                    else:
-                                        st.info("폐기를 진행하려면 위 확인란을 체크하세요.")
-                                        st.stop()
+                                    # [사용중 툴 폐기 시 경고 및 사유 입력]
+                                    if ed_status == "폐기" and db_current_status == "사용중":
+                                        st.warning("⚠️ 경고: 현재 [사용중]인 툴을 폐기하려 합니다. 정말 진행하시겠습니까?")
+                                        confirm_waste = st.checkbox("위 내용을 확인했으며, 사용 중인 툴을 폐기하겠습니다.", key=f"confirm_{s_no}")
+                                        
+                                        if confirm_waste:
+                                            waste_reason = st.text_input("필수: 폐기 사유를 입력하세요", key=f"reason_{s_no}")
+                                            st.session_state[f"temp_reason_{s_no}"] = waste_reason
+                                        else:
+                                            st.info("폐기를 진행하려면 위 확인란을 체크하세요.")
+                                            st.stop()
                                     
                                 # PC 종합 통제 엔진 방어막 및 차단기 가동
                                 flow_error_msg = ""
@@ -1464,5 +1393,6 @@ else:
                                 st.success("삭제되었습니다.")
                                 time.sleep(0.5)
                                 st.rerun()
+
 
 
