@@ -13,7 +13,12 @@ import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능
 from datetime import timedelta
 import pytz
 st.cache_data.clear()
-import mong
+import mongo_tool
+
+
+if st.button("재고 데이터베이스 초기화"):
+    added_count = mongo_tool.initialize_db()
+    st.success(f"데이터베이스 초기화 완료! {added_count}개의 툴이 새로 등록되었습니다.")
 
 
 #실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
@@ -1388,29 +1393,3 @@ else:
 
 
 
-    # 5) 📥 툴 입고 처리 메뉴 로직
-    elif tool_menu == "📥 툴 입고 처리 (바코드 스캔)":
-        st.title("📥 업체 바코드 스캔 및 자동 입고")
-        st.write("바코드 리더기로 라벨을 찍으면 자동으로 상세 정보가 등록됩니다.")
-        
-        # 바코드 입력창 (리더기가 찍으면 바로 데이터가 들어옴)
-        barcode_input = st.text_input("업체 바코드를 리더기로 찍으세요", key="barcode_scan_input")
-        
-                # thr.py 수정 부분
-        if barcode_input:
-            # 툴 입고 처리 (mong.py의 함수 호출)
-            success, result = mong.add_new_tool(barcode_input, db_collection)
-            
-            if success:
-                st.success(f"{result} 툴이 성공적으로 입고되었습니다!")
-                st.balloons()
-            else:
-                st.error(result)
-                # 입고 내역을 보여주는 코드 (추가)
-        st.subheader("📋 오늘 입고된 툴 현황")
-
-        # DB에서 오늘 날짜인 것만 찾아와서 화면에 표로 보여줌
-        today_str = dt.now().strftime('%Y-%m-%d')
-        recent_tools = list(db_collection.find({"input_date": today_str}).sort("_id", -1))
-
-        st.table(recent_tools) # 데이터를 깔끔하게 표로 출력
