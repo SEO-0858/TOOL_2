@@ -650,7 +650,10 @@ if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
-    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+    def get_latest_data(serial_no):
+        return db_collection.find_one({"serial_no": serial_no})
+
+    existing_data = get_latest_data(qr_scanned_serial)
     
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
     if not existing_data.get('spec_detail'):
