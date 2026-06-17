@@ -700,7 +700,7 @@ if qr_scanned_serial:
     
     # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    current_spec = existing_data.get('detail_spec')
+    current_spec = existing_data.get('spec.detail')
    
     
     # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
