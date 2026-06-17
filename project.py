@@ -22,13 +22,12 @@ def confirm_mobile_spec_change(new_spec, serial_no):
     st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
     
     if st.button("확정"):
-        # 여기서 DB 업데이트를 바로 수행합니다. 
-        # 이렇게 하면 u_h, u_worker 등의 변수 의존성을 피할 수 있습니다.
+        # 여기서 DB의 스펙만 딱 바꿉니다. (다른 변수 필요 없음)
         db_collection.update_one(
             {"serial_no": serial_no},
             {"$set": {"detail_spec": new_spec}}
         )
-        st.success("스펙이 변경되었습니다!")
+        st.success("변경 완료!")
         st.rerun()
     if st.button("취소"):
         st.rerun()
@@ -724,11 +723,7 @@ if qr_scanned_serial:
         st.info(f"현재 등록된 스펙: **{current_spec}**")
         u_spec = current_spec 
     else:
-        try:
-            idx = spec_opts.index(current_spec)
-        except ValueError:
-            idx = 0
-        u_spec = st.selectbox(f"변경할 {target_type} 스펙 선택", spec_opts, index=idx)
+        u_spec = st.selectbox("변경할 스펙 선택", spec_opts, index=idx)
 
     
     st.divider()
@@ -742,31 +737,20 @@ if qr_scanned_serial:
     
 
     # 1. 수정 모드일 때: [스펙 교체하기] 버튼 따로 생성
+    # [하단부: 3단계 버튼 로직]
     if edit_mode:
+        # 수정 모드일 때는 교체 버튼만 보임
         if st.button("🔄 상세 스펙 교체하기"):
-            # 여기서 팝업 호출 (confirm_data는 바로 아래에서 구성)
-            start_dt = get_now_kst()
-            target_dt = start_dt + timedelta(minutes=-(u_h * 60) + u_m)
-            confirm_data = {
-                'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
-                'machine_no': f'{u_machine}호기', 'detail_spec': u_spec,
-                'dressing_hours': u_h, 'dressing_mins': u_n, 'note': u_note,
-                'start_time': start_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                'target_time': target_dt.strftime('%Y-%m-%d %H:%M:%S')
-            }
-            confirm_mobile_spec_change(u_spec, qr_scanned_serial, confirm_data)
-
-    # 2. 수정 모드가 아닐 때: [데이터 확인 및 저장] 버튼
+            confirm_mobile_spec_change(u_spec, qr_scanned_serial)
     else:
+        # 수정 모드가 아닐 때는 일반 저장 버튼 보임
         if st.button("💾 데이터 확인 및 저장"):
-            start_dt = get_now_kst()
-            target_dt = start_dt + timedelta(minutes=-(u_h * 60) + u_m)
             confirm_data = {
                 'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
                 'machine_no': f'{u_machine}호기', 'detail_spec': u_spec,
                 'dressing_hours': u_h, 'dressing_mins': u_n, 'note': u_note,
-                'start_time': start_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                'target_time': target_dt.strftime('%Y-%m-%d %H:%M:%S')
+                'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
+                'target_time': (get_now_kst() + timedelta(minutes=-(u_h * 60) + u_n)).strftime('%Y-%m-%d %H:%M:%S')
             }
             confirm_and_save(qr_scanned_serial, confirm_data)
             st.success("데이터가 저장되었습니다!")
