@@ -1062,29 +1062,32 @@ else:
                             
                         with st.expander(expander_title):
                             # --- 1. 수정 모드 키 생성 및 토글 (Expander 시작점) ---
+                            # 1. 수정 모드 키 생성
                             edit_key = f"pc_edit_mode_{s_no}"
                             if edit_key not in st.session_state:
                                 st.session_state[edit_key] = False
                             
+                            # 2. 토글 스위치
                             st.session_state[edit_key] = st.toggle("스펙 수정 모드 켜기", key=f"toggle_{s_no}")
 
-                            # --- 2. 읽기 모드 / 수정 모드 분기 ---
-                            if not st.session_state[edit_key]:
-                                # 평소: 세션 값 우선, 없으면 DB 값 표시
-                                current_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
-                                st.info(f"현재 등록된 스펙: **{current_spec}**")
-                            
-                            else:
+                            # 3. [핵심] 수정 모드일 때만 취소 버튼을 노출 (else 블록 밖으로 분리)
+                            if st.session_state[edit_key]:
                                 if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
                                     st.session_state[edit_key] = False
-                                    st.session_state.pop(f'temp_spec_{s_no}', None)
+                                    st.session_state.pop(f'temp_spec_{s_no}', None) # 임시 데이터 삭제
                                     st.rerun()
 
-                                # 수정 중: 스펙 선택창
+                            # 4. 읽기 모드 / 수정 모드 분기
+                            if not st.session_state[edit_key]:
+                                # 읽기 모드 로직
+                                current_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
+                                st.info(f"현재 등록된 스펙: **{current_spec}**")
+                            else:
+                                # [주의] 여기서 기존의 1078라인 아래에 있던 버튼 코드는 삭제하세요!
+                                # 이제 수정 모드 로직(스펙 선택, 확정 등)만 남습니다.
                                 prefix = s_no[0]
-                                type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'} # 실제 DB 값으로 확인 필요
+                                type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
                                 target_type = type_map.get(prefix)
-                                
                                 spec_master_list = list(db_collection.database["tool_inventory"].find({"tool_type": target_type}))
                                 spec_opts = sorted(list(set([s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')])))
                                 
@@ -1095,7 +1098,7 @@ else:
                                     st.session_state[f'temp_spec_{s_no}'] = u_spec 
                                     st.session_state[edit_key] = False
                                     st.rerun()
-
+                            
                                 # --- 3. 원래 있던 현황판 고유 기능들 (지우지 마세요!) ---
                                 # 이 아래부터는 기존에 있던 폼(form)이나 마크다운 코드들이 이어집니다.
                                 spec_info = item.get('spec_detail', '스펙없음')
