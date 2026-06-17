@@ -640,15 +640,19 @@ if qr_scanned_serial:
         specs = list(db_inventory.find({"tool_type": tool_type}))
 
                 
+        # 스펙 선택 버튼 루프 부분
         for s in specs:
-            if st.button(f"🛠 스펙 선택: {s.get('spec_detail', '상세정보없음')}"):
+            # 버튼 클릭 시 동작
+            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
+                # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
                 db_collection.update_one(
-                    {"serial_no": qr_scanned_serial}, 
+                    {"serial_no": qr_scanned_serial},
                     {"$set": {"spec_detail": s.get('spec_detail')}}
                 )
-                st.rerun() # 선택하자마자 새로고침되어 기입창으로 진입
-        
-        st.stop() # [중요] 상세 스펙을 선택하기 전에는 아래 기입창 코드가 절대 실행되지 않음!
+                # 2. 강제 새로고침
+                st.toast("✅ 스펙이 저장되었습니다!", icon="🎉")
+                time.sleep(0.5) # 잠시 대기
+                st.rerun() # 새로고침되어 기입창으로 진입
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
