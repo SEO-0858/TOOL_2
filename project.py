@@ -722,7 +722,7 @@ if qr_scanned_serial:
     spec_opts = sorted(list(set(spec_opts)))
 
     # 3. 현재 저장된 값 불러오기
-    current_spec = st.session_state.get('new_spec', existing_data.get('detail_spec', '스펙없음'))
+    current_spec = st.session_state.get('new_spec', existing_data.get('spec_detail', '스펙없음'))
 
     if not edit_mode:
         st.info(f"현재 등록된 스펙: **{current_spec}**")
