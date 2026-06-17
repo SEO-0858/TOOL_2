@@ -1240,7 +1240,7 @@ else:
                                         st.stop()
 
                                     if ed_status == "재사용대기":
-                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins,ed_spec)
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins,new_spec)
                                         st.stop()
                                     
                                     if ed_status == "폐기":
@@ -1301,7 +1301,7 @@ else:
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
                                             "note": final_note_val,
-                                            "detail_spec": ed_spec
+                                            "detail_spec": new_spec
                                         }}
                                     )
                                     st.session_state[edit_key] = False
