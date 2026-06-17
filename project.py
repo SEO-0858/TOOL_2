@@ -1267,15 +1267,23 @@ else:
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
 
-                                    old_spec = item.get('detail_spec', ' ')
-                                    if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
+                                    # 1270라인부터 1279라인까지 아래 내용으로 완전히 교체하세요.
+
+                                    # 1. 스펙 정보를 세션 혹은 DB에서 가져옵니다.
+                                    old_spec = item.get('spec_detail', '')
+                                    new_spec = st.session_state.get(f'temp_spec_{s_no}', old_spec)
+
+                                    # 2. 상태나 스펙이 바뀌었는지 확인합니다.
+                                    if ed_status == item.get('status', '사용전') and old_spec == new_spec:
                                         final_note_val = ed_note.strip()
                                     else:
                                         log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
-                                            # 상태나 스펙이 바뀌었을 때 로그 메시지 생성
                                         change_msg = f" 상태: {ed_status}"
-                                        if old_spec != ed_spec:
-                                            change_msg += f", (스펙:{old_spec}→{ed_spec})"
+                                        
+                                        # 스펙이 다르면 로그 메시지에 추가
+                                        if old_spec != new_spec:
+                                            change_msg += f", (스펙: {old_spec} -> {new_spec})"
+
                         
                                         auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                         final_note_val = ed_note.strip() + auto_log_msg
