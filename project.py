@@ -987,7 +987,7 @@ else:
                         elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
                         else: status_badge = "🔴 [폐기]"
                             
-                        spec_info = item.get('detail_spec', '스펙없음') # DB에서 상세스펙을 가져옴
+                        spec_info = item.get('spec_detail', '스펙없음') # DB에서 상세스펙을 가져옴
                         
                                                 # [수정된 부분]
                         # 기입 대기 라벨을 붙이기 전에 상태가 '폐기'인지 먼저 체크합니다.
