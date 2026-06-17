@@ -14,10 +14,6 @@ from datetime import timedelta
 import pytz
 st.cache_data.clear()
 
-def get_latest_data(serial_no):
-    # DB에서 해당 시리얼 넘버의 최신 정보를 가져오는 함수입니다.
-    return db_collection.find_one({"serial_no": serial_no})
-
 
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
@@ -32,16 +28,15 @@ def confirm_mobile_spec_change(new_spec, serial_no):
             {"$set": {"detail_spec": new_spec}}
         )
         
-        # 2. [중요] 세션 상태의 기존 데이터도 최신으로 즉시 갱신
-        st.session_state['existing_data'] = get_latest_data(serial_no)
-        
-        # 3. 토글 스위치 강제 리셋
-        st.session_state["mobile_edit_mode"] = False
+        # 2. [핵심] 토글 스위치 상태를 강제로 꺼짐(False)으로 변경
+        st.session_state["mobile_edit_mode"] = False 
         
         st.success("스펙이 변경되었습니다!")
-        st.rerun() # 화면 새로고침 시 갱신된 session_state['existing_data']를 보여줌
+        st.rerun() # 새로고침하면 토글이 꺼진 상태로 나타남
+        
     if st.button("취소"):
         st.rerun()
+
 
 
 
@@ -655,15 +650,10 @@ if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
-    # 기존의 existing_data = ... 삭제하고 아래 함수로 대체
-    def get_current_data():
-    # 세션에 최신 데이터가 없으면 DB에서 가져오고, 있으면 세션 값을 반환
-        if 'existing_data' not in st.session_state:
-            st.session_state['existing_data'] = get_latest_data(qr_scanned_serial)
-        return st.session_state['existing_data']
-        
+    existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
+    
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
-    if not get_current_data.get('spec_detail'):
+    if not existing_data.get('spec_detail'):
         st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
         
         # 시리얼로 툴 타입 파싱
@@ -678,25 +668,21 @@ if qr_scanned_serial:
         # 스펙 선택 버튼 루프 부분
         for s in specs:
             # 버튼 클릭 시 동작
-            # 679라인 이후 루프 안쪽
-            if st.button(f'⚒ 선택: {s.get("spec_detail", "정보없음")}', key=f'btn_{s.get("spec_detail")}'):
-            # 1. DB 업데이트
+            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
+                # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
                     {"$set": {"spec_detail": s.get('spec_detail')}}
                 )
-    
-                    # 2. [추가] 중요: 세션 강제 갱신! 
-                    # 이 코드가 없으면 DB는 바뀌어도 화면은 안 바뀝니다.
-                st.session_state['existing_data'] = get_latest_data(qr_scanned_serial)
-    
-                st.toast("✅ 스펙이 저장되었습니다!", icon="✨")
-                time.sleep(0.5)
-                st.rerun() # 새로고침
-                st.stop()        
+                # 2. 강제 새로고침
+                st.toast("✅ 스펙이 저장되었습니다!", icon="🎉")
+                time.sleep(0.5) # 잠시 대기
+                st.rerun() # 새로고침되어 기입창으로 진입
+
+        st.stop()        
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
-    prev_status = get_current_data().get("status", "사용전")
+    prev_status = existing_data.get("status", "사용전")
     
     st.markdown("### 🔄 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
@@ -706,21 +692,20 @@ if qr_scanned_serial:
     st.divider()
     
     st.markdown("### 📝 기본 정보")
-    u_worker = st.text_input("👷 교체 작업자 이름", value=get_current_data().get('worker', ''))
+    u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
     
-    orig_mach = get_current_data().get('machine_no', '')
+    orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     
     # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    current_spec = get_current_data().get('detail_spec')
+    current_spec = existing_data.get('detail_spec')
    
     
     # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
     st.markdown("### 🛠 상세 스펙 확인 및 수정")
     edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
-   
 
     # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
     type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
@@ -737,7 +722,7 @@ if qr_scanned_serial:
     spec_opts = sorted(list(set(spec_opts)))
 
     # 3. 현재 저장된 값 불러오기
-    current_spec = get_current_data().get('spec_detail', '스펙없음')
+    current_spec = existing_data.get('spec_detail', '스펙없음')
 
     if not edit_mode:
         st.info(f"현재 등록된 스펙: **{current_spec}**")
@@ -750,9 +735,9 @@ if qr_scanned_serial:
     
     st.markdown("### ⏳ 드레싱 및 특이사항")
     c1, c2 = st.columns(2)
-    u_h = c1.number_input("시간(Hour)", value=get_current_data().get('dressing_hours', 0))
-    u_m = c2.number_input("분(Minute)", value=get_current_data().get('dressing_mins', 0))
-    u_note = st.text_area("📝 현장 특이사항", value=get_current_data().get('note', ''))
+    u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
+    u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
+    u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
     
     
 
