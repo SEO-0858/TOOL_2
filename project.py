@@ -15,6 +15,28 @@ import pytz
 st.cache_data.clear()
 
 
+# [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
+
+@st.dialog("상세 스펙 변경 확인")
+def confirm_mobile_spec_change(new_spec, serial_no, confirm_data):
+    st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("확정"):
+            # 팝업에서 '확정'을 누르면 DB를 업데이트하고 저장 함수를 실행합니다.
+            confirm_data['detail_spec'] = new_spec
+            confirm_and_save(serial_no, confirm_data)
+            st.success("변경 완료!")
+            st.rerun() # 변경사항 반영을 위해 새로고침
+            
+    with col2:
+        if st.button("취소"):
+            st.rerun() # 팝업만 닫고 아무것도 안 함
+
+
+
+
 #실시간 기계정보창 호출부---------------------------------------------------------------------------------------------------------------
 @st.fragment(run_every="60s")
 def show_machine_dashboard():
@@ -676,7 +698,34 @@ if qr_scanned_serial:
     # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
     current_spec = existing_data.get('detail_spec')
-    u_spec = st.selectbox("🛠 툴 세부 스펙", spec_opts, index=spec_opts.index(current_spec) if current_spec in spec_opts else 0)
+   
+    # [1단계] 수정된 상세 스펙 불러오기 및 수정 모드 로직
+    st.markdown("### 🛠 상세 스펙 확인 및 수정")
+    edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
+
+    # 1. tool_inventory에서 스펙 목록 가져오기 (마스터 데이터가 이곳에 있다면)
+    # tool_type이 필요한 경우 기존처럼 필터링해서 가져오세요
+    spec_master_list = list(db_collection.database["tool_inventory"].find({})) 
+    spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')] 
+
+    # 중복 제거 (필요시)
+    spec_opts = sorted(list(set(spec_opts)))
+
+    # 2. 현재 저장된 값 불러오기
+    current_spec = existing_data.get('detail_spec', '스펙없음')
+
+    if not edit_mode:
+        # [읽기 모드] - 단순 표시
+        st.info(f"현재 등록된 스펙: **{current_spec}**")
+        u_spec = current_spec 
+    else:
+        # [수정 모드] - 셀렉트박스로 변경
+        # spec_opts에 현재 값이 없는 경우를 대비해 예외처리
+        try:
+            idx = spec_opts.index(current_spec)
+        except ValueError:
+            idx = 0
+        u_spec = st.selectbox("변경할 스펙을 선택하세요", spec_opts, index=idx)
     
     st.divider()
     
@@ -686,17 +735,34 @@ if qr_scanned_serial:
     u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
     u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
     
+    # [3단계] 689라인부터의 기존 저장 버튼 로직을 이렇게 교체하세요.
+
     if st.button("💾 데이터 확인 및 저장"):
         start_dt = get_now_kst()
-        target_dt = start_dt + timedelta(minutes=(u_h * 60) + u_m)
+        target_dt = start_dt + timedelta(minutes=-(u_h * 60) + u_m)
+        
+        # 저장할 데이터를 미리 구성합니다.
         confirm_data = {
-            'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
-            'machine_no': f"{u_machine}호기", 'detail_spec': u_spec,
-            'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
-            'start_time': start_dt.strftime("%Y-%m-%d %H:%M:%S"),
-            'target_time': target_dt.strftime("%Y-%m-%d %H:%M:%S")
+            'status': u_status, 
+            'prev_status': prev_status, 
+            'worker': u_worker,
+            'machine_no': f'{u_machine}호기', 
+            'detail_spec': u_spec, # 1단계에서 토글/셀렉트박스로 정해진 값이 들어갑니다.
+            'dressing_hours': u_h, 
+            'dressing_mins': u_m, 
+            'note': u_note,
+            'start_time': start_dt.strftime('%Y-%m-%d %H:%M:%S'),
+            'target_time': target_dt.strftime('%Y-%m-%d %H:%M:%S')
         }
-        confirm_and_save(qr_scanned_serial, confirm_data)
+        
+        # [핵심 로직]
+        # 수정 모드(토글 켜짐)라면 팝업을 띄우고, 아니면 바로 저장합니다.
+        if edit_mode:
+            confirm_mobile_spec_change(u_spec, qr_scanned_serial, confirm_data)
+        else:
+            confirm_and_save(qr_scanned_serial, confirm_data)
+            st.success("데이터가 저장되었습니다!")
+            st.rerun()
 
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear(); st.rerun()
