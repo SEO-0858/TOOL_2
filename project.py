@@ -28,15 +28,16 @@ def confirm_mobile_spec_change(new_spec, serial_no):
             {"$set": {"detail_spec": new_spec}}
         )
         
-        # 2. [핵심] 토글 스위치 상태를 강제로 꺼짐(False)으로 변경
-        st.session_state["mobile_edit_mode"] = False 
+        # 2. [중요] 세션 상태의 기존 데이터도 최신으로 즉시 갱신
+        st.session_state['existing_data'] = get_latest_data(serial_no)
+        
+        # 3. 토글 스위치 강제 리셋
+        st.session_state["mobile_edit_mode"] = False
         
         st.success("스펙이 변경되었습니다!")
-        st.rerun() # 새로고침하면 토글이 꺼진 상태로 나타남
-        
+        st.rerun() # 화면 새로고침 시 갱신된 session_state['existing_data']를 보여줌
     if st.button("취소"):
         st.rerun()
-
 
 
 
@@ -653,7 +654,10 @@ if qr_scanned_serial:
     def get_latest_data(serial_no):
         return db_collection.find_one({"serial_no": serial_no})
 
-    existing_data = get_latest_data(qr_scanned_serial)
+    if 'existing_data' not in st.session_state:
+        st.session_state['existing_data'] = get_latest_data(qr_scanned_serial)
+
+    existing_data = st.session_state['existing_data']
     
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
     if not existing_data.get('spec_detail'):
