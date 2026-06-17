@@ -1157,12 +1157,13 @@ else:
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
-                                    st.markdown("🛠 **상세 스펙 선택**")
-                                    spec_master_col = get_spec_master_collection()
-                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
-                                    spec_options = [s['spec_name'] for s in spec_docs]
-                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
-                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
+                                    st.markdown("⚒ **현재 적용 스펙**")
+
+                                    # 위쪽 토글에서 수정한 값을 그대로 불러와서 보여줍니다.
+                                    current_display_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
+
+                                    # 읽기 전용으로 보여줍니다 (수정은 위쪽 토글에서 하니까요!)
+                                    st.info(f"현재 이 툴의 스펙: **{current_display_spec}**")
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
