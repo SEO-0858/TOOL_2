@@ -638,7 +638,12 @@ if qr_scanned_serial:
         
         # inventory에서 스펙 가져오기
         specs = list(db_inventory.find({"tool_type": tool_type}))
-        
+        st.write(f"🔍 검색된 tool_type: {tool_type}")
+        st.write(f"🔍 검색된 스펙 개수: {len(specs)}개")
+
+        if len(specs) == 0:
+            st.error("데이터베이스 inventory에 해당 tool_type으로 등록된 스펙이 없습니다!")
+                
         for s in specs:
             if st.button(f"🛠 스펙 선택: {s.get('spec_detail', '상세정보없음')}"):
                 db_collection.update_one(
