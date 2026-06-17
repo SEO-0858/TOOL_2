@@ -705,7 +705,7 @@ if qr_scanned_serial:
     edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
 
     # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
-    type_map = {'1': '전착', '2': '레진', '3': '메탈', '4': '코어'}
+    type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
     first_char = qr_scanned_serial[0] if qr_scanned_serial else ''
     target_type = type_map.get(first_char)
 
@@ -719,7 +719,7 @@ if qr_scanned_serial:
     spec_opts = sorted(list(set(spec_opts)))
 
     # 3. 현재 저장된 값 불러오기
-    current_spec = existing_data.get('detail_spec', '스펙없음')
+    current_spec = existing_data.get('spec_detail', '스펙없음')
 
     if not edit_mode:
         st.info(f"현재 등록된 스펙: **{current_spec}**")
@@ -730,7 +730,7 @@ if qr_scanned_serial:
         except ValueError:
             idx = 0
         u_spec = st.selectbox(f"변경할 {target_type} 스펙 선택", spec_opts, index=idx)
-        
+
     
     st.divider()
     
