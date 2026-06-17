@@ -628,7 +628,7 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
-    if not existing_data.get('detail_spec'):
+    if not existing_data.get('spec_detail'):
         st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
         
         # 시리얼로 툴 타입 파싱
