@@ -17,22 +17,18 @@ st.cache_data.clear()
 
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
+# 파일 상단의 @st.dialog 부분
 @st.dialog("상세 스펙 변경 확인")
 def confirm_mobile_spec_change(new_spec, serial_no, confirm_data):
     st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("확정"):
-            # 팝업에서 '확정'을 누르면 DB를 업데이트하고 저장 함수를 실행합니다.
-            confirm_data['detail_spec'] = new_spec
-            confirm_and_save(serial_no, confirm_data)
-            st.success("변경 완료!")
-            st.rerun() # 변경사항 반영을 위해 새로고침
-            
-    with col2:
-        if st.button("취소"):
-            st.rerun() # 팝업만 닫고 아무것도 안 함
+    if st.button("확정"):
+        # 여기서 confirm_data는 이미 3단계에서 인자로 전달받은 상태입니다.
+        confirm_and_save(serial_no, confirm_data)
+        st.success("변경 완료!")
+        st.rerun()
+    if st.button("취소"):
+        st.rerun()
 
 
 
