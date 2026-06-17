@@ -1005,7 +1005,7 @@ else:
                                 
                             if st.session_state[edit_key]:
                                
-                                spec_info = item.get('detail_spec', '스펙없음')
+                                spec_info = item.get('spec_detail', '스펙없음')
                                 st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
                                 
                                 note_content = str(item.get('note', ''))
