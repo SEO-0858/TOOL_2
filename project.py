@@ -699,33 +699,38 @@ if qr_scanned_serial:
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
     current_spec = existing_data.get('detail_spec')
    
-    # [1단계] 수정된 상세 스펙 불러오기 및 수정 모드 로직
+    
+    # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
     st.markdown("### 🛠 상세 스펙 확인 및 수정")
     edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
 
-    # 1. tool_inventory에서 스펙 목록 가져오기 (마스터 데이터가 이곳에 있다면)
-    # tool_type이 필요한 경우 기존처럼 필터링해서 가져오세요
-    spec_master_list = list(db_collection.database["tool_inventory"].find({})) 
-    spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')] 
+    # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
+    type_map = {'1': '전착', '2': '레진', '3': '메탈', '4': '코어'}
+    first_char = qr_scanned_serial[0] if qr_scanned_serial else ''
+    target_type = type_map.get(first_char)
 
-    # 중복 제거 (필요시)
+    # 2. 분류에 맞는 스펙만 필터링해서 가져오기
+    # tool_inventory 컬렉션에서 'tool_type' 필드가 target_type과 일치하는 것만 찾음
+    query = {"tool_type": target_type} if target_type else {}
+    spec_master_list = list(db_collection.database["tool_inventory"].find(query))
+    spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')]
+
+    # 중복 제거
     spec_opts = sorted(list(set(spec_opts)))
 
-    # 2. 현재 저장된 값 불러오기
+    # 3. 현재 저장된 값 불러오기
     current_spec = existing_data.get('detail_spec', '스펙없음')
 
     if not edit_mode:
-        # [읽기 모드] - 단순 표시
         st.info(f"현재 등록된 스펙: **{current_spec}**")
         u_spec = current_spec 
     else:
-        # [수정 모드] - 셀렉트박스로 변경
-        # spec_opts에 현재 값이 없는 경우를 대비해 예외처리
         try:
             idx = spec_opts.index(current_spec)
         except ValueError:
             idx = 0
-        u_spec = st.selectbox("변경할 스펙을 선택하세요", spec_opts, index=idx)
+        u_spec = st.selectbox(f"변경할 {target_type} 스펙 선택", spec_opts, index=idx)
+        
     
     st.divider()
     
