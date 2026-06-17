@@ -1359,11 +1359,11 @@ else:
                                         time.sleep(1)
                                         st.rerun()
 
-                                         # [위치 이동] 이 로직을 토글 바로 아래로 옮기세요
-                                        if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                            st.session_state[edit_key] = False  # 수정 모드 강제 종료
-                                            st.session_state.pop(f'temp_spec_{s_no}', None) # 임시 저장된 스펙도 삭제
-                                            st.rerun() # 새로고침하여 원래 화면으로 복귀
+                                        # [위치 이동] 이 로직을 토글 바로 아래로 옮기세요
+                                    if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
+                                        st.session_state[edit_key] = False  # 수정 모드 강제 종료
+                                        st.session_state.pop(f'temp_spec_{s_no}', None) # 임시 저장된 스펙도 삭제
+                                        st.rerun() # 새로고침하여 원래 화면으로 복귀
                                     
                                 else:
                                     col_x, col_y = st.columns(2)
