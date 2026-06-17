@@ -766,6 +766,7 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
+                    "detail_spec": "",
                     "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
