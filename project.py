@@ -1075,13 +1075,6 @@ else:
                                 # 읽기 모드 로직
                                 current_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
                                 st.info(f"현재 등록된 스펙: **{current_spec}**")
-                                
-                            else:
-                                # [핵심] 수정 모드 시작 (else 블록 첫 줄에 취소 버튼 배치)
-                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                    st.session_state[edit_key] = False
-                                    st.session_state.pop(f'temp_spec_{s_no}', None)
-                                    st.rerun()
 
                                 # 수정 모드 로직
                                 prefix = s_no[0]
