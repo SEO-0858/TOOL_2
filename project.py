@@ -571,9 +571,12 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
 
 # [QR 스캔 후 데이터를 로드하는 메인 함수]
+
 def show_machine_dashboard(serial_no): # 혹은 유사한 이름의 함수
     data = db_collection.find_one({"serial_no": serial_no})
-    
+    st.write(f"현재 로드된 데이터: {data}")
+    st.write(f"현재 detail_spec 값: '{data.get('detail_spec')}'")
+    st.write(f"비어있음 판정: {not data.get('detail_spec')}")
     if not data:
         st.error("해당 시리얼 번호가 없습니다.")
         return
