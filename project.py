@@ -387,6 +387,7 @@ def get_database():
         return None
 
 db_collection = get_database()
+db_inventory = db_collection.database["tool_inventory"]
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
@@ -568,6 +569,34 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
+
+# [QR 스캔 후 데이터를 로드하는 메인 함수]
+def show_machine_dashboard(serial_no): # 혹은 유사한 이름의 함수
+    data = db_collection.find_one({"serial_no": serial_no})
+    
+    if not data:
+        st.error("해당 시리얼 번호가 없습니다.")
+        return
+
+    # --- [여기에 추가: 상세 스펙 확인 로직] ---
+    if not data.get('detail_spec'):
+        # 1. 시리얼 첫 자리 파싱
+        prefix = serial_no[0]
+        type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
+        tool_type = type_map.get(prefix)
+        
+        # 2. tool_inventory에서 스펙 가져오기
+        specs = list(db_inventory.find({"tool_type": tool_type}))
+        
+        # 3. 스펙 선택 UI 출력
+        st.warning("상세 스펙이 등록되지 않았습니다. 선택해주세요.")
+        for s in specs:
+            if st.button(f"스펙 선택: {s['spec_detail']}"):
+                db_collection.update_one({"serial_no": serial_no}, {"$set": {"detail_spec": s['spec_detail']}})
+                st.rerun() # 저장 후 새로고침하여 다음 단계로 이동
+        return # [중요] 상세 스펙이 없으면 아래쪽 작업창으로 넘어가지 못하게 여기서 종료
+
+
 
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
 @st.dialog("💾 데이터 최종 확인")
