@@ -620,44 +620,44 @@ def confirm_and_save(serial, data):
         st.rerun()
 
 
-# --- [수정된 QR 스캔 로직 전체] ---
+# --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
-    # 1. 데이터 가져오기
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     
-    # 2. 방어막: 상세 스펙이 없으면 선택창을 띄우고 아래로 못 내려가게 함
-    if not existing_data.get('spec_detail'):
+    # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
+    if not existing_data.get('detail_spec'):
         st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
         
-        # 스펙 리스트 불러오기 (inventory 사용)
+        # 시리얼로 툴 타입 파싱
         prefix = qr_scanned_serial[0]
-        type_map = {'1': '전착', '2': '레진', '3': '메탈', '4': '코어'}
-        lookup_type = type_map.get(prefix)
-        specs = list(db_collection.database["tool_inventory"].find({"tool_type": lookup_type}))
+        type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
+        tool_type = type_map.get(prefix)
         
-        # 버튼 생성 및 저장/갱신 로직
+        # inventory에서 스펙 가져오기
+        specs = list(db_inventory.find({"tool_type": tool_type}))
+
+                
+        # 스펙 선택 버튼 루프 부분
         for s in specs:
+            # 버튼 클릭 시 동작
             if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
-                # [핵심] 여기서 DB에 저장합니다!
+                # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
                 db_collection.update_one(
-                    {"serial_no": qr_scanned_serial}, 
+                    {"serial_no": qr_scanned_serial},
                     {"$set": {"spec_detail": s.get('spec_detail')}}
                 )
-                # 저장 후 즉시 새로고침하여 기입창으로 진입
-                st.toast("✅ 스펙이 등록되었습니다!", icon="🎉")
-                st.rerun() 
-        
-        # 스펙이 없으면 여기서 프로그램이 멈춰서 기입창이 안 보입니다.
-        st.stop() 
+                # 2. 강제 새로고침
+                st.toast("✅ 스펙이 저장되었습니다!", icon="🎉")
+                time.sleep(0.5) # 잠시 대기
+                st.rerun() # 새로고침되어 기입창으로 진입
 
-    # --- 여기까지 왔다면 이제 상세 스펙이 존재하는 상태입니다 ---
-    
-    # 3. 이제 기입창을 그립니다 (여기는 수정할 필요 없음)
+        st.stop()        
+
+    # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
-    # ... (기존 기입창 코드들 그대로 유지) ...
     
     st.markdown("### 🔄 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
