@@ -633,7 +633,7 @@ if qr_scanned_serial:
         
         # 시리얼로 툴 타입 파싱
         prefix = qr_scanned_serial[0]
-        type_map = {'1': '전착', '2': '레진', '3': '메탈', '4': '코어'}
+        type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
         tool_type = type_map.get(prefix)
         
         # inventory에서 스펙 가져오기
