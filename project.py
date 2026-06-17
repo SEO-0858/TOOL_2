@@ -387,8 +387,6 @@ def get_database():
         return None
 
 db_collection = get_database()
-db_inventory = db_collection.database["tool_inventory"]
-
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
@@ -571,35 +569,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
 
-# [QR 스캔 후 데이터를 로드하는 메인 함수]
-
-def show_machine_dashboard(serial_no): # 혹은 유사한 이름의 함수
-    data = db_collection.find_one({"serial_no": serial_no})
-
-    if not data:
-        st.error("해당 시리얼 번호가 없습니다.")
-        return
-
-    # --- [여기에 추가: 상세 스펙 확인 로직] ---
-    if not data.get('detail_spec'):
-        # 1. 시리얼 첫 자리 파싱
-        prefix = serial_no[0]
-        type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
-        tool_type = type_map.get(prefix)
-        
-        # 2. tool_inventory에서 스펙 가져오기
-        specs = list(db_inventory.find({"tool_type": tool_type}))
-        
-        # 3. 스펙 선택 UI 출력
-        st.warning("상세 스펙이 등록되지 않았습니다. 선택해주세요.")
-        for s in specs:
-            if st.button(f"스펙 선택: {s['spec_detail']}"):
-                db_collection.update_one({"serial_no": serial_no}, {"$set": {"detail_spec": s['spec_detail']}})
-                st.rerun() # 저장 후 새로고침하여 다음 단계로 이동
-        return # [중요] 상세 스펙이 없으면 아래쪽 작업창으로 넘어가지 못하게 여기서 종료
-
-
-
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
@@ -650,39 +619,15 @@ def confirm_and_save(serial, data):
         time.sleep(1.5)
         st.rerun()
 
-
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
     st.title("📱 현장 툴 정보 즉시 기입창")
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
-    
-    # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
-    if not existing_data.get('detail_spec'):
-        st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
-        
-        # 시리얼로 툴 타입 파싱
-        prefix = qr_scanned_serial[0]
-        type_map = {'1': '전착', '2': '레진', '3': '메탈', '4': '코어'}
-        tool_type = type_map.get(prefix)
-        
-        # inventory에서 스펙 가져오기
-        specs = list(db_inventory.find({"tool_type": tool_type}))
-        
-        for s in specs:
-            if st.button(f"🛠 스펙 선택: {s.get('spec_detail', '상세정보없음')}"):
-                db_collection.update_one(
-                    {"serial_no": qr_scanned_serial}, 
-                    {"$set": {"detail_spec": s.get('spec_detail')}}
-                )
-                st.rerun() # 선택하자마자 새로고침되어 기입창으로 진입
-        
-        st.stop() # [중요] 상세 스펙을 선택하기 전에는 아래 기입창 코드가 절대 실행되지 않음!
-
-    # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
     
+    # [깜빡임 방지를 위해 st.form 대신 일반 입력 모드 유지]
     st.markdown("### 🔄 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
@@ -697,10 +642,8 @@ if qr_scanned_serial:
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     
-    # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
     spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
-    current_spec = existing_data.get('detail_spec')
-    u_spec = st.selectbox("🛠 툴 세부 스펙", spec_opts, index=spec_opts.index(current_spec) if current_spec in spec_opts else 0)
+    u_spec = st.selectbox("🛠 툴 세부 스펙 선택", spec_opts, index=spec_opts.index(existing_data.get('detail_spec', spec_opts[0])) if existing_data.get('detail_spec') in spec_opts else 0)
     
     st.divider()
     
@@ -710,6 +653,7 @@ if qr_scanned_serial:
     u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
     u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
     
+    # 팝업 호출 버튼
     if st.button("💾 데이터 확인 및 저장"):
         start_dt = get_now_kst()
         target_dt = start_dt + timedelta(minutes=(u_h * 60) + u_m)
@@ -793,7 +737,6 @@ else:
                     "use_limit": 10000,
                     "current_use": 0,
                     "waste_date": "-",
-                    "detail_spec": "",
                     "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
                     
