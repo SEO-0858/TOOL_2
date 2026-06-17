@@ -22,13 +22,18 @@ def confirm_mobile_spec_change(new_spec, serial_no):
     st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
     
     if st.button("확정"):
-        # 여기서 DB의 스펙만 딱 바꿉니다. (다른 변수 필요 없음)
+        # 1. DB 업데이트
         db_collection.update_one(
             {"serial_no": serial_no},
             {"$set": {"detail_spec": new_spec}}
         )
-        st.success("변경 완료!")
-        st.rerun()
+        
+        # 2. [핵심] 토글 스위치 상태를 강제로 꺼짐(False)으로 변경
+        st.session_state["mobile_edit_mode"] = False 
+        
+        st.success("스펙이 변경되었습니다!")
+        st.rerun() # 새로고침하면 토글이 꺼진 상태로 나타남
+        
     if st.button("취소"):
         st.rerun()
 
@@ -701,6 +706,7 @@ if qr_scanned_serial:
     # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
     st.markdown("### 🛠 상세 스펙 확인 및 수정")
     edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
+   
 
     # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
     type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
