@@ -27,7 +27,7 @@ def confirm_mobile_spec_change(new_spec, serial_no):
             {"serial_no": serial_no},
             {"$set": {"detail_spec": new_spec}}
         )
-        
+        st.session_state['new_spec'] = new_spec
         # 2. [핵심] 토글 스위치 상태를 강제로 꺼짐(False)으로 변경
         st.session_state["mobile_edit_mode"] = False 
         
@@ -722,7 +722,7 @@ if qr_scanned_serial:
     spec_opts = sorted(list(set(spec_opts)))
 
     # 3. 현재 저장된 값 불러오기
-    current_spec = existing_data.get('spec_detail', '스펙없음')
+    current_spec = st.session_state.get('new_spec', existing_data.get('detail_spec', '스펙없음'))
 
     if not edit_mode:
         st.info(f"현재 등록된 스펙: **{current_spec}**")
@@ -753,9 +753,9 @@ if qr_scanned_serial:
             confirm_data = {
                 'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
                 'machine_no': f'{u_machine}호기', 'detail_spec': u_spec,
-                'dressing_hours': u_h, 'dressing_mins': u_n, 'note': u_note,
+                'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
                 'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
-                'target_time': (get_now_kst() + timedelta(minutes=-(u_h * 60) + u_n)).strftime('%Y-%m-%d %H:%M:%S')
+                'target_time': (get_now_kst() + timedelta(minutes=-(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S')
             }
             confirm_and_save(qr_scanned_serial, confirm_data)
             st.success("데이터가 저장되었습니다!")
