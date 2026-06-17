@@ -17,15 +17,18 @@ st.cache_data.clear()
 
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
-# 파일 상단의 @st.dialog 부분
 @st.dialog("상세 스펙 변경 확인")
-def confirm_mobile_spec_change(new_spec, serial_no, confirm_data):
+def confirm_mobile_spec_change(new_spec, serial_no):
     st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
     
     if st.button("확정"):
-        # 여기서 confirm_data는 이미 3단계에서 인자로 전달받은 상태입니다.
-        confirm_and_save(serial_no, confirm_data)
-        st.success("변경 완료!")
+        # 여기서 DB 업데이트를 바로 수행합니다. 
+        # 이렇게 하면 u_h, u_worker 등의 변수 의존성을 피할 수 있습니다.
+        db_collection.update_one(
+            {"serial_no": serial_no},
+            {"$set": {"detail_spec": new_spec}}
+        )
+        st.success("스펙이 변경되었습니다!")
         st.rerun()
     if st.button("취소"):
         st.rerun()
