@@ -25,7 +25,7 @@ def confirm_mobile_spec_change(new_spec, serial_no):
         # 1. DB 업데이트
         db_collection.update_one(
             {"serial_no": serial_no},
-            {"$set": {"detail_spec": new_spec}}
+            {"$set": {"spec_detail": new_spec}}
         )
         st.session_state['new_spec'] = new_spec
         # 2. [핵심] 토글 스위치 상태를 강제로 꺼짐(False)으로 변경
