@@ -1358,10 +1358,10 @@ else:
                                         st.rerun()
                                       
                                         
-                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                                    
+                                    if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
+                                        st.session_state[edit_key] = False
+                                        st.rerun()
+                                        
                                 else:
                                     col_x, col_y = st.columns(2)
                                     with col_x:
