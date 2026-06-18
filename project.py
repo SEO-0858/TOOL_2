@@ -735,7 +735,7 @@ if qr_scanned_serial:
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     
     # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
-    spec_opts = [s['spec_name'] for s in list(get_spec_master_collection().find({}))] or ["스펙없음"]
+    spec_opts = [s.get('spec_name', '이름없음') for s in list(get_spec_master_collection().find({}))]
     current_spec = existing_data.get('spec.detail')
    
     
