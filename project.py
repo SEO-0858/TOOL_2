@@ -696,7 +696,7 @@ if qr_scanned_serial:
     st.subheader(f"🆔 시리얼 넘버: `{qr_scanned_serial}`")
     
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
-    
+    specs = []
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
     if not existing_data.get('spec_detail'):
         st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
@@ -708,22 +708,25 @@ if qr_scanned_serial:
         target_type = type_map.get(prefix)
         # inventory에서 스펙 가져오기
         #specs = list(db_inventory.find({"tool_type": tool_type}))
-        specs = list(db_inventory.find({"main_type": target_type}))
-        unique_specs = sorted(list(set([s.get('spec_detail') for s in specs])))
-        st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록:")
-        for spec_detail in unique_specs:
-                    # 해당 스펙을 가진 첫 번째 문서를 찾아서 ID를 가져옴 (버튼 키용)
-                    first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
-                    btn_key = f"btn_{first_doc['_id']}" 
-                    
-                    if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
-                        # 버튼을 누르면 세션에 저장
-                        st.session_state['selected_spec'] = spec_detail
-                        st.rerun()
+        # 1. 먼저 스펙 목록에서 중복 없는 리스트(unique_specs)를 확실히 만듭니다.
+        # 기존 specs 리스트에서 spec_detail 값만 추출하여 set으로 중복 제거
+        unique_spec_names = sorted(list(set([s.get('spec_detail') for s in specs if s.get('spec_detail')])))
+        
+        st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
+
+        # 2. 이제 중복이 제거된 리스트를 순회합니다.
+        for spec_detail in unique_spec_names:
+            # 해당 스펙 이름을 가진 첫 번째 데이터의 ID를 가져와서 버튼 키로 사용
+            first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
+            btn_key = f"btn_{first_doc['_id']}"
+            
+            if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
+                st.session_state['selected_spec'] = spec_detail
+                st.rerun()
+
+        # 3. 선택된 스펙 표시
         if 'selected_spec' in st.session_state:
             st.success(f"선택됨: {st.session_state['selected_spec']}")
-            # 여기에서 st.stop()을 지우고, 다음 제조사 선택 로직이 이어지게 할 예정입니다.
-
 
 
                 
