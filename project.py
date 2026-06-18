@@ -25,9 +25,11 @@ def update_inventory_count(spec_detail, old_status, new_status):
     if old_status in ["사용전", "재사용대기"]:
         field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
         col.update_one({"spec_detail": spec_detail}, {"$inc": {field: -1}}, upsert=True)
-    
-    # 2. 새 상태에서 재고 하나 더하기 (+1)
-    if new_status in ["사용전", "재사용대기"]:
+    # 2. 새 상태가 '폐기'라면 폐기 수량 증가 (+1)
+    if new_status == "폐기":
+        col.update_one({"spec_detail": spec_detail}, {"$inc": {"disposed_tool_count": 1}}, upsert=True)
+    # 3. 새 상태에서 재고 하나 더하기 (+1)
+    elif new_status in ["사용전", "재사용대기"]:
         field = "new_tool_count" if new_status == "사용전" else "used_tool_count"
         col.update_one({"spec_detail": spec_detail}, {"$inc": {field: 1}}, upsert=True)
 
