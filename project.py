@@ -1535,7 +1535,7 @@ else:
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
         st.title("🔧 툴 상세 스펙 마스터 관리")
-        db = db_collection.database['dashboard_db']
+        db = db_collection.database['tool_inventory']
         # 1. 스펙 입력 (Form 제거 - 실시간 반영을 위해)
         st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
         
@@ -1565,7 +1565,7 @@ else:
         # 2. 저장 버튼 (별도 처리)
         if st.button("마스터 리스트 등록"):
             if make_val:
-                db.tool_inventory.insert_one({
+                db.insert_one({
                     "main_code": main_code,
                     "main_type": main_type_eng,
                     "spec_detail": final_spec,
