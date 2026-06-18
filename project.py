@@ -1535,54 +1535,40 @@ else:
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
         st.title("🔧 툴 상세 스펙 마스터 관리")
-        st.write("관리자가 사전에 툴 규격을 적어두는 마스터 노트 공간입니다. 이곳에 등록된 데이터가 현장 모바일과 PC 수정창에 리스트로 호출됩니다.")
         
-        # 1. 제조사 관리 구역 (마스터 데이터 연동)
-        with st.expander("🏢 제조사 관리 (업체 추가 및 수정)"):
-            c1, c2, c3 = st.columns([2, 1, 1])
-            with c1: make_name = st.text_input("제조사 이름", placeholder="예: 경인")
-            with c2: make_code = st.text_input("제조사 약자", placeholder="예: KI")
-            with c3:
-                st.write("###") # 간격 조정
-                if st.button("제조사 등록"):
-                    if make_name and make_code:
-                        # db.make_master.insert_one({"name": make_name, "code": make_code.upper()})
-                        st.success(f"{make_code.upper()} 등록 완료")
-                        st.rerun()
+        # 1. 제조사 관리 (생략)
 
-        st.divider()
-
-        # 2. 상세 스펙 빌더 구역
         with st.form("spec_builder_form"):
             st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
-            col1, col2, col3, col4 = st.columns(4)
             
+            # 대분류 추가 (시리얼 앞자리 기준)
+            main_cat = st.selectbox("툴 대분류 선택", ["A (전착)", "B (레진)", "C (메탈)", "D (코어)"])
+            
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                d_val = st.selectbox("지름(D)", ["D80", "D100", "D120", "D150"])
-                t_val = st.selectbox("두께(T)", ["10T", "20T", "30T", "40T"])
+                d_val = st.selectbox("지름(D)", ["D80", "D100", "D120"])
+                t_val = st.selectbox("두께(T)", ["10T", "20T", "30T"])
             with col2:
-                r_val = st.selectbox("반경(R)", ["0.3R", "0.5R", "1.0R", "2.0R"])
+                r_val = st.selectbox("반경(R)", ["0.3R", "0.5R", "1.0R"])
                 a_val = st.selectbox("각도(A)", ["30A", "45A", "60A"])
             with col3:
                 free_input = st.text_input("기타 사양(자유기입)", placeholder="예: 특수코팅")
-                grit_val = st.selectbox("입자도(#)", ["#100", "#200", "#325", "#400", "#600"])
+                grit_val = st.selectbox("입자도(#)", ["#100", "#200", "#325", "#400"])
             with col4:
-                # DB에서 제조사 리스트를 호출하여 드롭다운 구성
-                # makes = list(db.make_master.find({}))
-                # make_options = {m['code']: m['name'] for m in makes}
                 make_options = {"KI": "경인", "EW": "이화", "KJ": "광진", "HS": "효성"}
-                make_val = st.selectbox("제조사 선택", options=list(make_options.keys()), 
-                                       format_func=lambda x: f"{x} ({make_options[x]})")
+                make_val = st.selectbox("제조사 선택", options=list(make_options.keys()), format_func=lambda x: f"{x} ({make_options[x]})")
 
-            # 실시간 조합 로직
-            spec_parts = [d_val, t_val, r_val, a_val]
+            # 대분류 코드를 맨 앞에 포함하여 조합
+            main_code = main_cat.split(" ")[0] # "A (전착)" -> "A"
+            spec_parts = [main_code, d_val, t_val, r_val, a_val]
             if free_input: spec_parts.append(free_input)
             spec_parts.extend([grit_val, make_val])
             final_spec = "_".join(spec_parts)
             
-            st.info(f"조합된 상세 스펙: **{final_spec}**")
+            st.info(f"생성된 상세 스펙: **{final_spec}**")
             
             if st.form_submit_button("마스터 리스트에 등록"):
-                # db.tool_inventory.insert_one({"spec_detail": final_spec, "make": make_val})
+                # 저장 로직 (대분류 코드 포함)
+                # db.tool_inventory.insert_one({"main_type": main_code, "spec_detail": final_spec, "make": make_val})
                 st.success(f"등록 성공: {final_spec}")
                 time.sleep(0.5); st.rerun()
