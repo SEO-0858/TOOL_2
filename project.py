@@ -669,7 +669,7 @@ def confirm_and_save(serial, data):
             final_note += log
 
         # 재고 계산 함수 호출
-        update_inventory_count(data['spec_detail'], data['prev_status'], data['status'])
+        update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
 
         db_collection.update_one(
             {"serial_no": serial},
@@ -857,6 +857,7 @@ if qr_scanned_serial:
                 'machine_no': f'{u_machine}호기', 'spec_detail': u_spec,
                 'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
                 'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
+                'make': existing_data.get('make', ''),
                 'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S')
             }
             st.session_state['show_confirm_dialog'] = True
