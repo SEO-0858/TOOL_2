@@ -1558,8 +1558,28 @@ else:
         # 실시간 조합 및 미리보기 (이제 즉시 바뀝니다!)
         main_code = main_cat_display.split(" ")[0] 
         main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
+        parts = []
+        parts.append(f"D{int(d_val)}")
+        parts.append(f"{int(t_val)}T")
         
-        final_spec = "_".join([f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
+        # R값이 0보다 클 때만 목록에 추가
+        if r_val > 0:
+            parts.append(f"{r_val}R")
+        # A값이 0보다 클 때만 목록에 추가
+        if a_val > 0:
+            parts.append(f"{int(a_val)}A")
+            
+        # 자유기입란에 내용이 있을 때만 추가
+        if free_input:
+            parts.append(free_input)
+        
+        # 입자도와 제조사는 항상 추가
+        parts.append(f"#{grit_val}")
+        parts.append(make_val.upper())
+
+        # 리스트에 담긴 것들만 언더바로 연결
+        final_spec = "_".join(parts)
+        
         st.info(f"생성된 상세 스펙: **{final_spec}**")
 
         # 2. 저장 버튼 (별도 처리)
