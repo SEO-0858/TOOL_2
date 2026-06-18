@@ -709,14 +709,21 @@ if qr_scanned_serial:
         # inventory에서 스펙 가져오기
         #specs = list(db_inventory.find({"tool_type": tool_type}))
         specs = list(db_inventory.find({"main_type": target_type}))
+        unique_specs = sorted(list(set([s.get('spec_detail') for s in specs])))
         st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록:")
-        for s in specs:
-            # key 값을 고유한 DB ID 값으로 변경하여 중복 방지
-            btn_key = f"btn_{s['_id']}" 
-            
-            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=btn_key):
-                st.session_state['selected_spec'] = s.get('spec_detail')
-                st.rerun()
+        for spec_detail in unique_specs:
+                    # 해당 스펙을 가진 첫 번째 문서를 찾아서 ID를 가져옴 (버튼 키용)
+                    first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
+                    btn_key = f"btn_{first_doc['_id']}" 
+                    
+                    if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
+                        # 버튼을 누르면 세션에 저장
+                        st.session_state['selected_spec'] = spec_detail
+                        st.rerun()
+        if 'selected_spec' in st.session_state:
+            st.success(f"선택됨: {st.session_state['selected_spec']}")
+            # 여기에서 st.stop()을 지우고, 다음 제조사 선택 로직이 이어지게 할 예정입니다.
+
 
 
                 
