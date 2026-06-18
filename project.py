@@ -651,7 +651,7 @@ def confirm_and_save(serial, data):
             final_note += log
 
         # 재고 계산 함수 호출
-        #update_inventory_count(data['detail_spec'], data['prev_status'], data['status'])
+        update_inventory_count(data['detail_spec'], data['prev_status'], data['status'])
 
         db_collection.update_one(
             {"serial_no": serial},
@@ -698,12 +698,12 @@ if qr_scanned_serial:
             # 버튼 클릭 시 동작
             if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
                 existing_spec = existing_data.get('spec_detail')
-                #if existing_spec and existing_spec != '정보없음':
+                if existing_spec and existing_spec != '정보없음':
                     # 기존에 설정된 상태가 있다면 그 상태에서 -1 (보통 '사용전')
-                    #update_inventory_count(existing_spec, existing_data.get('status', '사용전'), "폐기")
+                    update_inventory_count(existing_spec, existing_data.get('status', '사용전'), "폐기")
 
                 # --- [여기 추가] 2단계: 새로 선택한 스펙에 +1 ---
-                #update_inventory_count(s.get('spec_detail'), "폐기", "사용전")
+                update_inventory_count(s.get('spec_detail'), "폐기", "사용전")
 
                 # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
                 db_collection.update_one(
