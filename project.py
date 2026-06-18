@@ -1629,9 +1629,10 @@ else:
         parts.append(make_val.upper())
 
         # 리스트에 담긴 것들만 언더바로 연결
-        final_spec = "_".join(parts)
+        spec_parts = [p for p in parts if p != make_val.upper()]
+        final_spec = "_".join(spec_parts)
         
-        st.info(f"생성된 상세 스펙: **{final_spec}**")
+        st.info(f"생성된 상세 스펙(규격): **{final_spec}** | 제조사: **{make_val.upper()}**")
 
         # 2. 저장 버튼 (별도 처리)
         if st.button("마스터 리스트 등록"):
