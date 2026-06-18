@@ -1540,9 +1540,8 @@ else:
 
         # 1. 툴 상세 스펙 등록 폼 (tool_inventory 연동)
         with st.form("spec_builder_form"):
-            st.subheader("🛠 상세 스펙 조합")
+            st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
             
-            # 대분류 선택 (값은 코드 숫자로, 보여주기는 설명 포함)
             cat_options = {"1": "1 (전착 - JUN)", "2": "2 (레진 - REJ)", "3": "3 (메탈 - MET)", "4": "4 (코어 - COR)"}
             main_cat_display = st.selectbox("툴 대분류 선택", list(cat_options.values()))
             
@@ -1560,13 +1559,14 @@ else:
                 free_input = st.text_input("기타 사양(자유기입)")
                 grit_val = st.text_input("입자도(#)")
             with col4:
-                # 제조사는 직접 입력하거나 기존 마스터 값을 가져옴 (여기선 관리자가 입력하는 마스터이므로 직접 선택)
                 make_val = st.text_input("제조사 약자 (예: KI)")
 
-            final_spec = "_".join([main_code, f"D{d_val}", f"{t_val}T", f"{r_val}R", f"{a_val}A", free_input, f"#{grit_val}", make_val.upper()])
+            # 실시간 조합 (form과 상관없이 값 변경 시 즉시 계산됨)
+            final_spec = "_".join([main_code, f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
             st.info(f"생성된 상세 스펙: **{final_spec}**")
             
-            if st.form_submit_button("마스터 리스트 등록"):
+            # 등록 버튼만 form으로 감싸거나, 그냥 버튼으로 구현
+            if st.button("마스터 리스트 등록"):
                 db.tool_inventory.insert_one({
                     "main_code": main_code,
                     "main_type": main_type_eng,
@@ -1575,15 +1575,3 @@ else:
                 })
                 st.success("등록 완료")
                 st.rerun()
-
-        # 2. 등록된 마스터 리스트 조회 및 편집/삭제
-        st.write("---")
-        st.subheader("📋 등록된 스펙 마스터 목록")
-        
-        specs = list(db.tool_inventory.find({}))
-        for s in specs:
-            with st.expander(f"{s['main_type']} | {s['spec_detail']}"):
-                st.write(f"제조사: {s['make']}")
-                if st.button("삭제", key=f"del_{s['_id']}"):
-                    db.tool_inventory.delete_one({"_id": s['_id']})
-                    st.rerun()
