@@ -15,7 +15,18 @@ import pytz
 st.cache_data.clear()
 
 
-#재고 계산기 함수_________________________________________________________________________
+#폐기된 툴의 정보 함수----------------------------------------------------------------------------
+def log_disposal(serial_no, spec_detail, worker):
+    # 'disposal_logs' 컬렉션에 폐기 데이터 자동 저장
+    db_collection.database['disposal_logs'].insert_one({
+        "serial_no": serial_no,
+        "spec_detail": spec_detail,
+        "worker": worker,
+        "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+
+#재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
 def update_inventory_count(spec_detail, old_status, new_status):
     # 재고 관리 컬렉션 연결 (db_collection이 정의된 곳에서 불러옵니다)
@@ -644,6 +655,10 @@ def confirm_and_save(serial, data):
     if data['status'] in ["폐기", "재사용대기"]:
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
         
+    # 상태가 '폐기'로 변경될 때만 로그 남기기
+        if data['status'] == "폐기":
+            log_disposal(serial, data['detail_spec'], data.get('worker', ''))
+        
     if st.button("✅ 최종 확정 및 저장"):
         final_note = data['note']
         if data['status'] != data['prev_status']:
@@ -790,7 +805,7 @@ if qr_scanned_serial:
         if st.button("데이터 확인 및 저장"):
             st.session_state['confirm_data'] = {
                 'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
-                'machine_no': f'{u_machine}호기', 'detail_spec': u_spec,
+                'machine_no': f'{u_machine}호기', 'spec_detail': u_spec,
                 'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
                 'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
                 'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S')
