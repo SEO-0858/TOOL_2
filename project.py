@@ -17,14 +17,19 @@ st.cache_data.clear()
 
 #폐기된 툴의 정보 함수----------------------------------------------------------------------------
 def log_disposal(serial_no, spec_detail, worker):
-    # 'disposal_logs' 컬렉션에 폐기 데이터 자동 저장
-    db_collection.database['disposal_logs'].insert_one({
-        "serial_no": serial_no,
-        "spec_detail": spec_detail,
-        "worker": worker,
-        "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-    })
-
+    col = db_collection.database['disposal_logs']
+    if col.find_one({"serial_no": serial_no}) is None:
+        db_collection.database['disposal_logs'].insert_one({
+            "serial_no": serial_no,
+            "spec_detail": spec_detail,
+            "worker": worker,
+            "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        print(f"✅ 폐기 로그 저장 완료: {serial_no}")
+    else:
+        # 이미 로그가 있는 경우 아무것도 안 함 (중복 방지)
+        print(f"⚠️ 이미 폐기 로그가 존재합니다 (중복 무시): {serial_no}")
+        
 
 #재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
