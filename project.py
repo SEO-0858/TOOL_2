@@ -1559,7 +1559,7 @@ else:
         main_code = main_cat_display.split(" ")[0] 
         main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
         
-        final_spec = "_".join([main_code, f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
+        final_spec = "_".join([f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
         st.info(f"생성된 상세 스펙: **{final_spec}**")
 
         # 2. 저장 버튼 (별도 처리)
@@ -1572,6 +1572,7 @@ else:
                     "make": make_val.upper()
                 })
                 st.success("등록 완료")
+                time.sleep(1.5)
                 st.rerun()
             else:
                 st.warning("제조사 약자를 입력해주세요.")
