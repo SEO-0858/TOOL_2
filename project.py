@@ -28,22 +28,23 @@ def log_disposal(serial_no, spec_detail, worker):
 
 #재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
-def update_inventory_count(spec_detail, old_status, new_status):
+def update_inventory_count(spec_detail, make, old_status, new_status):
     # 재고 관리 컬렉션 연결 (db_collection이 정의된 곳에서 불러옵니다)
     col = db_collection.database['tool_specs_master']
+    query = {"spec_detail": spec_detail, "make": make}
     
-    # 1. 이전 상태에서 재고 하나 빼기 (-1)
     if old_status in ["사용전", "재사용대기"]:
         field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
-        col.update_one({"spec_detail": spec_detail}, {"$inc": {field: -1}}, upsert=True)
+        col.update_one(query, {"$inc": {field: -1}}, upsert=True)
+        
     # 2. 새 상태가 '폐기'라면 폐기 수량 증가 (+1)
     if new_status == "폐기":
-        col.update_one({"spec_detail": spec_detail}, {"$inc": {"disposed_tool_count": 1}}, upsert=True)
+        col.update_one(query, {"$inc": {"disposed_tool_count": 1}}, upsert=True)
+        
     # 3. 새 상태에서 재고 하나 더하기 (+1)
     elif new_status in ["사용전", "재사용대기"]:
         field = "new_tool_count" if new_status == "사용전" else "used_tool_count"
-        col.update_one({"spec_detail": spec_detail}, {"$inc": {field: 1}}, upsert=True)
-
+        col.update_one(query, {"$inc": {field: 1}}, upsert=True)
 
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
@@ -747,11 +748,8 @@ if qr_scanned_serial:
                         {"$set": {"spec_detail": selected_spec, "make": selected_make}}
                     )
                     
-                    # 재고 업데이트 (+1)
-                    # spec_detail과 make를 합친 값을 마스터 키로 사용
-                    update_inventory_count(f"{selected_spec}_{selected_make}", "폐기", "사용전")
-                    
-                    st.success(f"🎉 [{selected_spec} / {selected_make}] 재고 등록 완료!")
+                    update_inventory_count(selected_spec, selected_make, "폐기", "사용전")                 
+                    st.success(f"🎉 [{selected_spec} / {selected_make}] 등록 완료!")
                     # 세션 초기화 및 새로고침
                     del st.session_state['selected_spec']
                     time.sleep(1)
