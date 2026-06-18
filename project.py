@@ -698,7 +698,7 @@ if qr_scanned_serial:
     existing_data = db_collection.find_one({"serial_no": qr_scanned_serial}) or {}
     specs = []
     # 1. 상세 스펙 확인 방어막 (이 로직이 가장 먼저 실행되어야 합니다)
-  
+
     if not existing_data.get('spec_detail'):
         st.warning("🚨 상세 스펙이 등록되지 않은 툴입니다. 아래에서 먼저 선택해주세요.")
         
@@ -707,18 +707,18 @@ if qr_scanned_serial:
         type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
         target_type = type_map.get(prefix)
         
-        # 2) [중요] 여기서 실제 데이터를 불러옵니다.
+        # 2) 데이터 불러오기
         specs = list(db_inventory.find({"main_type": target_type}))
         
-        # 데이터가 잘 들어왔는지 확인 (디버깅용)
         if not specs:
             st.error(f"❌ '{target_type}' 타입에 해당하는 스펙 데이터가 없습니다.")
         else:
-            # 3) 데이터를 불러온 뒤에만 리스트를 보여줍니다.
+            # 3) 중복 제거된 스펙 리스트 만들기
             unique_spec_names = sorted(list(set([s.get('spec_detail') for s in specs if s.get('spec_detail')])))
             
             st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
 
+            # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
                 first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
                 btn_key = f"btn_{first_doc['_id']}"
@@ -727,11 +727,37 @@ if qr_scanned_serial:
                     st.session_state['selected_spec'] = spec_detail
                     st.rerun()
 
-        st.stop() # 데이터 선택 전까지는 아래로 못 내려가게 확실히 차단
+            # 5) 선택 시 제조사 드롭다운 보여주기
+            if 'selected_spec' in st.session_state:
+                selected_spec = st.session_state['selected_spec']
+                st.success(f"✅ 선택된 스펙: {selected_spec}")
+                
+                # 선택된 스펙에 맞는 제조사 목록 추출
+                matching_specs = [s for s in specs if s.get('spec_detail') == selected_spec]
+                available_makers = sorted(list(set([s.get('make') for s in matching_specs if s.get('make')])))
+                
+                st.markdown("### 🏭 제조사를 선택하세요")
+                selected_make = st.selectbox("제조사 선택", available_makers, key="maker_select")
+                
+                # 6) 최종 등록 버튼
+                if st.button("🚀 상세 스펙 및 제조사 확정 후 재고 등록"):
+                    # DB 저장 (스펙 및 제조사 업데이트)
+                    db_collection.update_one(
+                        {"serial_no": qr_scanned_serial},
+                        {"$set": {"spec_detail": selected_spec, "make": selected_make}}
+                    )
+                    
+                    # 재고 업데이트 (+1)
+                    # spec_detail과 make를 합친 값을 마스터 키로 사용
+                    update_inventory_count(f"{selected_spec}_{selected_make}", "폐기", "사용전")
+                    
+                    st.success(f"🎉 [{selected_spec} / {selected_make}] 재고 등록 완료!")
+                    # 세션 초기화 및 새로고침
+                    del st.session_state['selected_spec']
+                    time.sleep(1)
+                    st.rerun()
 
-        # 3. 선택된 스펙 표시
-        if 'selected_spec' in st.session_state:
-            st.success(f"선택됨: {st.session_state['selected_spec']}")
+        st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
 
 
                 
