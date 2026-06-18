@@ -12,6 +12,7 @@ dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
 from datetime import timedelta
 import pytz
+import mong
 st.cache_data.clear()
 
 
@@ -1665,5 +1666,4 @@ else:
 
 
     elif tool_menu == "🔍 툴 종합 검색":
-    import mong
-    mong.render_search_menu()                
+        mong.render_search_menu()                
