@@ -1530,67 +1530,58 @@ else:
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         show_machine_dashboard()
 
-
+       
        
     # ★ 6) 🔧 툴 상세스펙 마스터 관리 (신규 하위 메뉴 매립 파트)----------------------------------------------------------------------------------------------------  
     elif tool_menu == "🔧 툴 상세스펙 마스터 관리":
-        db = db_collection.database['tool_inventory']
         st.title("🔧 툴 상세 스펙 마스터 관리")
-        st.write("관리자가 툴 규격을 설정하는 마스터 노트입니다.")
+        db = db_collection.database['tool_inventory']
+        # 1. 스펙 입력 (Form 제거 - 실시간 반영을 위해)
+        st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
+        
+        cat_options = {"1": "1 (전착 - JUN)", "2": "2 (레진 - REJ)", "3": "3 (메탈 - MET)", "4": "4 (코어 - COR)"}
+        main_cat_display = st.selectbox("툴 대분류 선택", list(cat_options.values()))
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            d_val = st.number_input("지름(D)", min_value=0, step=1)
+            t_val = st.number_input("두께(T)", min_value=0, step=1)
+        with col2:
+            r_val = st.number_input("반경(R)", min_value=0.0, step=0.1, format="%.1f")
+            a_val = st.number_input("각도(A)", min_value=0, step=1)
+        with col3:
+            free_input = st.text_input("기타 사양(자유기입)")
+            grit_val = st.text_input("입자도(#)")
+        with col4:
+            make_val = st.text_input("제조사 약자 (예: KI)")
 
-        # 1. 스펙 입력 폼 (st.form)
-        with st.form("spec_builder_form"):
-            st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
-            
-            cat_options = {"1": "1 (전착 - JUN)", "2": "2 (레진 - REJ)", "3": "3 (메탈 - MET)", "4": "4 (코어 - COR)"}
-            main_cat_display = st.selectbox("툴 대분류 선택", list(cat_options.values()))
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                d_val = st.number_input("지름(D)", min_value=0, step=1)
-                t_val = st.number_input("두께(T)", min_value=0, step=1)
-            with col2:
-                r_val = st.number_input("반경(R)", min_value=0.0, step=0.1, format="%.1f")
-                a_val = st.number_input("각도(A)", min_value=0, step=1)
-            with col3:
-                free_input = st.text_input("기타 사양(자유기입)")
-                grit_val = st.text_input("입자도(#)")
-            with col4:
-                make_val = st.text_input("제조사 약자 (예: KI)")
-
-            # form 내부에 반드시 포함되어야 하는 제출 버튼
-            submit_btn = st.form_submit_button("마스터 리스트 등록")
-
-        # 2. 실시간 미리보기 (form 밖으로 배치하여 실시간 업데이트)
+        # 실시간 조합 및 미리보기 (이제 즉시 바뀝니다!)
         main_code = main_cat_display.split(" ")[0] 
         main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
         
         final_spec = "_".join([main_code, f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
         st.info(f"생성된 상세 스펙: **{final_spec}**")
 
-        # 3. 버튼 클릭 시 DB 저장 처리
-        if submit_btn:
-            db.tool_inventory.insert_one({
-                "main_code": main_code,
-                "main_type": main_type_eng,
-                "spec_detail": final_spec,
-                "make": make_val.upper()
-            })
-            st.success("등록 완료")
-            st.rerun()
+        # 2. 저장 버튼 (별도 처리)
+        if st.button("마스터 리스트 등록"):
+            if make_val:
+                db.tool_inventory.insert_one({
+                    "main_code": main_code,
+                    "main_type": main_type_eng,
+                    "spec_detail": final_spec,
+                    "make": make_val.upper()
+                })
+                st.success("등록 완료")
+                st.rerun()
+            else:
+                st.warning("제조사 약자를 입력해주세요.")
 
-        # 4. 등록된 마스터 리스트 조회 및 삭제
+        # 3. 리스트 조회
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
-        
         specs = list(db.tool_inventory.find({}))
-        if not specs:
-            st.info("등록된 스펙이 없습니다.")
-        else:
-            for s in specs:
-                with st.expander(f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"):
-                    st.write(f"제조사: {s.get('make', 'N/A')}")
-                    # 폼 밖의 일반 버튼은 삭제 기능에 사용 가능
-                    if st.button("삭제", key=f"del_{s['_id']}"):
-                        db.tool_inventory.delete_one({"_id": s['_id']})
-                        st.rerun()
+        for s in specs:
+            with st.expander(f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"):
+                if st.button("삭제", key=f"del_{s['_id']}"):
+                    db.tool_inventory.delete_one({"_id": s['_id']})
+                    st.rerun()
