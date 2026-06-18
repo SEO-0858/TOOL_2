@@ -654,10 +654,10 @@ def confirm_and_save(serial, data):
     qty = 0
     if data['status'] in ["폐기", "재사용대기"]:
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
-        
+
     # 상태가 '폐기'로 변경될 때만 로그 남기기
         if data['status'] == "폐기":
-            log_disposal(serial, data['detail_spec'], data.get('worker', ''))
+            log_disposal(serial, data['spec_detail'], data.get('worker', ''))
         
     if st.button("✅ 최종 확정 및 저장"):
         final_note = data['note']
