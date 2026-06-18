@@ -1538,16 +1538,13 @@ else:
         st.title("🔧 툴 상세 스펙 마스터 관리")
         st.write("관리자가 툴 규격을 설정하는 마스터 노트입니다.")
 
-        # 1. 툴 상세 스펙 등록 폼 (tool_inventory 연동)
+        # 1. 스펙 입력 폼 (st.form)
         with st.form("spec_builder_form"):
             st.subheader("🛠 상세 스펙 구성 (스펙 빌더)")
             
             cat_options = {"1": "1 (전착 - JUN)", "2": "2 (레진 - REJ)", "3": "3 (메탈 - MET)", "4": "4 (코어 - COR)"}
             main_cat_display = st.selectbox("툴 대분류 선택", list(cat_options.values()))
             
-            main_code = main_cat_display.split(" ")[0] 
-            main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
-
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 d_val = st.number_input("지름(D)", min_value=0, step=1)
@@ -1561,17 +1558,39 @@ else:
             with col4:
                 make_val = st.text_input("제조사 약자 (예: KI)")
 
-            # 실시간 조합 (form과 상관없이 값 변경 시 즉시 계산됨)
-            final_spec = "_".join([main_code, f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
-            st.info(f"생성된 상세 스펙: **{final_spec}**")
-            
-            # 등록 버튼만 form으로 감싸거나, 그냥 버튼으로 구현
-            if st.button("마스터 리스트 등록"):
-                db.tool_inventory.insert_one({
-                    "main_code": main_code,
-                    "main_type": main_type_eng,
-                    "spec_detail": final_spec,
-                    "make": make_val.upper()
-                })
-                st.success("등록 완료")
-                st.rerun()
+            # form 내부에 반드시 포함되어야 하는 제출 버튼
+            submit_btn = st.form_submit_button("마스터 리스트 등록")
+
+        # 2. 실시간 미리보기 (form 밖으로 배치하여 실시간 업데이트)
+        main_code = main_cat_display.split(" ")[0] 
+        main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
+        
+        final_spec = "_".join([main_code, f"D{int(d_val)}", f"{int(t_val)}T", f"{r_val}R", f"{int(a_val)}A", free_input, f"#{grit_val}", make_val.upper()])
+        st.info(f"생성된 상세 스펙: **{final_spec}**")
+
+        # 3. 버튼 클릭 시 DB 저장 처리
+        if submit_btn:
+            db.tool_inventory.insert_one({
+                "main_code": main_code,
+                "main_type": main_type_eng,
+                "spec_detail": final_spec,
+                "make": make_val.upper()
+            })
+            st.success("등록 완료")
+            st.rerun()
+
+        # 4. 등록된 마스터 리스트 조회 및 삭제
+        st.write("---")
+        st.subheader("📋 등록된 스펙 마스터 목록")
+        
+        specs = list(db.tool_inventory.find({}))
+        if not specs:
+            st.info("등록된 스펙이 없습니다.")
+        else:
+            for s in specs:
+                with st.expander(f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"):
+                    st.write(f"제조사: {s.get('make', 'N/A')}")
+                    # 폼 밖의 일반 버튼은 삭제 기능에 사용 가능
+                    if st.button("삭제", key=f"del_{s['_id']}"):
+                        db.tool_inventory.delete_one({"_id": s['_id']})
+                        st.rerun()
