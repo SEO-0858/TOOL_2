@@ -58,7 +58,7 @@ def confirm_mobile_spec_change(new_spec, serial_no):
         current_status = existing_data.get("status")
         if current_status in ["사용전", "재사용대기"]:
             # 기존 스펙에서 빼기
-            update_inventory_count(existing_data.get("detail_spec"), current_status, "폐기") 
+            update_inventory_count(existing_data.get("spec_detail"), current_status, "폐기") 
             # 신규 스펙에 더하기 (폐기/사용중을 거쳐 다시 상태가 돌아가는 개념으로 처리)
             update_inventory_count(new_spec, "폐기", current_status)
         # 1. DB 업데이트
@@ -364,7 +364,7 @@ def render_tool_ui(item, color_hex, status_label, db_status):
             👤 <b>작업자:</b> {worker_name}
         </div>
         <div style="font-size: 12px; color: #666; margin-top: 2px;">
-            🛠 {item.get('detail_spec', '-')}
+            🛠 {item.get('spec_detail', '-')}
         </div>
         <hr style="margin: 5px 0;">
         <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
@@ -664,12 +664,12 @@ def confirm_and_save(serial, data):
         final_note = data['note']
         if data['status'] != data['prev_status']:
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['detail_spec']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
+            log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
             if qty > 0: log += f", 최종수량:{qty}개"
             final_note += log
 
         # 재고 계산 함수 호출
-        update_inventory_count(data['detail_spec'], data['prev_status'], data['status'])
+        update_inventory_count(data['spec_detail'], data['prev_status'], data['status'])
 
         db_collection.update_one(
             {"serial_no": serial},
@@ -680,7 +680,7 @@ def confirm_and_save(serial, data):
                 "dressing_hours": data['dressing_hours'],
                 "dressing_mins": data['dressing_mins'],
                 "note": final_note,
-                "detail_spec": data['detail_spec'],
+                "spec_detail": data['spec_detail'],
                 "start_time": data['start_time'],
                 "target_time": data['target_time']
             }},
@@ -1405,7 +1405,7 @@ else:
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
                                             "note": final_note_val,
-                                            "detail_spec": new_spec
+                                            "spec_detail": new_spec
                                         }}
                                     )
                                     st.session_state[edit_key] = False
