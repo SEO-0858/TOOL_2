@@ -15,6 +15,23 @@ import pytz
 st.cache_data.clear()
 
 
+#재고 계산기 함수_________________________________________________________________________
+
+def update_inventory_count(spec_detail, old_status, new_status):
+    # 재고 관리 컬렉션 연결 (db_collection이 정의된 곳에서 불러옵니다)
+    col = db_collection.database['tool_specs_master']
+    
+    # 1. 이전 상태에서 재고 하나 빼기 (-1)
+    if old_status in ["사용전", "재사용대기"]:
+        field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
+        col.update_one({"spec_detail": spec_detail}, {"$inc": {field: -1}}, upsert=True)
+    
+    # 2. 새 상태에서 재고 하나 더하기 (+1)
+    if new_status in ["사용전", "재사용대기"]:
+        field = "new_tool_count" if new_status == "사용전" else "used_tool_count"
+        col.update_one({"spec_detail": spec_detail}, {"$inc": {field: 1}}, upsert=True)
+
+
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
 @st.dialog("상세 스펙 변경 확인")
@@ -22,6 +39,14 @@ def confirm_mobile_spec_change(new_spec, serial_no):
     st.write(f"정말로 스펙을 **{new_spec}**(으)로 변경하시겠습니까?")
     
     if st.button("확정"):
+        # 1. 재고 갱신: 기존 스펙은 -1, 신규 스펙은 +1
+        # 주의: 현재 상태가 '사용전'이나 '재사용대기'인 경우에만 재고로 카운트합니다.
+        current_status = existing_data.get("status")
+        if current_status in ["사용전", "재사용대기"]:
+            # 기존 스펙에서 빼기
+            update_inventory_count(existing_data.get("detail_spec"), current_status, "폐기") 
+            # 신규 스펙에 더하기 (폐기/사용중을 거쳐 다시 상태가 돌아가는 개념으로 처리)
+            update_inventory_count(new_spec, "폐기", current_status)
         # 1. DB 업데이트
         db_collection.update_one(
             {"serial_no": serial_no},
@@ -624,7 +649,10 @@ def confirm_and_save(serial, data):
             log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['detail_spec']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
             if qty > 0: log += f", 최종수량:{qty}개"
             final_note += log
-            
+
+        # 재고 계산 함수 호출
+        update_inventory_count(data['detail_spec'], data['prev_status'], data['status'])
+
         db_collection.update_one(
             {"serial_no": serial},
             {"$set": {
