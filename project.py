@@ -711,10 +711,11 @@ if qr_scanned_serial:
         specs = list(db_inventory.find({"main_type": target_type}))
         st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록:")
         for s in specs:
-            st.write(f"- {s.get('spec_detail')}")
-        
-        st.stop() #
-
+            # 버튼을 누르면 그 스펙이 선택되도록 만듭니다.
+            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
+                # [여기가 핵심] 버튼을 누르면 일단 임시로 세션에 저장합니다.
+                st.session_state['selected_spec'] = s.get('spec_detail')
+                st.rerun() # 화면을 다시 그려서 다음 단계를 보여줍니다.
 
 
                 
