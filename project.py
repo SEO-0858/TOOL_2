@@ -1579,9 +1579,9 @@ else:
         # 3. 리스트 조회
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
-        specs = list(db.tool_inventory.find({}))
+        specs = list(db.find({}))
         for s in specs:
             with st.expander(f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"):
                 if st.button("삭제", key=f"del_{s['_id']}"):
-                    db.tool_inventory.delete_one({"_id": s['_id']})
+                    db.delete_one({"_id": s['_id']})
                     st.rerun()
