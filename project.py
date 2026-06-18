@@ -704,10 +704,18 @@ if qr_scanned_serial:
         # 시리얼로 툴 타입 파싱
         prefix = qr_scanned_serial[0]
         type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
-        tool_type = type_map.get(prefix)
-        
+        #tool_type = type_map.get(prefix)
+        target_type = type_map.get(prefix)
         # inventory에서 스펙 가져오기
-        specs = list(db_inventory.find({"tool_type": tool_type}))
+        #specs = list(db_inventory.find({"tool_type": tool_type}))
+        specs = list(db_inventory.find({"main_type": target_type}))
+        st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록:")
+        for s in specs:
+            st.write(f"- {s.get('spec_detail')}")
+        
+        st.stop() #
+
+
 
                 
         # 스펙 선택 버튼 루프 부분
