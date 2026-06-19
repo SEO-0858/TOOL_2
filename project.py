@@ -13,6 +13,9 @@ import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능
 from datetime import timedelta
 import pytz
 import mong
+
+
+
 st.cache_data.clear()
 
 
@@ -673,7 +676,7 @@ def confirm_and_save(serial, data):
             st.warning(f"🔄 알림: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 상태가 변경됩니다.")
     else:
         st.info(f"현재 상태 유지: [ {data['status']} ]")
-
+    reason = data.get('disposal_reason', '사유 없음')
     st.markdown("---")
     # 2. 요약 정보
     st.write(f"- **작업자:** {data['worker']}")
