@@ -723,7 +723,7 @@ def confirm_and_save(serial, data):
             upsert=True
         )
         st.success("✅ 저장 완료되었습니다!")
-        time.sleep(1.5) 
+        time.sleep(1.0) 
         st.session_state['show_confirm_dialog'] = False
         st.rerun()
 
