@@ -16,6 +16,28 @@ import mong
 st.cache_data.clear()
 
 
+@st.dialog("🛠 신규 툴 등록 최종 확인")
+def confirm_new_tool_registration(serial, spec, make):
+    st.write(f"### ⚠️ 아래 정보로 등록하시겠습니까?")
+    st.write(f"- **시리얼:** `{serial}`")
+    st.write(f"- **스펙:** {spec}")
+    st.write(f"- **제조사:** {make}")
+    
+    if st.button("✅ 최종 확정 등록"):
+        # 기존 저장 로직
+        db_collection.update_one(
+            {"serial_no": serial},
+            {"$set": {"spec_detail": spec, "make": make}}
+        )
+        update_inventory_count(spec, make, "폐기", "사용전")
+        
+        st.success("🎉 등록 완료!")
+        del st.session_state['selected_spec']
+        st.session_state['show_reg_popup'] = False
+        time.sleep(1)
+        st.rerun()
+
+
 #폐기된 툴의 정보 함수----------------------------------------------------------------------------
 def log_disposal(serial_no, spec_detail, worker,reason):
     col = db_collection.database['disposal_logs']
@@ -658,6 +680,8 @@ def confirm_and_save(serial, data):
     st.write(f"- **기계 호기:** {data['machine_no']}")
     st.write(f"- **세부 스펙:** {data['spec_detail']}")
     st.write(f"- **설정 주기:** {data['dressing_hours']}시간 {data['dressing_mins']}분")
+    st.write(f"- 작업자: {data['worker']}")
+    st.write(f"- 폐기 사유: {reason}")
     
     qty = 0
     if data['status'] in ["폐기", "재사용대기"]:
@@ -747,21 +771,16 @@ if qr_scanned_serial:
                 selected_make = st.selectbox("제조사 선택", available_makers, key="maker_select")
                 
                 # 6) 최종 등록 버튼
+
                 if st.button("🚀 상세 스펙 및 제조사 확정 후 재고 등록"):
-                    # DB 저장 (스펙 및 제조사 업데이트)
-                    db_collection.update_one(
-                        {"serial_no": qr_scanned_serial},
-                        {"$set": {"spec_detail": selected_spec, "make": selected_make}}
-                    )
-                    
-                    update_inventory_count(selected_spec, selected_make, "폐기", "사용전")                 
-                    st.success(f"🎉 [{selected_spec} / {selected_make}] 등록 완료!")
-                    # 세션 초기화 및 새로고침
-                    del st.session_state['selected_spec']
-                    time.sleep(1)
+                    st.session_state['show_reg_popup'] = True
                     st.rerun()
 
-        st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
+                # 팝업 호출 트리거
+                if st.session_state.get('show_reg_popup'):
+                    confirm_new_tool_registration(qr_scanned_serial, selected_spec, selected_make)
+
+                st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
 
 
                 
@@ -864,9 +883,13 @@ if qr_scanned_serial:
         # [수정된 부분] 버튼을 누르면 데이터를 세션에 임시 저장하고 팝업 플래그를 켭니다.
         if st.button("데이터 확인 및 저장"):
             st.session_state['confirm_data'] = {
-                'status': u_status, 'prev_status': prev_status, 'worker': u_worker,
-                'machine_no': f'{u_machine}호기', 'spec_detail': u_spec,
-                'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
+                'status': u_status,
+                'prev_status': prev_status,
+                'worker': u_worker,
+                'machine_no': f'{u_machine}호기', 
+                'spec_detail': u_spec,
+                'dressing_hours': u_h, 'dressing_mins': u_m, 
+                'note': u_note,
                 'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
                 'make': existing_data.get('make', ''),
                 'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
