@@ -843,34 +843,32 @@ if qr_scanned_serial:
    
     
     # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
-    st.markdown("### 🛠 상세 스펙 확인 및 수정")
-    edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
+    # st.markdown("### 🛠 상세 스펙 확인 및 수정")
+    # edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
 
-    # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
-    type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
-    first_char = qr_scanned_serial[0] if qr_scanned_serial else ''
-    target_type = type_map.get(first_char)
+    # # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
+    # type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
+    # first_char = qr_scanned_serial[0] if qr_scanned_serial else ''
+    # target_type = type_map.get(first_char)
 
-    # 2. 분류에 맞는 스펙만 필터링해서 가져오기
-    # tool_inventory 컬렉션에서 'tool_type' 필드가 target_type과 일치하는 것만 찾음
-    query = {"tool_type": target_type} if target_type else {}
-    spec_master_list = list(db_collection.database["tool_inventory"].find(query))
-    spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')]
+    # # 2. 분류에 맞는 스펙만 필터링해서 가져오기
+    # # tool_inventory 컬렉션에서 'tool_type' 필드가 target_type과 일치하는 것만 찾음
+    # query = {"tool_type": target_type} if target_type else {}
+    # spec_master_list = list(db_collection.database["tool_inventory"].find(query))
+    # spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')]
 
-    # 중복 제거
-    spec_opts = sorted(list(set(spec_opts)))
+    # # 중복 제거
+    # spec_opts = sorted(list(set(spec_opts)))
 
-    # 3. 현재 저장된 값 불러오기
-    current_spec = st.session_state.get('new_spec', existing_data.get('spec_detail', '스펙없음'))
+    # # 3. 현재 저장된 값 불러오기
+    # current_spec = st.session_state.get('new_spec', existing_data.get('spec_detail', '스펙없음'))
 
-    if not edit_mode:
-        st.info(f"현재 등록된 스펙: **{current_spec}**")
-        u_spec = current_spec 
-    else:
-        u_spec = st.selectbox("변경할 스펙 선택", spec_opts, index=idx)
-
-    
-    st.divider()
+    # if not edit_mode:
+    #     st.info(f"현재 등록된 스펙: **{current_spec}**")
+    #     u_spec = current_spec 
+    # else:
+    #     u_spec = st.selectbox("변경할 스펙 선택", spec_opts, index=idx) 
+    # st.divider()
     
     st.markdown("### ⏳ 드레싱 및 특이사항")
     c1, c2 = st.columns(2)
