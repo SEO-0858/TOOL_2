@@ -681,7 +681,7 @@ def confirm_and_save(serial, data):
     # 2. 요약 정보
     st.write(f"- **작업자:** {data['worker']}")
     st.write(f"- **기계 호기:** {data['machine_no']}")
-    st.write(f"- **세부 스펙:** {data['spec_detail']}")
+    st.write(f"- **세부 스펙:** {data.get('spec_detail', '스펙 정보 없음')}")
     st.write(f"- **설정 주기:** {data['dressing_hours']}시간 {data['dressing_mins']}분")
 
 
