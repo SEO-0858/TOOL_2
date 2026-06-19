@@ -17,7 +17,7 @@ st.cache_data.clear()
 
 
 #폐기된 툴의 정보 함수----------------------------------------------------------------------------
-def log_disposal(serial_no, spec_detail, worker):
+def log_disposal(serial_no, spec_detail, worker,reason):
     col = db_collection.database['disposal_logs']
     if col.find_one({"serial_no": serial_no}) is None:
         db_collection.database['disposal_logs'].insert_one({
