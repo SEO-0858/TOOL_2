@@ -1615,8 +1615,8 @@ else:
         main_code = main_cat_display.split(" ")[0] 
         main_type_eng = main_cat_display.split("- ")[1].replace(")", "").strip()
         parts = []
-        parts.append(f"D(d_val)")
-        parts.append(f"(t_val)T")
+        parts.append(f"D{float(d_val)}")
+        parts.append(f"{float(t_val)}T")
         
         # R값이 0보다 클 때만 목록에 추가
         if r_val > 0:
