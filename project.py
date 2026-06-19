@@ -865,7 +865,7 @@ if qr_scanned_serial:
 
     # if not edit_mode:
     #     st.info(f"현재 등록된 스펙: **{current_spec}**")
-    #     u_spec = current_spec 
+    u_spec = current_spec 
     # else:
     #     u_spec = st.selectbox("변경할 스펙 선택", spec_opts, index=idx) 
     # st.divider()
@@ -892,7 +892,7 @@ if qr_scanned_serial:
             'prev_status': prev_status,
             'worker': u_worker,
             'machine_no': f'{u_machine}호기', 
-            #'spec_detail': u_spec,
+            'spec_detail': u_spec,
             'dressing_hours': u_h, 'dressing_mins': u_m, 
             'note': u_note,
             'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
