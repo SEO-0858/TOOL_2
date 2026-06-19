@@ -722,9 +722,10 @@ def confirm_and_save(serial, data):
             }},
             upsert=True
         )
+        st.success("✅ 저장 완료되었습니다!")
+        time.sleep(1.5) 
         st.session_state['show_confirm_dialog'] = False
-        st.toast("✅ 저장 완료되었습니다!")
-        st.rerun() # 팝업을 닫고 메인 화면으로 복귀
+        st.rerun()
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
