@@ -23,6 +23,7 @@ def log_disposal(serial_no, spec_detail, worker):
         db_collection.database['disposal_logs'].insert_one({
             "serial_no": serial_no,
             "spec_detail": spec_detail,
+            "reason": reason,
             "worker": worker,
             "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
         })
@@ -663,9 +664,8 @@ def confirm_and_save(serial, data):
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
 
     # 상태가 '폐기'로 변경될 때만 로그 남기기
-        if data['status'] == "폐기":
-            log_disposal(serial, data['spec_detail'], data.get('worker', ''))
-        
+        if data['status'] == "폐기":           
+            log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
     if st.button("✅ 최종 확정 및 저장"):
         final_note = data['note']
         if data['status'] != data['prev_status']:
@@ -796,6 +796,11 @@ if qr_scanned_serial:
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
     u_status = st.radio("상태를 선택하세요", status_options, index=idx, horizontal=True)
+   
+    u_disposal_reason = "" 
+    if u_status == "폐기":
+        u_disposal_reason = st.text_input("⚠️ 폐기 사유 입력")
+
     
     st.divider()
     
@@ -864,7 +869,8 @@ if qr_scanned_serial:
                 'dressing_hours': u_h, 'dressing_mins': u_m, 'note': u_note,
                 'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
                 'make': existing_data.get('make', ''),
-                'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S')
+                'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
+                'disposal_reason': u_disposal_reason
             }
             st.session_state['show_confirm_dialog'] = True
             st.rerun() # 팝업을 띄우기 위해 화면 새로고침
