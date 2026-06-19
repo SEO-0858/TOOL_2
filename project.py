@@ -880,34 +880,34 @@ if qr_scanned_serial:
 
     # 1. 수정 모드일 때: [스펙 교체하기] 버튼 따로 생성
     # [하단부: 3단계 버튼 로직]
-    if edit_mode:
-        # 수정 모드일 때는 교체 버튼만 보임
-        if st.button("🔄 상세 스펙 교체하기"):
-            confirm_mobile_spec_change(u_spec, qr_scanned_serial)
-    else:
-        # [수정된 부분] 버튼을 누르면 데이터를 세션에 임시 저장하고 팝업 플래그를 켭니다.
-        if st.button("데이터 확인 및 저장"):
-            st.session_state['confirm_data'] = {
-                'status': u_status,
-                'prev_status': prev_status,
-                'worker': u_worker,
-                'machine_no': f'{u_machine}호기', 
-                'spec_detail': u_spec,
-                'dressing_hours': u_h, 'dressing_mins': u_m, 
-                'note': u_note,
-                'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
-                'make': existing_data.get('make', ''),
-                'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
-                'disposal_reason': u_disposal_reason
-            }
-            st.session_state['show_confirm_dialog'] = True
-            st.rerun() # 팝업을 띄우기 위해 화면 새로고침
+    # if edit_mode:
+    #     # 수정 모드일 때는 교체 버튼만 보임
+    #     if st.button("🔄 상세 스펙 교체하기"):
+    #         confirm_mobile_spec_change(u_spec, qr_scanned_serial)
+    # else:
+    #     # [수정된 부분] 버튼을 누르면 데이터를 세션에 임시 저장하고 팝업 플래그를 켭니다.
+    if st.button("데이터 확인 및 저장"):
+        st.session_state['confirm_data'] = {
+            'status': u_status,
+            'prev_status': prev_status,
+            'worker': u_worker,
+            'machine_no': f'{u_machine}호기', 
+            #'spec_detail': u_spec,
+            'dressing_hours': u_h, 'dressing_mins': u_m, 
+            'note': u_note,
+            'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
+            'make': existing_data.get('make', ''),
+            'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
+            'disposal_reason': u_disposal_reason
+        }
+        st.session_state['show_confirm_dialog'] = True
+        st.rerun() # 팝업을 띄우기 위해 화면 새로고침
 
-        # [추가된 부분] 팝업 호출 트리거
-        if st.session_state.get('show_confirm_dialog'):
-            confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
-    if st.button("🏠 메인으로 돌아가기"):
-        st.query_params.clear(); st.rerun()
+    # [추가된 부분] 팝업 호출 트리거
+    if st.session_state.get('show_confirm_dialog'):
+        confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
+if st.button("🏠 메인으로 돌아가기"):
+    st.query_params.clear(); st.rerun()
 
 # --- 💻 [PC 관리자 모드] -----------------------------------------------------------------------------------------------------------------------------
 else:
