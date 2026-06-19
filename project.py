@@ -1600,7 +1600,7 @@ else:
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            d_val = st.number_input("지름(D)", min_value=0, step=0.01 format="%.2f")
+            d_val = st.number_input("지름(D)", min_value=0, step=0.01, format="%.2f")
             t_val = st.number_input("두께(T)", min_value=0, step=1)
         with col2:
             r_val = st.number_input("반경(R)", min_value=0.0, step=0.1, format="%.1f")
