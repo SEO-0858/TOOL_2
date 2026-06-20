@@ -1102,7 +1102,6 @@ else:
 
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
-        st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **편집 및 초기화**를 진행할 수 있습니다.")
         st.write("<br>", unsafe_allow_html=True)
         
         # 1. 검색 필터
@@ -1119,12 +1118,18 @@ else:
         st.write("<br>", unsafe_allow_html=True)
         
         try:
-            # 데이터 로드 (tools_management 컬렉션 사용)
-            all_data = list(db.tools_management.find({}).sort("serial_no", -1))
+            # DB 연결 (선생님 코드 스타일 유지)
+            mongo_uri = st.secrets["database"]["MONGO_URI"]
+            client = MongoClient(mongo_uri)
+            db = client["dashboard_db"]
+            
+            # 데이터 조회 (tools_management 컬렉션)
+            all_data = list(db["tools_management"].find({}).sort("serial_no", -1))
+            
             if not all_data:
                 st.info("조회할 데이터가 없습니다.")
             else:
-                # 필터링 로직
+                # 필터링
                 filtered_data = []
                 for item in all_data:
                     item_status = item.get("status", "사용전")
@@ -1164,42 +1169,41 @@ else:
                             st.divider()
                             st.subheader("🛠 데이터 관리")
                             
-                            # [버튼 1] 현장 작업 내용만 초기화 (재고 변동 없음)
+                            # [버튼 1] 현장 작업 내용만 초기화
                             if st.button(f"🔄 현장 작업 내용만 리셋", key=f"reset_work_{s_no}"):
-                                db.tools_management.update_one({"serial_no": s_no}, {"$set": {
+                                db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
                                     "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0, 
                                     "dressing_mins": 0, "start_time": "-", "target_time": "-", "note": "작업 내용 리셋"
                                 }})
-                                st.success("✅ 작업 이력이 초기화되었습니다.")
+                                st.success("✅ 완료")
                                 st.rerun()
 
-                            # [버튼 2] 스펙 오류 삭제 및 재고 보정 (tool_inventory의 new_tool_count 보정)
+                            # [버튼 2] 스펙 오류 삭제 및 재고 보정
                             if st.button(f"🗑️ [스펙 오류] 삭제 및 재고 보정", key=f"reset_spec_{s_no}", type="primary"):
                                 st.session_state[f"confirm_spec_{s_no}"] = True
                             
                             if st.session_state.get(f"confirm_spec_{s_no}", False):
-                                st.warning(f"⚠️ [{s_no}] 스펙 오류입니까? 선택한 스펙 재고가 -1 차감됩니다.")
+                                st.warning(f"⚠️ [{s_no}] 스펙 오류입니까? 재고가 -1 차감됩니다.")
                                 c1, c2 = st.columns(2)
                                 if c1.button("✅ 진짜 진행", key=f"do_spec_{s_no}"):
                                     current_spec = item.get("spec_detail")
-                                    # 1. 재고 보정: tool_inventory의 new_tool_count 차감 (-1)
+                                    # 재고 보정 (tool_specs_master)
                                     if current_spec:
-                                        db.tool_inventory.update_one(
+                                        db["tool_specs_master"].update_one(
                                             {"spec_detail": current_spec},
                                             {"$inc": {"new_tool_count": -1}}
                                         )
-                                    # 2. 데이터 초기화: tools_management 수정
-                                    db.tools_management.update_one({"serial_no": s_no}, {"$set": {
+                                    # 데이터 초기화 (tools_management)
+                                    db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
                                         "status": "사용전", "spec_detail": None, "worker": "", "machine_no": "", 
                                         "note": "스펙 오류로 삭제 및 재고 보정 완료"
                                     }})
                                     st.session_state[f"confirm_spec_{s_no}"] = False
-                                    st.success("💥 삭제 완료! 재고가 보정되었습니다.")
+                                    st.success("💥 완료!")
                                     st.rerun()
                                 if c2.button("취소", key=f"cancel_spec_{s_no}"):
                                     st.session_state[f"confirm_spec_{s_no}"] = False
                                     st.rerun()
-
         except Exception as e:
             st.error(f"데이터 로드 에러: {e}")
 
