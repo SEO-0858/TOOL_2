@@ -1361,6 +1361,8 @@ else:
                                     new_spec = st.session_state.get(f'temp_spec_{s_no}', old_spec)
                                     if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
+                                    if f"스펙: {ed_spec}" not in ed_note:  # 중복 기록 방지
+                                        ed_note += f"\n[상세 스펙: {ed_spec}]"
                                     else:
                                         log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
                                             # 상태나 스펙이 바뀌었을 때 로그 메시지 생성
