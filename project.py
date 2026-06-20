@@ -1183,7 +1183,7 @@ else:
                         
 
                         with st.expander(expander_title):
-                            # 2. 정보 표시 (입력창/버튼 없이 표시만)
+                      
                             col_x, col_y = st.columns(2)
                             with col_x:
                                 st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
@@ -1204,7 +1204,10 @@ else:
 
 
                                     
-                                # 사용전 완전 복구용 초기화 시스템 배치
+                    # 사용전 완전 복구용 초기화 시스템 배치
+
+
+                            
                             st.divider()
                             st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
                             st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
@@ -1255,10 +1258,9 @@ else:
                                     st.rerun()
 
                          
-                        if st.button("❌ 창 닫기", key=f"cancel_{s_no}"):
-                            st.session_state.edit_serial = None # 상세창 닫기 트리거
-                            st.rerun() # 새로고침으로 깔끔하게 Expander 닫힘     
-                     
+                                if st.button("❌ 창 닫기", key=f"close_{s_no}"):
+                                    st.session_state.edit_serial = None # 상세창 닫기 트리거
+                                    st.rerun()    
 
                                 
         except Exception as e:
