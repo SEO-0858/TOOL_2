@@ -759,8 +759,8 @@ if qr_scanned_serial:
                 first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
                 btn_key = f"btn_{spec_detail}"
                 if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
-                        st.session_state['selected_spec'] = spec_detail
-                        st.rerun()
+                    st.session_state['selected_spec'] = spec_detail
+                    st.rerun()
 
             # 5) 선택 시 제조사 드롭다운 보여주기
             if 'selected_spec' in st.session_state:
@@ -789,7 +789,7 @@ if qr_scanned_serial:
 
                 
         # 스펙 선택 버튼 루프 부분
-   
+        # [스펙 선택 버튼 루프 수정]
         for s in specs:
             spec_name = s.get('spec_detail')
             make_name = s.get('make') # make 값을 가져옵니다
