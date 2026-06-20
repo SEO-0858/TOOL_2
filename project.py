@@ -1360,20 +1360,23 @@ else:
                                     old_spec = item.get('spec_detail', ' ')
                                     new_spec = st.session_state.get(f'temp_spec_{s_no}', old_spec)
                                     final_note_val = ed_note.strip()
-                                    if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
-                                        final_note_val = ed_note.strip()
-                                    if f"스펙: {ed_spec}" not in ed_note:  # 중복 기록 방지
-                                        ed_note += f"\n[상세 스펙: {ed_spec}]"
-                                    else:
-                                        log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
-                                            # 상태나 스펙이 바뀌었을 때 로그 메시지 생성
-                                        change_msg = f" 상태: {ed_status}"
-                                        if old_spec != new_spec:
-                                            change_msg += f", (스펙: {old_spec} -> {new_spec})"
-                        
-                                        auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
-                                        final_note_val = ed_note.strip() + auto_log_msg
-                                        st.write(f"--- [최종 점검] DB 저장 직전 ed_status 값: {ed_status} ---")
+                                    
+                                    # 1. 기본 기록 생성 (상태 변화)
+                                    log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                                    change_msg = f" 상태: {ed_status}"
+
+                                    # 2. 스펙 변경 체크 및 기록
+                                    if old_spec != new_spec:
+                                        change_msg += f", (스펙 변경: {old_spec} -> {new_spec})"
+
+                                    # 3. 상세 스펙이 기록에 없다면 추가
+                                    if f"상세 스펙: {ed_spec}" not in final_note_val:
+                                        final_note_val += f"\n[상세 스펙: {ed_spec}]"
+
+                                    # 4. 로그 메시지 결합
+                                    auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
+                                    final_note_val += auto_log_msg
+
                                     db_collection.update_one(
                                         {"serial_no": s_no},
                                         {"$set": {
