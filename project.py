@@ -1260,6 +1260,7 @@ else:
                                     time.sleep(1)
                                     st.rerun()
                             if st.button("❌ 창 닫기", key=f"close_{s_no}"):
+                                time.sleep(1.5)
                                 st.session_state[f"open_{s_no}"] = False # 스위치를 끕니다
                                 st.rerun()
                                                     
