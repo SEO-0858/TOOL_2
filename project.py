@@ -783,17 +783,44 @@ if qr_scanned_serial:
                         # 팝업 호출을 위해 세션 상태에 저장
                         st.session_state['confirm_save'] = True
 
-                # 팝업 확인 로직
+            
+                # [단계 3] 팝업 확인창: 강조 및 명확한 레이아웃
                 if st.session_state.get('confirm_save'):
-                    st.warning(f"⚠️ {selected_spec} ({selected_make})로 저장하시겠습니까?")
-                    if st.button("✅ 진짜 저장"):
-                        # 1. 재고 처리
-                        update_inventory_count(selected_spec, selected_make, "사용전", "사용중")
-                        # 2. DB 업데이트
-                        db_collection.update_one({"serial_no": qr_scanned_serial}, {"$set": {"spec_detail": selected_spec, "make": selected_make, "status": "사용중"}})
-                        st.success("🎉 저장 완료!")
-                        del st.session_state['confirm_save'] # 상태 초기화
+                    final_spec = st.session_state.get('selected_spec')
+                    final_make = st.session_state.get('maker_select')
+                    
+                    # 1. 팝업창을 강조하는 경고창 스타일
+                    st.markdown("---")
+                    st.error("⚠️ **작업 내용을 최종 확인해주세요!**")
+                    
+                    # 2. 선택된 정보를 큰 박스에 담아 강조
+                    with st.container(border=True): # 테두리 박스로 감싸서 눈에 띄게 함
+                        st.write("### 📌 등록 정보 확인")
+                        col1, col2 = st.columns(2)
+                        col1.metric("상세 스펙", final_spec)
+                        col2.metric("제조사", final_make)
+                        
+                    st.write("위 내용이 정확하다면 **[진짜 저장]**을 눌러주세요.")
+                    
+                    # 3. 버튼 위치도 명확하게 조정
+                    c1, c2 = st.columns([1, 1])
+                    if c1.button("✅ 진짜 저장", type="primary"): # primary 스타일로 강조
+                        # 재고 관리 및 DB 저장 로직 수행
+                        update_inventory_count(final_spec, final_make, "사용전", "사용중")
+                        db_collection.update_one(
+                            {"serial_no": qr_scanned_serial},
+                            {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용중"}}
+                        )
+                        st.success("🎉 성공적으로 저장되었습니다!")
+                        # 상태 초기화
+                        for key in ['confirm_save', 'selected_spec', 'maker_select']:
+                            if key in st.session_state: del st.session_state[key]
                         st.rerun()
+                        
+                    if c2.button("취소"):
+                        st.session_state['confirm_save'] = False
+                        st.rerun()
+                    st.markdown("---")
 
               
 
