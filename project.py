@@ -1357,7 +1357,7 @@ else:
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
 
-                                    old_spec = item.get('detail_spec', ' ')
+                                    old_spec = item.get('spec_detail', ' ')
                                     if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
                                     else:
@@ -1383,7 +1383,7 @@ else:
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
                                             "note": final_note_val,
-                                            "detail_spec": ed_spec
+                                            "spec_detail": ed_spec
                                         }}
                                     )
                                     st.session_state[edit_key] = False
