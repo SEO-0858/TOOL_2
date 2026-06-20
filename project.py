@@ -751,13 +751,15 @@ if qr_scanned_serial:
             st.error(f"❌ '{target_type}' 타입에 해당하는 스펙 데이터가 없습니다.")
         else:
             # 3) 중복 제거된 스펙 리스트 만들기
-            unique_spec_names = sorted(list(set([s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')])))
+            unique_spec_names = sorted(list(set([s.get('spec_detail') for s in specs if s.get('spec_detail')])))
+            
             st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
 
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
-                first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                btn_key = f"btn_{spec_detail}"
+                first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
+                btn_key = f"btn_{first_doc['_id']}"
+                
                 if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
                     st.session_state['selected_spec'] = spec_detail
                     st.rerun()
@@ -787,43 +789,28 @@ if qr_scanned_serial:
                 st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
 
 
-     
-        # [수정된 스펙 선택 버튼 루프 부분]
-    for s in specs:
-        spec_name = s.get('spec_detail')
-        make_name = s.get('make')
-        
-        # 데이터베이스의 고유 식별자(_id)를 문자열로 가져옵니다.
-        doc_id = str(s.get('_id')) 
-        
-        if not spec_name: continue
+                
+        # 스펙 선택 버튼 루프 부분
+        for s in specs:
+            # 버튼 클릭 시 동작
+            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
+                existing_spec = existing_data.get('spec_detail')
+                if existing_spec and existing_spec != '정보없음':
+                    # 기존에 설정된 상태가 있다면 그 상태에서 -1 (보통 '사용전')
+                    update_inventory_count(existing_spec, existing_data.get('status', '사용전'), "폐기")
 
-        # [핵심 수정] key에 doc_id를 사용하여 유니크한 키값 생성
-        if st.button(f"🛠 선택: {spec_name}", key=f"btn_{doc_id}"):
-            existing_spec = existing_data.get('spec_detail')
-            existing_make = existing_data.get('make')
-            current_status = existing_data.get('status', '사용전')
+                # --- [여기 추가] 2단계: 새로 선택한 스펙에 +1 ---
+                update_inventory_count(s.get('spec_detail'), "폐기", "사용전")
 
-            # 1. 기존 스펙이 있었다면 복구 (+1)
-            if existing_spec and existing_spec != '정보없음':
-                update_inventory_count(existing_spec, existing_make, current_status, "사용전")
-            
-            # 2. 새로 선택한 스펙 차감 (-1)
-            update_inventory_count(spec_name, make_name, "사용전", "사용중")
-            
-            # 3. DB 업데이트
-            db_collection.update_one(
-                {"serial_no": qr_scanned_serial},
-                {"$set": {
-                    "spec_detail": spec_name,
-                    "make": make_name,
-                    "status": "사용중"
-                }}
-            )
-            
-            st.toast(f"✅ {spec_name} 저장 완료!", icon="✅")
-            time.sleep(0.5)
-            st.rerun()
+                # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
+                db_collection.update_one(
+                    {"serial_no": qr_scanned_serial},
+                    {"$set": {"spec_detail": s.get('spec_detail')}}
+                )
+                # 2. 강제 새로고침
+                st.toast("✅ 스펙이 저장되었습니다!", icon="🎉")
+                time.sleep(0.5) # 잠시 대기
+                st.rerun() # 새로고침되어 기입창으로 진입
 
         st.stop()        
 
