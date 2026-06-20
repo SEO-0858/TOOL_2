@@ -61,26 +61,22 @@ def log_disposal(serial_no, spec_detail, worker,reason):
 #재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
 def update_inventory_count(spec_detail, make, old_status, new_status):
-    global db
-    col = db['tool_specs_master']
-    #col = db.collection.database['tool_specs_master']
+    # 재고 관리 컬렉션 연결 (db_collection이 정의된 곳에서 불러옵니다)
+    col = db_collection.database['tool_specs_master']
     query = {"spec_detail": spec_detail, "make": make}
     
-    # 1. 기존 재고 차감 로직
-    target_field = None
     if old_status in ["사용전", "재사용대기"]:
-        # field를 여기서 확실하게 결정해줍니다
-        target_field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
-        col.update_one(query, {"$inc": {target_field: -1}}, upsert=True)
-
-    # 2. 폐기 처리 (별도 필드 사용하므로 문제없음)
+        field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
+        col.update_one(query, {"$inc": {field: -1}}, upsert=True)
+        
+    # 2. 새 상태가 '폐기'라면 폐기 수량 증가 (+1)
     if new_status == "폐기":
         col.update_one(query, {"$inc": {"disposed_tool_count": 1}}, upsert=True)
-
-    # 3. 새로운 상태 재고 추가 로직
+        
+    # 3. 새 상태에서 재고 하나 더하기 (+1)
     elif new_status in ["사용전", "재사용대기"]:
-        target_field = "new_tool_count" if new_status == "사용전" else "used_tool_count"
-        col.update_one(query, {"$inc": {target_field: 1}}, upsert=True)
+        field = "new_tool_count" if new_status == "사용전" else "used_tool_count"
+        col.update_one(query, {"$inc": {field: 1}}, upsert=True)
 
 # [2단계] 팝업창을 호출하는 함수 정의------------------------------------------------
 
@@ -801,15 +797,7 @@ if qr_scanned_serial:
                         
                 if st.button("✅ 진짜 저장", type="primary"):
                     # 오직 이 버튼을 눌러야만 DB 함수 호출
-                   
-                    update_inventory_count(final_spec, final_make, None, "사용중") 
-
-                    # 그런 다음, 즉시 재고를 +1 해주는 코드를 아래에 추가합니다.
-                    db_collection.update_one(
-                        {"spec_detail": final_spec, "make": final_make},
-                        {"$inc": {"new_tool_count": 1}},
-                        upsert=True
-                    )
+                    update_inventory_count(final_spec, final_make, "사용전", "사용중")
                     db_collection.update_one(
                         {"serial_no": qr_scanned_serial},
                         {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
