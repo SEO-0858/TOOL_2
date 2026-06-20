@@ -745,37 +745,21 @@ if qr_scanned_serial:
         target_type = type_map.get(prefix)
         
         # 2) 데이터 불러오기
-        mongo_uri = st.secrets["database"]["MONGO_URI"]
-        client = MongoClient(mongo_uri)
-        db = client["dashboard_db"]
-        inventory_col = db["tool_inventory"]
-        specs = list(inventory_col.find({"main_type": target_type}))
-        unique_specs = sorted({s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')})
-       
-
-        for i, spec_name in enumerate(unique_specs):
-    # 키에 인덱스(i)를 강제로 붙여서, 이름이 같아도 무조건 다른 키로 인식하게 함
-            btn_key = f"btn_{spec_name}_{i}"
+        specs = list(db_inventory.find({"main_type": target_type}))
         
-            if st.button(f"🛠 선택: {spec_name}", key=btn_key):
-                st.session_state['selected_spec'] = spec_name
-                st.rerun()
-      
-
-
         if not specs:
             st.error(f"❌ '{target_type}' 타입에 해당하는 스펙 데이터가 없습니다.")
         else:
             # 3) 중복 제거된 스펙 리스트 만들기
-            unique_spec_names = sorted(list(set([s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')])))
+            unique_spec_names = sorted(list(set([s.get('spec_detail') for s in specs if s.get('spec_detail')])))
+            
             st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
 
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
-                first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                make_val = first_doc.get('make', 'none')
-                btn_key = f"btn_{spec_detail.replace(' ', '_')}"
-                    
+                first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
+                btn_key = f"btn_{first_doc['_id']}"
+                
                 if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
                     st.session_state['selected_spec'] = spec_detail
                     st.rerun()
