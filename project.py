@@ -746,20 +746,7 @@ if qr_scanned_serial:
         
         # 2) 데이터 불러오기
         specs = list(db_inventory.find({"main_type": target_type}))
-        unique_spec_names = []
-        seen = set()
-
-        for s in specs:
-            # strip()으로 공백 제거하여 완벽하게 비교
-            name = s.get('spec_detail', '').strip()
-            # name이 존재하고, 아직 처리 안 된 이름일 때만 추가
-            if name and name not in seen:
-                unique_spec_names.append(name)
-                seen.add(name)
-        st.write(f"🔍 {target_type} 타입 스펙 목록 (총 {len(unique_spec_names)}개):")
-
-
-
+        
         if not specs:
             st.error(f"❌ '{target_type}' 타입에 해당하는 스펙 데이터가 없습니다.")
         else:
@@ -773,10 +760,10 @@ if qr_scanned_serial:
                 make_val = first_doc.get('make', 'none')
                 btn_key = f"btn_{spec_detail}_{make_val}"
                
-                if st.button(f"🛠 선택: {spec_detail} ({make_val})", key=btn_key):
-                        st.session_state['selected_spec'] = spec_detail
-                        st.session_state['selected_make'] = make_val # 제조사 정보도 저장
-                        st.rerun()
+            if st.button(f"🛠 선택: {spec_detail} ({make_val})", key=btn_key):
+                    st.session_state['selected_spec'] = spec_detail
+                    st.session_state['selected_make'] = make_val # 제조사 정보도 저장
+                    st.rerun()
 
             # 5) 선택 시 제조사 드롭다운 보여주기
             if 'selected_spec' in st.session_state:
