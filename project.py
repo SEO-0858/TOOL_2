@@ -580,6 +580,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
 # 🔴 [폐기 전환 팝업 대화창 정의]
 @st.dialog("🚨 툴 폐기 정보 및 사유 입력")
 def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
+    spec = st.session_state.get('temp_spec_for_waste', '정보없음')
     st.markdown("### 🗑️ 이 툴을 현장 폐기 처리합니다. 아래 정보를 입력하세요.")
     
     is_stored_waste = (from_status == "재사용대기")
@@ -1309,6 +1310,7 @@ else:
                                     # [3단계] 저장 버튼을 눌렀을 때만 폐기 사유 확인
                                     if ed_status == "폐기" and db_current_status in ["사용중", "사용전"]:
                                         if not st.session_state.get(f"temp_reason_{s_no}"):
+                                           st.session_state['temp_spec_for_waste'] = ed_spec
                                            show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
                                            st.stop()
                                     
