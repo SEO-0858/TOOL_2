@@ -808,8 +808,9 @@ if qr_scanned_serial:
                         if k in st.session_state: del st.session_state[k]
                     st.rerun()
 
-
-
+    if not existing_data.get('spec_detail'):
+        st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
+        st.stop()    
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
