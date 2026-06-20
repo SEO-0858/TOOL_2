@@ -1100,7 +1100,7 @@ else:
 
 
 
-    # 3) 📂 종합 현황판 창---------------------------------------------------------------------------------------------------------------------------~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # 3) 📂 종합 현황판 창
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
@@ -1178,8 +1178,7 @@ else:
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
-                                  
-                               
+                            
                         with st.expander(expander_title):
                             edit_key = f"is_editing_{s_no}"
                             if edit_key not in st.session_state:
@@ -1187,16 +1186,21 @@ else:
                                 
                             if st.session_state[edit_key]:
                                
-                                spec_info = item.get('detail_spec', '스펙없음')
+                                spec_info = item.get('spec_detail', '스펙없음')
                                 st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
                                 
                                 note_content = str(item.get('note', ''))
                                 has_history_log = "상태:" in note_content or "호기" in note_content
                                 has_pending_log = "상태: 재사용대기" in note_content
                                 
-                                if db_current_status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
-                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
+                                # [수정 후: note 텍스트 대신 실제 DB 데이터를 직접 확인]
+                                last_mach = item.get("last_active_machine")
+                                last_count = item.get("last_active_count")
 
+                                # 가동 이력이 하나라도 있으면 경고창을 띄움
+                                if last_mach or (last_count and last_count > 0):
+                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {last_mach}, 실적갯수: {last_count}개)")
+                                    
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
                                 
@@ -1244,13 +1248,12 @@ else:
                                     with col_e2:
                                         ed_machine_num = st.number_input("⚙️ 기계 가공 호기 (숫자만)", min_value=0, max_value=200, value=def_m_int, key=f"mach_{s_no}")
                                     # 상세 스펙 선택창 추가
-                                    st.markdown("⚒ **현재 적용 스펙**")
-
-                                    # 위쪽 토글에서 수정한 값을 그대로 불러와서 보여줍니다.
-                                    current_display_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
-
-                                    # 읽기 전용으로 보여줍니다 (수정은 위쪽 토글에서 하니까요!)
-                                    st.info(f"현재 이 툴의 스펙: **{current_display_spec}**")
+                                    st.markdown("🛠 **상세 스펙 선택**")
+                                    spec_master_col = get_spec_master_collection()
+                                    spec_docs = list(spec_master_col.find({"main_type": "전착툴"})) # 툴 종류에 맞춰 가져오기
+                                    spec_options = [s['spec_name'] for s in spec_docs]
+                                    # DB에 저장된 값이 있으면 불러오고, 없으면 리스트의 첫 번째 선택
+                                    ed_spec = st.selectbox("상세 스펙을 선택하세요", spec_options, index=0, key=f"spec_{s_no}")     
                                     st.markdown("⏳ **드레싱 주기 커스텀 시간 재설정**")
                                     col_eh, col_em = st.columns(2)
                                     with col_eh:
@@ -1327,7 +1330,7 @@ else:
                                         st.stop()
 
                                     if ed_status == "재사용대기":
-                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins,new_spec)
+                                        show_reuse_pending_dialog(s_no, item.get('machine_no',''), ed_note, ed_worker, ed_machine_num, ed_hours, ed_mins,ed_spec)
                                         st.stop()
                                     
                                     if ed_status == "폐기":
@@ -1354,21 +1357,15 @@ else:
                                     real_now_kst = get_now_kst()
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
 
-                                    # 1. 스펙 정보를 세션 혹은 DB에서 가져옵니다.
-                                    old_spec = item.get('spec_detail', '')
-                                    new_spec = st.session_state.get(f'temp_spec_{s_no}', old_spec)
-
-                                    # 2. 상태나 스펙이 바뀌었는지 확인합니다.
-                                    if ed_status == item.get('status', '사용전') and old_spec == new_spec:
+                                    old_spec = item.get('detail_spec', ' ')
+                                    if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
                                     else:
                                         log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                                            # 상태나 스펙이 바뀌었을 때 로그 메시지 생성
                                         change_msg = f" 상태: {ed_status}"
-                                        
-                                        # 스펙이 다르면 로그 메시지에 추가
-                                        if old_spec != new_spec:
-                                            change_msg += f", (스펙: {old_spec} -> {new_spec})"
-
+                                        if old_spec != ed_spec:
+                                            change_msg += f", (스펙:{old_spec}→{ed_spec})"
                         
                                         auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                         final_note_val = ed_note.strip() + auto_log_msg
@@ -1386,7 +1383,7 @@ else:
                                             "target_time": target_time_val,
                                             "waste_date": waste_date_val,
                                             "note": final_note_val,
-                                            "spec_detail": new_spec
+                                            "detail_spec": ed_spec
                                         }}
                                     )
                                     st.session_state[edit_key] = False
@@ -1443,28 +1440,31 @@ else:
                                         st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
                                         time.sleep(1)
                                         st.rerun()
-                                                                     
-                                       
-                                else:
-                                    col_x, col_y = st.columns(2)
-                                    with col_x:
-                                        st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
-                                        st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
-                                        st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
-                                        st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
-                                        if item.get("status") == "폐기":
-                                            st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
-                                    with col_y:
-                                        East_mach = item.get('machine_no') if item.get('machine_no') else '-'
-                                        st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
-                                        st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                                        st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
-                                        st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                                    st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
+
+                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
                                     
-                                    if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
-                                        st.session_state[edit_key] = True
-                                        st.rerun()
+                            else:
+                                col_x, col_y = st.columns(2)
+                                with col_x:
+                                    st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
+                                    st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
+                                    st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
+                                    st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
+                                    if item.get("status") == "폐기":
+                                        st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
+                                with col_y:
+                                    East_mach = item.get('machine_no') if item.get('machine_no') else '-'
+                                    st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
+                                    st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                                    st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
+                                    st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
+                                st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
+                                
+                                if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
+                                    st.session_state[edit_key] = True
+                                    st.rerun()
                                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
