@@ -1156,80 +1156,52 @@ else:
                     st.warning("🔍 지정하신 검색 조건 및 정렬 기준에 일치하는 툴 데이터가 없습니다.")
                 else:
                     st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
-                    
+                  
+
                     for item in filtered_data:
                         s_no = item["serial_no"]
                         db_current_status = item.get("status", "사용전")
                         
-                        if db_current_status == "사용전": status_badge = "🟢 [사용전]"
-                        elif db_current_status == "사용중": status_badge = "🟡 [사용중]"
-                        elif db_current_status == "재사용": status_badge = "🔵 [재사용]"
-                        elif db_current_status == "재사용대기": status_badge = "🟣 [재사용대기]"
-                        else: status_badge = "🔴 [폐기]"
-                            
-                        spec_info = item.get('spec_detail', '스펙없음') # DB에서 상세스펙을 가져옴
+                        # 상태 뱃지 설정
+                        status_badges = {"사용전":"🟢 [사용전]", "사용중":"🟡 [사용중]", "재사용":"🔵 [재사용]", "재사용대기":"🟣 [재사용대기]", "폐기":"🔴 [폐기]"}
+                        status_badge = status_badges.get(db_current_status, "🔴 [폐기]")
                         
-                                                # [수정된 부분]
-                        # 기입 대기 라벨을 붙이기 전에 상태가 '폐기'인지 먼저 체크합니다.
-                        if db_current_status == "폐기":
-                            expander_title = f"🔴 [폐기] | 🆔 {s_no} ({spec_info}) | 정보: 이 시리얼 넘버의 TOOL은 사용이 완료된 툴입니다..!"
-                        elif not item.get('worker') or not item.get('machine_no'):
-                            expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
-                        else:
-                            expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
+                        expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
+                        
+                        # 상세창 출력
+                        with st.expander(expander_title):
+                            col_x, col_y = st.columns(2)
+                            with col_x:
+                                st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
+                                st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
+                                st.write(f"• **👷 교체 작업자:** {item.get('worker', '-')}")
+                            with col_y:
+                                st.write(f"• **⚙️ 기계 가공 호기:** {item.get('machine_no', '-')}")
+                                st.write(f"• **⏳ 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                                st.write(f"• **⚙️ 사용 한도:** {int(item.get('use_limit', 10000))} 회")
                             
-                       
-                        for item in filtered_data:
-                            s_no = item["serial_no"]
-                            db_current_status = item.get("status", "사용전")
+                            st.write(f"• **📝 현장 특이 사항:**")
+                            st.info(item.get('note', '기록 없음'))
+
+                            st.divider()
+                            st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
                             
-                            # 상태 뱃지 설정
-                            status_badges = {"사용전":"🟢 [사용전]", "사용중":"🟡 [사용중]", "재사용":"🔵 [재사용]", "재사용대기":"🟣 [재사용대기]", "폐기":"🔴 [폐기]"}
-                            status_badge = status_badges.get(db_current_status, "🔴 [폐기]")
+                            confirm_reset = st.checkbox(f"❗ [{s_no}] 데이터 리셋 동의", key=f"risk_reset_{s_no}")
                             
-                            expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
-                            
-                            # 상세창 출력
-                            with st.expander(expander_title):
-                                col_x, col_y = st.columns(2)
-                                with col_x:
-                                    st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
-                                    st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
-                                    st.write(f"• **👷 교체 작업자:** {item.get('worker', '-')}")
-                                with col_y:
-                                    st.write(f"• **⚙️ 기계 가공 호기:** {item.get('machine_no', '-')}")
-                                    st.write(f"• **⏳ 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                                    st.write(f"• **⚙️ 사용 한도:** {int(item.get('use_limit', 10000))} 회")
-                                
-                                st.write(f"• **📝 현장 특이 사항:**")
-                                st.info(item.get('note', '기록 없음'))
-
-                                st.divider()
-                                st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
-                                
-                                confirm_reset = st.checkbox(f"❗ [{s_no}] 데이터 리셋 동의", key=f"risk_reset_{s_no}")
-                                
-                                if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
-                                    if not confirm_reset:
-                                        st.error("⚠️ 체크박스에 먼저 체크해 주세요.")
-                                    else:
-                                        db_collection.update_one({"serial_no": s_no}, {"$set": {
-                                            "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0,
-                                            "dressing_mins": 0, "start_time": "-", "target_time": "-",
-                                            "waste_date": "-", "current_use": 0, "note": "수동 강제 공정 초기화 리셋",
-                                            "history": [], "last_active_machine": None, "last_active_count": None, "last_active_time": None
-                                        }})
-                                        st.success("💥 초기화 완료!")
-                                        st.rerun()
-
-
-  
-
-
+                            if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
+                                if not confirm_reset:
+                                    st.error("⚠️ 체크박스에 먼저 체크해 주세요.")
+                                else:
+                                    db_collection.update_one({"serial_no": s_no}, {"$set": {
+                                        "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0,
+                                        "dressing_mins": 0, "start_time": "-", "target_time": "-",
+                                        "waste_date": "-", "current_use": 0, "note": "수동 강제 공정 초기화 리셋",
+                                        "history": [], "last_active_machine": None, "last_active_count": None, "last_active_time": None
+                                    }})
+                                    st.success("💥 초기화 완료!")
+                                    st.rerun()
                                     
                     # 사용전 완전 복구용 초기화 시스템 배치--------------------------------------------------------------------------------
-
-
                             
                             st.divider()
                             st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
