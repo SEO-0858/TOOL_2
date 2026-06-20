@@ -800,7 +800,7 @@ if qr_scanned_serial:
                     update_inventory_count(final_spec, final_make, "none", "사용중")
                     db_collection.database['tool_specs_master'].update_one(
                         {"spec_detail": final_spec, "make": final_make},
-                        {"$inc": {"new_tool_count": 2}},
+                        {"$inc": {"new_tool_count": 1}},
                         upsert=True
                     )       
 
