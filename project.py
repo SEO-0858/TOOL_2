@@ -1179,45 +1179,17 @@ else:
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
                             
+  
+                            
+                               
                         with st.expander(expander_title):
-                            # --- 1. 수정 모드 키 생성 및 토글 (Expander 시작점) ---
-                            # 1. 수정 모드 키 생성
-                            edit_key = f"pc_edit_mode_{s_no}"
+                            edit_key = f"is_editing_{s_no}"
                             if edit_key not in st.session_state:
                                 st.session_state[edit_key] = False
-                            
-                            # 2. 토글 스위치
-                            st.session_state[edit_key] = st.toggle("스펙 수정 모드 켜기", key=f"toggle_{s_no}")
-                           
-                            # 4. 읽기 모드 / 수정 모드 분기
-                            if not st.session_state[edit_key]:
-                                # 읽기 모드 로직
-                                current_spec = st.session_state.get(f'temp_spec_{s_no}', item.get('spec_detail', '스펙없음'))
-                                st.info(f"현재 등록된 스펙: **{current_spec}**")
-
-                                # 수정 모드 로직
-                                prefix = s_no[0]
-                                type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
-                                target_type = type_map.get(prefix)
                                 
-                                spec_master_list = list(db_collection.database["tool_inventory"].find({"tool_type": target_type}))
-                                spec_opts = sorted(list(set([s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')])))
-                                
-                                u_spec = st.selectbox("변경할 스펙 선택", spec_opts, key=f"sel_{s_no}")
-                                
-                                if st.button("🔄 스펙 확정", key=f"btn_confirm_{s_no}"):
-                                    db_collection.update_one({"serial_no": s_no}, {"$set": {"spec_detail": u_spec}})
-                                    st.session_state[f'temp_spec_{s_no}'] = u_spec 
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                            
-                                # --- 3. 원래 있던 현황판 고유 기능들 (지우지 마세요!) ---
-                                # 이 아래부터는 기존에 있던 폼(form)이나 마크다운 코드들이 이어집니다.
-                                spec_info = item.get('spec_detail', '스펙없음')
+                            if st.session_state[edit_key]:      
+                                spec_info = item.get('detail_spec', '스펙없음')
                                 st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
-                            
-                            # 여기서부터 기존 장착 날짜 변경, 상태 폼 등이 이어짐...
-                                
                                 note_content = str(item.get('note', ''))
                                 has_history_log = "상태:" in note_content or "호기" in note_content
                                 has_pending_log = "상태: 재사용대기" in note_content
