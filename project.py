@@ -1099,32 +1099,31 @@ else:
 
 
 
-    
-# 3) 📂 종합 현황판 창 (전체 코드 - 누락/에러 방지 최종본)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.write("<br>", unsafe_allow_html=True)
         
-        # 검색 필터 영역
+        # 1. 검색 필터
         search_col1, search_col2, search_col3, search_col4 = st.columns([1.5, 1, 1, 1])
         with search_col1:
             status_filter = st.selectbox("🔍 툴 상태별 정렬 필터", ["사용중 🟡 (기본값)", "전체 보기 📂", "사용전(기기대기) 🟢", "재사용 🔵", "재사용대기 🟣", "폐기 🔴"])
         with search_col2:
-            keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색", placeholder="예: 010602").strip()
+            keyword_search = st.text_input("🆔 특정 시리얼 넘버 검색", placeholder="예: 010602").strip()
         with search_col3:
-            worker_search = st.text_input("👷 작업자 이름으로 검색", placeholder="예: 홍길동").strip()
+            worker_search = st.text_input("👷 작업자 검색", placeholder="예: 홍길동").strip()
         with search_col4:
-            machine_search = st.text_input("⚙️ 기계 번호(호기)로 검색", placeholder="예: 4호기").strip()
+            machine_search = st.text_input("⚙️ 기계 번호 검색", placeholder="예: 4호기").strip()
 
         st.write("<br>", unsafe_allow_html=True)
         
         try:
+            # 데이터 조회
             all_data = list(db_collection.find({}).sort("serial_no", -1))
             if not all_data:
                 st.info("조회할 데이터가 없습니다.")
             else:
-                # 필터링 로직
+                # 필터링
                 filtered_data = []
                 for item in all_data:
                     item_status = item.get("status", "사용전")
@@ -1157,22 +1156,35 @@ else:
                                 st.write(f"• **기계 호기:** {item.get('machine_no', '-')}")
                                 st.write(f"• **사용 한도:** {int(item.get('use_limit', 10000))} 회")
                             
-                            st.info(f"📝 **현장 특이 사항:** {item.get('note', '기록 없음')}")
+                            # 발행 날짜와 시간 표시
+                            input_date = item.get('input_date', '날짜 미기입')
+                            init_time = item.get('init_time', '시간 미기입')
+                            st.info(f"📝 **현장 특이 사항:** {item.get('note', '기록 없음')}\n\n🕒 **최초 발행:** {input_date} {init_time}")
                             
                             st.divider()
-                            # 체크박스 (자동 초기화 활용)
-                            is_checked = st.checkbox(f"❗ [{s_no}] 초기화 동의", key=f"chk_{s_no}")
                             
-                            if st.button("🗑️ 초기화 실행", key=f"btn_{s_no}", type="primary"):
-                                if not is_checked:
-                                    st.error("⚠️ 동의 체크박스를 먼저 체크하세요.")
-                                else:
+                            # 초기화 확인 프로세스
+                            if f"confirm_{s_no}" not in st.session_state:
+                                st.session_state[f"confirm_{s_no}"] = False
+                                
+                            if not st.session_state[f"confirm_{s_no}"]:
+                                if st.button(f"🗑️ [{s_no}] 데이터 초기화", key=f"btn_init_{s_no}"):
+                                    st.session_state[f"confirm_{s_no}"] = True
+                                    st.rerun()
+                            else:
+                                st.warning(f"⚠️ [{s_no}] 데이터를 정말 초기화하시겠습니까?")
+                                c1, c2 = st.columns(2)
+                                if c1.button("✅ 진짜 진행", key=f"do_{s_no}"):
                                     db_collection.update_one({"serial_no": s_no}, {"$set": {
                                         "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0, 
                                         "dressing_mins": 0, "start_time": "-", "target_time": "-", "note": "수동 강제 리셋 완료"
                                     }})
+                                    st.session_state[f"confirm_{s_no}"] = False
                                     st.success("💥 초기화 완료!")
-                                    st.rerun() # 새로고침되면 체크박스는 자동으로 해제됩니다.
+                                    st.rerun()
+                                if c2.button("취소", key=f"cancel_{s_no}"):
+                                    st.session_state[f"confirm_{s_no}"] = False
+                                    st.rerun()
 
         except Exception as e:
             st.error(f"데이터 로드 에러: {e}")
