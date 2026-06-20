@@ -1178,30 +1178,25 @@ else:
                             expander_title = f"⚪ 기입 대기 | 🆔 {s_no} ({spec_info}) | 상태: {status_badge}"
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
-                            
-  
-                            
+                                  
                                
                         with st.expander(expander_title):
                             edit_key = f"is_editing_{s_no}"
                             if edit_key not in st.session_state:
                                 st.session_state[edit_key] = False
                                 
-                            if st.session_state[edit_key]:      
+                            if st.session_state[edit_key]:
+                               
                                 spec_info = item.get('detail_spec', '스펙없음')
                                 st.markdown(f"### ✏️ 시리얼 {s_no} ({spec_info}) 정보 실시간 수정 폼")
+                                
                                 note_content = str(item.get('note', ''))
                                 has_history_log = "상태:" in note_content or "호기" in note_content
                                 has_pending_log = "상태: 재사용대기" in note_content
                                 
-                                # [수정 후: note 텍스트 대신 실제 DB 데이터를 직접 확인]
-                                last_mach = item.get("last_active_machine")
-                                last_count = item.get("last_active_count")
+                                if db_current_status == "재사용대기" or (item.get("last_active_machine") and has_history_log):
+                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {item.get('last_active_machine', '-')}, 실적갯수: {item.get('last_active_count', 0)}개)")
 
-                                # 가동 이력이 하나라도 있으면 경고창을 띄움
-                                if last_mach or (last_count and last_count > 0):
-                                    st.warning(f"⚠️ **이 툴은 이전에 가동되었다가 보관 후 다시 사용하는 [재사용 대상] 툴입니다.** (직전 기계: {last_mach}, 실적갯수: {last_count}개)")
-                                    
                                 orig_m = item.get('machine_no', '')
                                 orig_m_num = ''.join(filter(str.isdigit, orig_m))
                                 
