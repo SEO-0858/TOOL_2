@@ -1174,36 +1174,67 @@ else:
                                 }})
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
                                 st.rerun()
+                                
 
-                            # [버튼 2] 스펙 오류 삭제 및 재고 보정
-                            if st.button(f"🗑️ [스펙 오류] 삭제 및 재고 보정", key=f"reset_spec_{s_no}", type="primary"):
-                                # 유효성 검사
+                          
+                            # [버튼 2: 스펙 오류 삭제 및 재고 보정]
+                            if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"reset_spec_{s_no}", type="primary"):
+                                # 1. 유효성 검사 (기존 로직 유지)
                                 if not current_spec or not spec_info:
-                                    st.error(f"🚨 경고: [{current_spec if current_spec else '공란'}]은 등록되지 않은 스펙이거나 마스터에 존재하지 않습니다!")
+                                    st.error(f"⚠️ 경고: [{current_spec if current_spec else '공란'}]은 등록되지 않은 스펙이거나 마스터에 존재하지 않습니다!")
                                 else:
                                     st.session_state[f"confirm_spec_{s_no}"] = True
                                     st.rerun()
-                            
+
+                            # [확인 창 및 실제 실행 로직]
                             if st.session_state.get(f"confirm_spec_{s_no}", False):
-                                st.warning(f"⚠️ [{current_spec}] 스펙의 재고를 -1 차감하고 삭제하시겠습니까?")
+                                st.warning(f"⚠️ [{current_spec}] 스펙 오류를 보정하시겠습니까?")
+                                
+                                # 올바른 스펙을 선택하는 입력창 (선생님의 새로운 올바른 스펙 입력을 위해)
+                                # 기존 변수 충돌 방지를 위해 new_spec_input 변수 사용
+                                all_specs = [s["spec_detail"] for s in db["tool_specs_master"].find()]
+                                new_spec_input = st.selectbox("수정할 올바른 스펙을 선택하세요", all_specs, key=f"select_{s_no}")
+
                                 c1, c2 = st.columns(2)
                                 if c1.button("✅ 진짜 진행", key=f"do_spec_{s_no}"):
-                                    # 1. 재고 보정: tool_specs_master 차감
-                                    db["tool_specs_master"].update_one(
-                                        {"spec_detail": current_spec},
-                                        {"$inc": {"new_tool_count": -1}}
-                                    )
-                                    # 2. 데이터 초기화: tools_management 초기화
-                                    db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
-                                        "status": "사용전", "spec_detail": None, "worker": "", "machine_no": "", 
-                                        "note": "스펙 오류로 삭제 및 재고 보정 완료"
-                                    }})
-                                    st.session_state[f"confirm_spec_{s_no}"] = False
-                                    st.success("💥 삭제 완료! 재고가 보정되었습니다.")
-                                    st.rerun()
+                                    try:
+                                        # 1. 잘못된 스펙(current_spec) 재고 차감 (-1)
+                                        db["tool_specs_master"].update_one(
+                                            {"spec_detail": current_spec},
+                                            {"$inc": {"new_tool_count": -1}}
+                                        )
+                                        
+                                        # 2. 올바른 스펙(new_spec_input) 재고 추가 (+1)
+                                        db["tool_specs_master"].update_one(
+                                            {"spec_detail": new_spec_input},
+                                            {"$inc": {"new_tool_count": +1}} # 선생님의 요청대로 +1 명시
+                                        )
+                                        
+                                        # 3. 데이터 초기화 및 오입 기록만 남기기
+                                        db["tools_management"].update_one(
+                                            {"serial_no": s_no},
+                                            {"$set": {
+                                                "status": "사용전",
+                                                "spec_detail": None,
+                                                "worker": "",
+                                                "machine_no": "",
+                                                "note": f"스펙 오류 보정: '{current_spec}' 오입력 기록 삭제 및 재고 정산 완료"
+                                            }}
+                                        )
+                                        
+                                        st.session_state[f"confirm_spec_{s_no}"] = False
+                                        st.success("✨ 스펙 오류가 보정되었으며 툴이 초기화되었습니다.")
+                                        st.rerun()
+                                        
+                                    except Exception as e:
+                                        st.error(f"데이터 처리 중 오류 발생: {e}")
+
                                 if c2.button("취소", key=f"cancel_spec_{s_no}"):
                                     st.session_state[f"confirm_spec_{s_no}"] = False
                                     st.rerun()
+
+
+
         except Exception as e:
             st.error(f"데이터 로드 에러: {e}")
     
