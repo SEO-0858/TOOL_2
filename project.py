@@ -1260,6 +1260,7 @@ else:
                        
                             if st.button("❌ 창 닫기", key=f"close_{s_no}"):
                                 st.session_state.edit_serial = None
+                                time.sleep(1.5)
                                 st.rerun()
                             st.stop()
                                 
