@@ -745,7 +745,11 @@ if qr_scanned_serial:
         target_type = type_map.get(prefix)
         
         # 2) 데이터 불러오기
-        specs = list(db.tool_inventory.find({"main_type": target_type}))
+        mongo_uri = st.secrets["database"]["MONGO_URI"]
+        client = MongoClient(mongo_uri)
+        db = client["dashboard_db"]
+        inventory_col = db["tool_inventory"]
+        specs = list(inventory_col.find({"main_type": target_type}))
         unique_specs = sorted({s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')})
        
 
