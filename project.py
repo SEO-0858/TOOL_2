@@ -1203,33 +1203,44 @@ else:
                                 new_spec_input = st.selectbox("수정할 올바른 스펙을 선택하세요", all_specs, key=f"select_{s_no}")
 
                                 c1, c2 = st.columns(2)
-                                if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"reset_spec_{s_no}", type="primary"):
-                                    # 1. 잘못된 스펙(current_spec) 재고 정산 (-1)
-                                    # 이미 +1 되어 있으니 마이너스 연산으로 재고를 깎아냅니다.
-                                    db["tool_specs_master"].update_one(
-                                        {"spec_detail": current_spec},
-                                        {"$inc": {"new_tool_count": -1}}
-                                    )
+                                #if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"reset_spec_{s_no}", type="primary"):
+                                # [수정된 삭제 및 보정 로직]
+                                if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"btn_del_{s_no}", type="primary"):
+                                    st.session_state[f"confirm_spec_{s_no}"] = True
+                                    st.rerun()
+
+                                # [확인 창]
+                                if st.session_state.get(f"confirm_spec_{s_no}", False):
+                                    st.warning(f"⚠️ [{current_spec}] 스펙 오류를 삭제하고 빈 시리얼로 되돌리시겠습니까?")
                                     
-                                    # 2. 데이터 리셋 (초기화)
-                                    # 다시 빈 시리얼이 되어 처음부터 다시 기입할 수 있게 됩니다.
-                                    db["tools_management"].update_one(
-                                        {"serial_no": s_no},
-                                        {"$set": {
-                                            "status": "사용전",
-                                            "spec_detail": None,
-                                            "worker": "",
-                                            "machine_no": "",
-                                            "note": f"스펙 오류 보정: '{current_spec}' 오입력 삭제 및 재고 차감(-1) 완료"
-                                        }}
-                                    )
-                                    st.success("✨ 오류가 보정되었습니다. 이제 다시 QR을 찍고 기입하세요.")
-                                    st.rerun()
+                                    col_a, col_b = st.columns(2)
+                                    # 확인 버튼: 재고 -1 하고, 데이터를 초기화(None)
+                                    if col_a.button(f"✅ 확인 (삭제 및 원복)", key=f"confirm_del_{s_no}", type="primary"):
+                                        # 1. 재고 -1 차감 (마스터 DB)
+                                        db["tool_specs_master"].update_one(
+                                            {"spec_detail": current_spec},
+                                            {"$inc": {"new_tool_count": -1}}
+                                        )
+                                        
+                                        # 2. 데이터 리셋 (현장 DB)
+                                        db["tools_management"].update_one(
+                                            {"serial_no": s_no},
+                                            {"$set": {
+                                                "status": "사용전",
+                                                "spec_detail": None,  # 핵심: 스펙을 비움
+                                                "worker": "",
+                                                "machine_no": "",
+                                                "note": f"스펙 오류 보정: '{current_spec}' 삭제 및 초기화"
+                                            }}
+                                        )
+                                        st.session_state[f"confirm_spec_{s_no}"] = False
+                                        st.success("✨ 초기화 완료되었습니다.")
+                                        st.rerun()
 
-
-                                if c2.button("취소", key=f"cancel_spec_{s_no}"):
-                                    st.session_state[f"confirm_spec_{s_no}"] = False
-                                    st.rerun()
+                                    # 취소 버튼
+                                    if col_b.button("취소", key=f"cancel_del_{s_no}"):
+                                        st.session_state[f"confirm_spec_{s_no}"] = False
+                                        st.rerun()
 
 
 
