@@ -1260,11 +1260,10 @@ else:
                                     time.sleep(1)
                                     st.rerun()
                             if st.button("❌ 창 닫기", key=f"close_{s_no}"):
-                                time.sleep(1.5)
-                                st.session_state[f"open_{s_no}"] = False # 스위치를 끕니다
-                                st.rerun()
-                                                    
-                            
+                                st.session_state.edit_serial = None
+                                st.write("버튼 눌림 확인!") # 이 글자가 화면에 나오는지 확인하세요.
+                                st.rerun()      
+                                                        
                                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
