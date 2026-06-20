@@ -745,18 +745,17 @@ if qr_scanned_serial:
         target_type = type_map.get(prefix)
         
         # 2) 데이터 불러오기
-        specs = list(db_inventory.find({"main_type": target_type}))
-        unique_spec_names = []
-        seen = set()
+        specs = list(db.tool_inventory.find({"main_type": target_type}))
+        unique_specs = sorted({s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')})
+       
 
-        for s in specs:
-            # strip()으로 공백 제거하여 완벽하게 비교
-            name = s.get('spec_detail', '').strip()
-            # name이 존재하고, 아직 처리 안 된 이름일 때만 추가
-            if name and name not in seen:
-                unique_spec_names.append(name)
-                seen.add(name)
-        st.write(f"🔍 {target_type} 타입 스펙 목록 (총 {len(unique_spec_names)}개):")
+        for i, spec_name in enumerate(unique_specs):
+    # 키에 인덱스(i)를 강제로 붙여서, 이름이 같아도 무조건 다른 키로 인식하게 함
+            btn_key = f"btn_{spec_name}_{i}"
+        
+            if st.button(f"🛠 선택: {spec_name}", key=btn_key):
+                st.session_state['selected_spec'] = spec_name
+                st.rerun()
       
 
 
