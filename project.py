@@ -752,16 +752,17 @@ if qr_scanned_serial:
             st.error(f"❌ '{target_type}' 타입에 해당하는 스펙 데이터가 없습니다.")
         else:
             # 3) 중복 제거된 스펙 리스트 만들기
-            unique_spec_names = sorted(list(set([s.get('spec_detail') for s in specs if s.get('spec_detail')])))
+           
+            unique_spec_names = sorted(list(set([s.get('spec_detail', '').strip() for s in specs if s.get('spec_detail')])))
             
             st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
 
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
-                first_doc = next(s for s in specs if s.get('spec_detail') == spec_detail)
-                btn_key = f"btn_{first_doc['_id']}"
+                first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
+                btn_key = f"btn_{spec_detail}"
                 
-                if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
+            if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
                     st.session_state['selected_spec'] = spec_detail
                     st.rerun()
 
