@@ -833,9 +833,12 @@ if qr_scanned_serial:
     st.markdown("### 📝 기본 정보")
     u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
     
+    
     orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
+    current_spec = existing_data.get('spec.detail')
+    st.markdown(current_spec)
     
     # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
     spec_opts = [s.get('spec_name', '이름없음') for s in list(get_spec_master_collection().find({}))]
