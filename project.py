@@ -760,12 +760,13 @@ if qr_scanned_serial:
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
                 first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                btn_key = f"btn_{spec_detail}"
+                make_val = first_doc.get('make', 'none')
+                btn_key = f"btn_{spec_detail}_{make_val}"
                 
             if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
                     st.session_state['selected_spec'] = spec_detail
                     st.rerun()
-
+  
             # 5) 선택 시 제조사 드롭다운 보여주기
             if 'selected_spec' in st.session_state:
                 selected_spec = st.session_state['selected_spec']
