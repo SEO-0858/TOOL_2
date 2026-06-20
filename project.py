@@ -790,27 +790,38 @@ if qr_scanned_serial:
 
 
                 
-        # 스펙 선택 버튼 루프 부분
+       
+        # # 스펙 선택 버튼 루프 부분
         for s in specs:
+            spec_name = s.get('spec_detail')
+            if not spec_name: continue # 스펙 이름이 없으면 버튼 생성 안 함
+
             # 버튼 클릭 시 동작
-            if st.button(f"🛠 선택: {s.get('spec_detail', '정보없음')}", key=f"btn_{s.get('spec_detail')}"):
+            if st.button(f"🛠 선택: {spec_name}", key=f"btn_{spec_name}"):
                 existing_spec = existing_data.get('spec_detail')
+                
+                # [로직] 기존에 스펙이 있었다면 재고 복구 (+1)
                 if existing_spec and existing_spec != '정보없음':
-                    # 기존에 설정된 상태가 있다면 그 상태에서 -1 (보통 '사용전')
-                    update_inventory_count(existing_spec, existing_data.get('status', '사용전'), "폐기")
-
-                # --- [여기 추가] 2단계: 새로 선택한 스펙에 +1 ---
-                update_inventory_count(s.get('spec_detail'), "폐기", "사용전")
-
-                # 1. DB 업데이트 (필드명 'spec_detail' 확인!)
+                    # 기존 스펙 재고 +1 (상태: 사용중/사용전 -> '사용전'으로 복구)
+                    update_inventory_count(existing_spec, "사용중", "사용전") 
+                
+                # [로직] 새로 선택한 스펙 재고 차감 (-1)
+                # '사용전' 상태의 재고를 가져와서 '사용중'으로 변경
+                update_inventory_count(spec_name, "사용전", "사용중")
+                
+                # 1. DB 업데이트 (툴 상태를 '사용중'으로 변경)
                 db_collection.update_one(
                     {"serial_no": qr_scanned_serial},
-                    {"$set": {"spec_detail": s.get('spec_detail')}}
+                    {"$set": {
+                        "spec_detail": spec_name,
+                        "status": "사용중"
+                    }}
                 )
+                
                 # 2. 강제 새로고침
-                st.toast("✅ 스펙이 저장되었습니다!", icon="🎉")
-                time.sleep(0.5) # 잠시 대기
-                st.rerun() # 새로고침되어 기입창으로 진입
+                st.toast(f"✅ {spec_name} 스펙이 저장되었습니다!", icon="✅")
+                time.sleep(0.5)
+                st.rerun()
 
         st.stop()        
 
