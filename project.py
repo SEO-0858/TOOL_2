@@ -1258,9 +1258,9 @@ else:
                                     st.rerun()
 
                          
-                                if st.button("❌ 창 닫기", key=f"close_{s_no}"):
-                                    st.session_state.edit_serial = None # 상세창 닫기 트리거
-                                    st.rerun()    
+                            if st.button("❌ 창 닫기", key=f"close_{s_no}"):
+                                st.session_state.edit_serial = None # 상세창 닫기 트리거
+                                st.rerun()    
 
                                 
         except Exception as e:
