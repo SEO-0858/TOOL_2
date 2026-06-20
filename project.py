@@ -1178,22 +1178,28 @@ else:
                         else:
                             expander_title = f"🆔 {s_no} ({spec_info}) | 장비: {item['machine_no']} | 작업자: {item['worker']} | 상태: {status_badge}"
                             
-                        with st.expander(expander_title):
-                            edit_key = f"is_editing_{s_no}"
-                            if edit_key not in st.session_state:
-                                st.session_state[edit_key] = False
+                       
+                        expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
 
-                                    
-                        if st.session_state[edit_key]:
-                            st.markdown("### 🔍 툴 정보 확인 (읽기 전용)")
+                        with st.expander(expander_title):
+                            # 2. 정보 표시 (입력창/버튼 없이 표시만)
+                            col_x, col_y = st.columns(2)
+                            with col_x:
+                                st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
+                                st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
+                                st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
+                                st.write(f"• **👷 교체 작업자:** {item.get('worker', '-')}")
+                            with col_y:
+                                st.write(f"• **⚙️ 기계 가공 호기:** {item.get('machine_no', '-')}")
+                                st.write(f"• **⏳ 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                                st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
+                                st.write(f"• **⚙️ 사용 한도:** {int(item.get('use_limit', 10000))} 회")
                             
-                            # 입력창 대신 현재 상태를 보여주기만 합니다
-                            col1, col2 = st.columns(2)
-                            col1.metric("👷 담당 작업자", item.get('worker', '-'))
-                            col2.metric("⚙️ 가공 호기", item.get('machine_no', '-'))
-                            
-                            st.write(f"**현재 상태:** {db_current_status}")
-                            st.write(f"**상세 스펙:** {spec_info}")
+                            # 3. 특이사항은 전체 너비로 표시
+                            st.write(f"• **📝 현장 특이 사항:**")
+                            st.info(item.get('note', '기록 없음'))
+
+  
 
 
                                     
