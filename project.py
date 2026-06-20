@@ -795,7 +795,7 @@ if qr_scanned_serial:
                         del st.session_state['confirm_save'] # 상태 초기화
                         st.rerun()
 
-                st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
+              
 
 
        
