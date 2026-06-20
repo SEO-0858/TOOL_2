@@ -837,58 +837,19 @@ if qr_scanned_serial:
     orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
-    current_spec = existing_data.get('spec.detail')
-    st.markdown(current_spec)
-    
-    # 수정된 스펙 선택 UI (이제 이미 값이 채워져 있으므로 선택지 기본값으로 활용)
-    spec_opts = [s.get('spec_name', '이름없음') for s in list(get_spec_master_collection().find({}))]
-    current_spec = existing_data.get('spec.detail')
-   
-    
-    # [수정된 1단계] 시리얼 앞자리에 따라 분류 필터링
-    # st.markdown("### 🛠 상세 스펙 확인 및 수정")
-    # edit_mode = st.toggle("스펙 수정 모드 켜기", key="mobile_edit_mode")
+    current_spec = existing_data.get('spec_detail', '스펙없음')
+    u_spec = current_spec  # <--- 이 코드를 반드시 넣어주어야 858번 줄에서 값을 인식합니다.
+    st.markdown(f"**현재 스펙:** {u_spec}") # 화면에 출력도 확실하게
+ 
 
-    # # 1. 시리얼 첫 글자로 분류 매칭 (전착=1, 레진=2, 메탈=3, 코어=4)
-    # type_map = {'1': 'JUN', '2': 'REJ', '3': 'MET', '4': 'COR'}
-    # first_char = qr_scanned_serial[0] if qr_scanned_serial else ''
-    # target_type = type_map.get(first_char)
-
-    # # 2. 분류에 맞는 스펙만 필터링해서 가져오기
-    # # tool_inventory 컬렉션에서 'tool_type' 필드가 target_type과 일치하는 것만 찾음
-    # query = {"tool_type": target_type} if target_type else {}
-    # spec_master_list = list(db_collection.database["tool_inventory"].find(query))
-    # spec_opts = [s.get('spec_detail') for s in spec_master_list if s.get('spec_detail')]
-
-    # # 중복 제거
-    # spec_opts = sorted(list(set(spec_opts)))
-
-    #  3. 현재 저장된 값 불러오기
-    current_spec = st.session_state.get('new_spec', existing_data.get('spec_detail', '스펙없음'))
-
-    # if not edit_mode:
-    #     st.info(f"현재 등록된 스펙: **{current_spec}**")
-    u_spec = current_spec 
-    # else:
-    #     u_spec = st.selectbox("변경할 스펙 선택", spec_opts, index=idx) 
-    # st.divider()
-    
     st.markdown("### ⏳ 드레싱 및 특이사항")
     c1, c2 = st.columns(2)
     u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
     u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
     u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
-    
-    
+       
 
-    # 1. 수정 모드일 때: [스펙 교체하기] 버튼 따로 생성
-    # [하단부: 3단계 버튼 로직]
-    # if edit_mode:
-    #     # 수정 모드일 때는 교체 버튼만 보임
-    #     if st.button("🔄 상세 스펙 교체하기"):
-    #         confirm_mobile_spec_change(u_spec, qr_scanned_serial)
-    # else:
-    #     # [수정된 부분] 버튼을 누르면 데이터를 세션에 임시 저장하고 팝업 플래그를 켭니다.
+
     if st.button("데이터 확인 및 저장"):
         st.session_state['confirm_data'] = {
             'status': u_status,
@@ -911,6 +872,9 @@ if qr_scanned_serial:
         confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear(); st.rerun()
+
+
+
 
 # --- 💻 [PC 관리자 모드] -----------------------------------------------------------------------------------------------------------------------------
 else:
