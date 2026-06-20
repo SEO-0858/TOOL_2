@@ -1180,6 +1180,7 @@ else:
                             
                        
                         expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
+                        
 
                         with st.expander(expander_title):
                             # 2. 정보 표시 (입력창/버튼 없이 표시만)
@@ -1204,7 +1205,7 @@ else:
 
                                     
                                 # 사용전 완전 복구용 초기화 시스템 배치
-                            st.write("<br>", unsafe_allow_html=True)
+                            st.divider()
                             st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
                             st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
                             
@@ -1253,26 +1254,11 @@ else:
                                     time.sleep(1)
                                     st.rerun()
 
-                            if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                st.rerun()
-                                
+                         
+                            if st.button("❌ 창 닫기", key=f"cancel_{s_no}"):
+                                st.session_state.edit_serial = None # 상세창 닫기 트리거
+                                st.rerun() # 새로고침으로 깔끔하게 Expander 닫힘     
                      
-                        col_x, col_y = st.columns(2)
-                        with col_x:
-                            st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
-                            st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
-                            st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
-                            st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
-                            if item.get("status") == "폐기":
-                                st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
-                        with col_y:
-                            East_mach = item.get('machine_no') if item.get('machine_no') else '-'
-                            st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
-                            st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                            st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
-                            st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                        st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
-                        
 
                                 
         except Exception as e:
