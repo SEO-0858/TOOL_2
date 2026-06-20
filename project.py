@@ -579,7 +579,9 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
 
 # 🔴 [폐기 전환 팝업 대화창 정의]
 @st.dialog("🚨 툴 폐기 정보 및 사유 입력")
-def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
+def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status,spec=None):
+    if spec is None:
+        spec = '정보없음'
     spec = st.session_state.get('temp_spec_for_waste', '정보없음')
     st.markdown("### 🗑️ 이 툴을 현장 폐기 처리합니다. 아래 정보를 입력하세요.")
     
