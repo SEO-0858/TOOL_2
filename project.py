@@ -797,7 +797,14 @@ if qr_scanned_serial:
                         
                 if st.button("✅ 진짜 저장", type="primary"):
                     # 오직 이 버튼을 눌러야만 DB 함수 호출
-                    update_inventory_count(final_spec, final_make, "사용전", "사용중")
+                    update_inventory_count(final_spec, final_make, "none", "사용중")
+                    db_collection.database['tool_specs_master'].update_one(
+                        {"spec_detail": final_spec, "make": final_make},
+                        {"$inc": {"new_tool_count": 1}},
+                        upsert=True
+                    )       
+
+
                     db_collection.update_one(
                         {"serial_no": qr_scanned_serial},
                         {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
