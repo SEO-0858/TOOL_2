@@ -1258,11 +1258,10 @@ else:
                                     st.rerun()
 
                        
-                            def close_detail_view():
+                            if st.button("❌ 창 닫기", key=f"close_{s_no}"):
                                 st.session_state.edit_serial = None
-
-                            st.button("❌ 창 닫기", key=f"close_{s_no}", on_click=close_detail_view)
-
+                                st.rerun()
+                            st.stop()
                                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
