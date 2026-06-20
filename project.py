@@ -1181,63 +1181,59 @@ else:
                                     st.rerun()
                                     
                     # 사용전 완전 복구용 초기화 시스템 배치--------------------------------------------------------------------------------
-                            
-                            st.divider()
-                            st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
-                            st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
-                            
-                            confirm_reset = st.checkbox(f"❗ [{s_no}] 번호의 가동 내역을 파괴하고 최초 발행 마크만 남긴 채 사용전으로 리셋하는 것에 절대 동의합니다.", key=f"risk_reset_{s_no}")
-                            if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
-                                if not confirm_reset:
-                                    st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
-                                else:
-                                    fresh_data = db_collection.find_one({"serial_no": s_no})
-                                    
-                                    if fresh_data:
-                                        raw_date = fresh_data.get('input_date', str(today))
-                                        try:
-                                            date_obj = dt_class.strptime(raw_date, "%Y-%m-%d")
-                                            formatted_date = date_obj.strftime("%Y-%m-%d")
-                                        except:
-                                            formatted_date = raw_date
-                                            
-                                        formatted_time = fresh_data.get('init_time', get_now_kst().strftime("%H:%M"))
-                                    else:
-                                        formatted_date = get_now_kst().strftime("%m/%d")
-                                        formatted_time = get_now_kst().strftime("%H:%M")
-                                        
-                                    clean_note = f"[{formatted_date} {formatted_time} 발행] 현장 입고일 완료 (수동 강제 공정 초기화 리셋)"
-                                        
-                                    db_collection.update_one(
-                                        {"serial_no": s_no},
-                                        {"$set": {
-                                            "status": "사용전",
-                                            "worker": "",
-                                            "machine_no": "",
-                                            "dressing_hours": 0,
-                                            "dressing_mins": 0,
-                                            "start_time": "-",
-                                            "target_time": "-",
-                                            "waste_date": "-",
-                                            "current_use": 0,
-                                            "note": clean_note,
-                                            "history": [],
-                                            "last_active_machine": None,
-                                            "last_active_count": None,
-                                            "last_active_time": None
-                                        }}
-                                    )
-                                    st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
-                                    time.sleep(1)
-                                    st.rerun()
-                            if st.button("❌ 창 닫기", key=f"close_{s_no}"):
-                                st.session_state.edit_serial = None
-                                st.write("버튼 눌림 확인!") # 이 글자가 화면에 나오는지 확인하세요.
-                                st.rerun()      
-                                                        
+                                                                # 사용전 완전 복구용 초기화 시스템 배치
+                                st.write("<br>", unsafe_allow_html=True)
+                                st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
+                                st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
                                 
-        except Exception as e:
-            st.error(f"데이터 로드 실패: {e}")
+                                confirm_reset = st.checkbox(f"❗ [{s_no}] 번호의 가동 내역을 파괴하고 최초 발행 마크만 남긴 채 사용전으로 리셋하는 것에 절대 동의합니다.", key=f"risk_reset_{s_no}")
+                                if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
+                                    if not confirm_reset:
+                                        st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
+                                    else:
+                                        fresh_data = db_collection.find_one({"serial_no": s_no})
+                                        
+                                        if fresh_data:
+                                            raw_date = fresh_data.get('input_date', str(today))
+                                            try:
+                                                date_obj = dt_class.strptime(raw_date, "%Y-%m-%d")
+                                                formatted_date = date_obj.strftime("%Y-%m-%d")
+                                            except:
+                                                formatted_date = raw_date
+                                                
+                                            formatted_time = fresh_data.get('init_time', get_now_kst().strftime("%H:%M"))
+                                        else:
+                                            formatted_date = get_now_kst().strftime("%m/%d")
+                                            formatted_time = get_now_kst().strftime("%H:%M")
+                                            
+                                        clean_note = f"[{formatted_date} {formatted_time} 발행] 현장 입고일 완료 (수동 강제 공정 초기화 리셋)"
+                                            
+                                        db_collection.update_one(
+                                            {"serial_no": s_no},
+                                            {"$set": {
+                                                "status": "사용전",
+                                                "worker": "",
+                                                "machine_no": "",
+                                                "dressing_hours": 0,
+                                                "dressing_mins": 0,
+                                                "start_time": "-",
+                                                "target_time": "-",
+                                                "waste_date": "-",
+                                                "current_use": 0,
+                                                "note": clean_note,
+                                                "history": [],
+                                                "last_active_machine": None,
+                                                "last_active_count": None,
+                                                "last_active_time": None
+                                            }}
+                                        )
+                                        st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
+                                        time.sleep(1)
+                                        st.rerun()
+
+                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
 
 
 #############################################################################################################################################################################
