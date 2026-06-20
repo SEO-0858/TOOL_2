@@ -62,7 +62,8 @@ def log_disposal(serial_no, spec_detail, worker,reason):
 
 def update_inventory_count(spec_detail, make, old_status, new_status):
     global db
-    col = db.collection.database['tool_specs_master']
+    col = db['tool_specs_master']
+    #col = db.collection.database['tool_specs_master']
     query = {"spec_detail": spec_detail, "make": make}
     
     # 1. 기존 재고 차감 로직
