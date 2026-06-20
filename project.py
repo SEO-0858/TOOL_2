@@ -61,10 +61,12 @@ def log_disposal(serial_no, spec_detail, worker,reason):
 #재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
 def update_inventory_count(spec_detail, make, old_status, new_status):
+    global db
     col = db.collection.database['tool_specs_master']
     query = {"spec_detail": spec_detail, "make": make}
     
     # 1. 기존 재고 차감 로직
+    target_field = None
     if old_status in ["사용전", "재사용대기"]:
         # field를 여기서 확실하게 결정해줍니다
         target_field = "new_tool_count" if old_status == "사용전" else "used_tool_count"
@@ -798,7 +800,15 @@ if qr_scanned_serial:
                         
                 if st.button("✅ 진짜 저장", type="primary"):
                     # 오직 이 버튼을 눌러야만 DB 함수 호출
-                    update_inventory_count(final_spec, final_make, "사용전", "사용중")
+                   
+                    update_inventory_count(final_spec, final_make, None, "사용중") 
+
+                    # 그런 다음, 즉시 재고를 +1 해주는 코드를 아래에 추가합니다.
+                    db_collection.update_one(
+                        {"spec_detail": final_spec, "make": final_make},
+                        {"$inc": {"new_tool_count": 1}},
+                        upsert=True
+                    )
                     db_collection.update_one(
                         {"serial_no": qr_scanned_serial},
                         {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
