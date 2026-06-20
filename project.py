@@ -1340,7 +1340,7 @@ else:
                                                 ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason} | 장착 기계: 없음"
                                             else:
                                                 ed_note += f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 🚨긴급 폐기 사유: {reason}"
-                                        show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status)
+                                        show_waste_dialog(s_no, item.get('machine_no', ''), ed_note, ed_worker, db_current_status, ed_spec)
                                         st.stop()
                                         
                                     waste_date_val = str(today) if ed_status == "폐기" else item.get("waste_date", "-")
