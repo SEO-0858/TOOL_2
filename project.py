@@ -1100,13 +1100,13 @@ else:
 
 
     
-    # 3) 📂 종합 현황판 창
+# 3) 📂 종합 현황판 창 (전체 코드)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.write("<br>", unsafe_allow_html=True)
         
-        # 검색 필터 영역 (기존 유지)
+        # 검색 필터 영역
         search_col1, search_col2, search_col3, search_col4 = st.columns([1.5, 1, 1, 1])
         with search_col1:
             status_filter = st.selectbox("🔍 툴 상태별 정렬 필터", ["사용중 🟡 (기본값)", "전체 보기 📂", "사용전(기기대기) 🟢", "재사용 🔵", "재사용대기 🟣", "폐기 🔴"])
@@ -1124,50 +1124,67 @@ else:
             if not all_data:
                 st.info("조회할 데이터가 없습니다.")
             else:
-                filtered_data = [item for item in all_data if True] # 필터 로직 동일
-                # (필터 로직 생략: 기존 코드와 동일하게 유지하세요)
+                # 1. 데이터 필터링
+                filtered_data = []
+                for item in all_data:
+                    item_status = item.get("status", "사용전")
+                    if status_filter == "사용중 🟡 (기본값)" and item_status != "사용중": continue
+                    if status_filter == "사용전(기기대기) 🟢" and item_status != "사용전": continue
+                    if status_filter == "재사용 🔵" and item_status != "재사용": continue
+                    if status_filter == "재사용대기 🟣" and item_status != "재사용대기": continue
+                    if status_filter == "폐기 🔴" and item_status != "폐기": continue
+                    if keyword_search and keyword_search not in item.get("serial_no", ""): continue
+                    if worker_search and worker_search not in item.get("worker", ""): continue
+                    if machine_search and machine_search not in item.get("machine_no", ""): continue
+                    filtered_data.append(item)
 
-                st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
-                
-                for item in filtered_data:
-                    s_no = item["serial_no"]
-                    # 각 상세창마다 고유한 key를 만들기 위해 s_no 사용
-                    expander_title = f"🆔 {s_no} | {item.get('tool_type', '툴')}"
+                if not filtered_data:
+                    st.warning("🔍 검색 조건에 맞는 데이터가 없습니다.")
+                else:
+                    st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
                     
-                    with st.expander(expander_title):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
-                            st.write(f"• **교체 작업자:** {item.get('worker', '-')}")
-                        with col2:
-                            st.write(f"• **기계 호기:** {item.get('machine_no', '-')}")
-                            st.write(f"• **사용 한도:** {int(item.get('use_limit', 10000))} 회")
+                    # 2. 리스트 출력
+                    for item in filtered_data:
+                        s_no = item["serial_no"]
+                        status_badge = {"사용전":"🟢 [사용전]", "사용중":"🟡 [사용중]", "재사용":"🔵 [재사용]", "재사용대기":"🟣 [재사용대기]", "폐기":"🔴 [폐기]"}.get(item.get("status"), "🔴 [폐기]")
+                        expander_title = f"🆔 {s_no} | {item.get('tool_type', '툴')} | {status_badge}"
                         
-                        # 1. 발행 정보 및 특이사항 표시
-                        st.write(f"• **📝 현장 특이 사항:**")
-                        st.info(f"{item.get('note', '기록 없음')}")
+                        # session_state에 해당 툴의 체크 상태가 없으면 False로 초기화
+                        if f"reset_check_{s_no}" not in st.session_state:
+                            st.session_state[f"reset_check_{s_no}"] = False
                         
-                        # 2. 초기화 기능
-                        st.divider()
-                        # key에 s_no를 넣어 중복 방지, '초기화 실행' 후 자동으로 상태가 바뀜
-                        check_key = f"check_{s_no}" 
-                        confirm_reset = st.checkbox(f"❗ [{s_no}] 초기화 동의", key=check_key)
-                        
-                        if st.button("🗑️ 초기화 실행", key=f"btn_{s_no}", type="primary"):
-                            if not confirm_reset:
-                                st.error("⚠️ 동의 체크박스를 확인해 주세요.")
-                            else:
-                                db_collection.update_one({"serial_no": s_no}, {"$set": {
-                                    "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0, 
-                                    "dressing_mins": 0, "start_time": "-", "target_time": "-", "note": "수동 강제 리셋 완료"
-                                }})
-                                # 초기화 후 session_state에서 체크박스 상태 강제 초기화
-                                st.session_state[check_key] = False
-                                st.success("💥 리셋 완료!")
-                                st.rerun()
+                        with st.expander(expander_title):
+                            # 정보 표시
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
+                                st.write(f"• **교체 작업자:** {item.get('worker', '-')}")
+                            with col2:
+                                st.write(f"• **기계 호기:** {item.get('machine_no', '-')}")
+                                st.write(f"• **사용 한도:** {int(item.get('use_limit', 10000))} 회")
+                            st.info(f"📝 **현장 특이 사항:** {item.get('note', '기록 없음')}")
+                            
+                            # 3. 안전한 초기화 버튼 (체크박스 연동)
+                            st.divider()
+                            # 체크박스 상태를 session_state와 직접 연결
+                            is_checked = st.checkbox(f"❗ [{s_no}] 초기화 동의", key=f"reset_check_{s_no}")
+                            
+                            if st.button("🗑️ 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
+                                if not is_checked:
+                                    st.error("⚠️ 동의 체크박스를 먼저 체크하세요.")
+                                else:
+                                    # DB 업데이트
+                                    db_collection.update_one({"serial_no": s_no}, {"$set": {
+                                        "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0, 
+                                        "dressing_mins": 0, "start_time": "-", "target_time": "-", "note": "수동 강제 리셋 완료"
+                                    }})
+                                    # 체크박스 강제 해제 및 새로고침
+                                    st.session_state[f"reset_check_{s_no}"] = False
+                                    st.success("💥 초기화 완료!")
+                                    st.rerun()
 
         except Exception as e:
-            st.error(f"데이터 로드 실패: {e}")
+            st.error(f"데이터 로드 에러: {e}")
 
     #############################################################################################################################################################################
 
