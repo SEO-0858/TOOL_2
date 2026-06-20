@@ -1359,6 +1359,7 @@ else:
 
                                     old_spec = item.get('spec_detail', ' ')
                                     new_spec = st.session_state.get(f'temp_spec_{s_no}', old_spec)
+                                    final_note_val = ed_note.strip()
                                     if ed_status == item.get('status', '사용전') and old_spec == ed_spec:
                                         final_note_val = ed_note.strip()
                                     if f"스펙: {ed_spec}" not in ed_note:  # 중복 기록 방지
