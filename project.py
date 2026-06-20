@@ -758,102 +758,58 @@ if qr_scanned_serial:
             st.write(f"🔍 {target_type} 타입에 맞는 스펙 목록을 선택하세요:")
 
             # 4) 버튼 생성 루프 (760라인 근처)
-            for spec_detail in unique_spec_names:
-                # 고유 키를 위해 doc_id를 사용하여 중복 방지
-                first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                btn_key = f"btn_sel_{first_doc.get('_id')}"
-                
-                # 버튼을 누르면 상태에 값만 저장 (저장 로직 절대 없음)
-                if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
-                    st.session_state['selected_spec'] = spec_detail
-                    st.rerun() # 선택 후 아래 단계를 새로고침으로 표시
+      
+            st.write("### 🛠 상세 스펙을 선택하세요")
+            unique_spec_names = sorted(list(set([s.get('spec_detail', '').strip() for s in specs])))
 
-            # 5) 선택 후 제조사 선택 및 저장 버튼 (768라인 근처)
-            if 'selected_spec' in st.session_state:
-                selected_spec = st.session_state['selected_spec']
+            # 라디오 버튼은 값을 선택만 하고 저장을 수행하지 않습니다.
+            selected_spec = st.radio("목록에서 스펙을 하나 선택하세요:", unique_spec_names, index=None, key="radio_spec")
+
+            # 5) 선택된 경우에만 다음 단계 표시
+            if selected_spec:
                 st.success(f"✅ 선택된 스펙: {selected_spec}")
-
+                st.session_state['selected_spec'] = selected_spec
+                
                 # 제조사 필터링
                 matching_specs = [s for s in specs if s.get('spec_detail', '').strip() == selected_spec]
                 available_makers = sorted(list(set([s.get('make') for s in matching_specs if s.get('make')])))
                 
-                # 제조사 선택
-                selected_make = st.selectbox("🏭 제조사 선택", available_makers, key="maker_select")
+                selected_make = st.selectbox("🏭 제조사를 선택하세요", available_makers, key="maker_select")
                 
-                # [중요] 여기서 바로 저장하지 않고, 팝업용 상태만 활성화
-                if st.button("💾 최종 데이터 등록 저장"):
+                # '저장하기' 버튼을 여기서 명시적으로 누를 때만 동작
+                if st.button("💾 이 내용으로 데이터 등록 저장"):
                     st.session_state['confirm_save'] = True
                     st.rerun()
 
-            # [단계 3] 팝업 확인창 (787라인 근처)
+            # [단계 3] 팝업 확인창 (최종 확정 단계)
             if st.session_state.get('confirm_save'):
-                final_spec = st.session_state.get('selected_spec')
-                final_make = st.session_state.get('maker_select')
-                
                 st.markdown("---")
                 st.error("⚠️ **작업 내용을 최종 확인해주세요!**")
+                
+                final_spec = st.session_state.get('selected_spec')
+                final_make = st.session_state.get('maker_select')
                 
                 with st.container(border=True):
                     st.write("### 📌 등록 정보 확인")
                     col1, col2 = st.columns(2)
                     col1.metric("상세 스펙", final_spec)
                     col2.metric("제조사", final_make)
-                    
-                c1, c2 = st.columns([1, 1])
-                if c1.button("✅ 진짜 저장", type="primary"):
-                    # 여기서만 DB 업데이트 수행
+                        
+                if st.button("✅ 진짜 저장", type="primary"):
+                    # 오직 이 버튼을 눌러야만 DB 함수 호출
                     update_inventory_count(final_spec, final_make, "사용전", "사용중")
                     db_collection.update_one(
                         {"serial_no": qr_scanned_serial},
                         {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용중"}}
                     )
                     st.success("🎉 성공적으로 저장되었습니다!")
-                    # 작업 후 상태 초기화
-                    for k in ['confirm_save', 'selected_spec', 'maker_select']:
+                    # 상태 초기화
+                    for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
                         if k in st.session_state: del st.session_state[k]
                     st.rerun()
-                    
-                if c2.button("취소"):
-                    st.session_state['confirm_save'] = False
-                    st.rerun()
-              
 
 
-       
-        # [스펙 선택 버튼 루프 수정]
-        for s in specs:
-            spec_name = s.get('spec_detail')
-            make_name = s.get('make') # make 값을 가져옵니다
-            if not spec_name: continue
 
-            # 버튼 클릭 시 동작
-            if st.button(f"🛠 선택: {spec_name}", key=f"btn_{spec_name}"):
-                existing_spec = existing_data.get('spec_detail')
-                existing_make = existing_data.get('make') # 기존 툴의 make 정보
-                current_status = existing_data.get('status', '사용전')
-
-                # 1. 기존 스펙이 있었다면 복구 (+1)
-                if existing_spec and existing_spec != '정보없음':
-                    update_inventory_count(existing_spec, existing_make, current_status, "사용전")
-                
-                # 2. 새로 선택한 스펙 차감 (-1)
-                update_inventory_count(spec_name, make_name, "사용전", "사용중")
-                
-                # 3. DB 업데이트
-                db_collection.update_one(
-                    {"serial_no": qr_scanned_serial},
-                    {"$set": {
-                        "spec_detail": spec_name,
-                        "make": make_name,
-                        "status": "사용중"
-                    }}
-                )
-                
-                st.toast(f"✅ {spec_name} 저장 완료!", icon="✅")
-                time.sleep(0.5)
-                st.rerun()
-
-        st.stop()        
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
