@@ -1099,19 +1099,17 @@ else:
 
 
 
-    # 3) 📂 종합 현황판 창
+    
+        # 3) 📂 종합 현황판 창 (전체 코드)
     elif tool_menu == "📂 전체 데이터 현황판":
         st.title("📂 현장 기입 데이터 통합 현황판")
         st.markdown("현황판에서 각 툴의 데이터를 펼친 뒤, **직접 편집 및 수정**을 진행할 수 있습니다.")
         st.write("<br>", unsafe_allow_html=True)
         
+        # 검색 필터 영역
         search_col1, search_col2, search_col3, search_col4 = st.columns([1.5, 1, 1, 1])
         with search_col1:
-            status_filter = st.selectbox(
-                "🔍 툴 상태별 정렬 필터", 
-                ["사용중 🟡 (기본값)", "전체 보기 📂", "사용전(기기대기) 🟢", "재사용 🔵", "재사용대기 🟣", "폐기 🔴"], 
-                index=0
-            )
+            status_filter = st.selectbox("🔍 툴 상태별 정렬 필터", ["사용중 🟡 (기본값)", "전체 보기 📂", "사용전(기기대기) 🟢", "재사용 🔵", "재사용대기 🟣", "폐기 🔴"])
         with search_col2:
             keyword_search = st.text_input("🆔 특정 시리얼 넘버 직접 검색", placeholder="예: 010602").strip()
         with search_col3:
@@ -1123,204 +1121,145 @@ else:
         
         try:
             all_data = list(db_collection.find({}).sort("serial_no", -1))
-            
             if not all_data:
                 st.info("조회할 데이터가 없습니다.")
             else:
+                # 데이터 필터링
                 filtered_data = []
-                
                 for item in all_data:
                     item_status = item.get("status", "사용전")
-                    
-                    if status_filter == "사용중 🟡 (기본값)" and item_status != "사용중":
-                        continue
-                    elif status_filter == "사용전(기기대기) 🟢" and item_status != "사용전":
-                        continue
-                    elif status_filter == "재사용 🔵" and item_status != "재사용":
-                        continue
-                    elif status_filter == "재사용대기 🟣" and item_status != "재사용대기":
-                        continue
-                    elif status_filter == "폐기 🔴" and item_status != "폐기":
-                        continue
-                        
-                    if keyword_search and keyword_search not in item["serial_no"]:
-                        continue
-                    if worker_search and worker_search not in item.get("worker", ""):
-                        continue
-                    if machine_search and machine_search not in item.get("machine_no", ""):
-                        continue
-                        
+                    if status_filter == "사용중 🟡 (기본값)" and item_status != "사용중": continue
+                    if status_filter == "사용전(기기대기) 🟢" and item_status != "사용전": continue
+                    if status_filter == "재사용 🔵" and item_status != "재사용": continue
+                    if status_filter == "재사용대기 🟣" and item_status != "재사용대기": continue
+                    if status_filter == "폐기 🔴" and item_status != "폐기": continue
+                    if keyword_search and keyword_search not in item.get("serial_no", ""): continue
+                    if worker_search and worker_search not in item.get("worker", ""): continue
+                    if machine_search and machine_search not in item.get("machine_no", ""): continue
                     filtered_data.append(item)
 
                 if not filtered_data:
-                    st.warning("🔍 지정하신 검색 조건 및 정렬 기준에 일치하는 툴 데이터가 없습니다.")
+                    st.warning("🔍 검색 조건에 맞는 데이터가 없습니다.")
                 else:
                     st.caption(f"📊 총 **{len(filtered_data)}** 개의 항목이 검색되었습니다.")
-                  
-
+                    
+                    # 데이터 목록 출력
                     for item in filtered_data:
                         s_no = item["serial_no"]
-                        db_current_status = item.get("status", "사용전")
-                        status_badge = {"사용전":"🟢 [사용전]", "사용중":"🟡 [사용중]", "재사용":"🔵 [재사용]", "재사용대기":"🟣 [재사용대기]", "폐기":"🔴 [폐기]"}.get(db_current_status, "🔴 [폐기]")
+                        status_badge = {"사용전":"🟢 [사용전]", "사용중":"🟡 [사용중]", "재사용":"🔵 [재사용]", "재사용대기":"🟣 [재사용대기]", "폐기":"🔴 [폐기]"}.get(item.get("status"), "🔴 [폐기]")
+                        expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
                         
-                        with st.expander(f"🆔 {s_no} | {status_badge}"):
-                            col_x, col_y = st.columns(2)
-                            with col_x:
+                        # 상세 정보 펼침창 (버튼 대신 내장 화살표 활용)
+                        with st.expander(expander_title):
+                            col1, col2 = st.columns(2)
+                            with col1:
                                 st.write(f"• **상세 스펙:** {item.get('spec_detail', '-')}")
-                                st.write(f"• **작업자:** {item.get('worker', '-')}")
-                            with col_y:
+                                st.write(f"• **교체 작업자:** {item.get('worker', '-')}")
+                            with col2:
                                 st.write(f"• **기계 호기:** {item.get('machine_no', '-')}")
                                 st.write(f"• **사용 한도:** {int(item.get('use_limit', 10000))} 회")
                             
-                            st.info(item.get('note', '기록 없음'))
+                            st.info(f"📝 **현장 특이 사항:** {item.get('note', '기록 없음')}")
                             
-                            # 버튼을 이 안쪽에만 둡니다.
+                            # 초기화 영역
+                            st.divider()
                             if st.checkbox(f"❗ [{s_no}] 초기화 동의", key=f"check_{s_no}"):
-                                if st.button("🗑️ 초기화 실행", key=f"btn_{s_no}"):
-                                    db_collection.update_one({"serial_no": s_no}, {"$set": {"status": "사용전", "history": []}})
-                                    st.rerun()
-                                    
-                    # 사용전 완전 복구용 초기화 시스템 배치--------------------------------------------------------------------------------
-                                                                # 사용전 완전 복구용 초기화 시스템 배치
-                                st.write("<br>", unsafe_allow_html=True)
-                                st.markdown("### 🧽 위험 영역: 가동 중단 및 완전 초기화")
-                                st.caption("실수로 가동을 시작했거나 정보가 심하게 꼬였을 때, 모든 공정 조치 이력을 파괴하고 최초 큐알 발행 시간 마크만 남긴 채 완전 새 제품 대기 상태로 되돌립니다.")
-                                
-                                confirm_reset = st.checkbox(f"❗ [{s_no}] 번호의 가동 내역을 파괴하고 최초 발행 마크만 남긴 채 사용전으로 리셋하는 것에 절대 동의합니다.", key=f"risk_reset_{s_no}")
-                                if st.button("🗑️ 툴 데이터 가동 내역 완전 초기화 실행", key=f"btn_reset_{s_no}", type="primary"):
-                                    if not confirm_reset:
-                                        st.error("⚠️ 잘못 누름 방지 승인을 위해 위 동의합니다 체크박스에 먼저 체크해 주세요.")
-                                    else:
-                                        fresh_data = db_collection.find_one({"serial_no": s_no})
-                                        
-                                        if fresh_data:
-                                            raw_date = fresh_data.get('input_date', str(today))
-                                            try:
-                                                date_obj = dt_class.strptime(raw_date, "%Y-%m-%d")
-                                                formatted_date = date_obj.strftime("%Y-%m-%d")
-                                            except:
-                                                formatted_date = raw_date
-                                                
-                                            formatted_time = fresh_data.get('init_time', get_now_kst().strftime("%H:%M"))
-                                        else:
-                                            formatted_date = get_now_kst().strftime("%m/%d")
-                                            formatted_time = get_now_kst().strftime("%H:%M")
-                                            
-                                        clean_note = f"[{formatted_date} {formatted_time} 발행] 현장 입고일 완료 (수동 강제 공정 초기화 리셋)"
-                                            
-                                        db_collection.update_one(
-                                            {"serial_no": s_no},
-                                            {"$set": {
-                                                "status": "사용전",
-                                                "worker": "",
-                                                "machine_no": "",
-                                                "dressing_hours": 0,
-                                                "dressing_mins": 0,
-                                                "start_time": "-",
-                                                "target_time": "-",
-                                                "waste_date": "-",
-                                                "current_use": 0,
-                                                "note": clean_note,
-                                                "history": [],
-                                                "last_active_machine": None,
-                                                "last_active_count": None,
-                                                "last_active_time": None
-                                            }}
-                                        )
-                                        st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
-                                        time.sleep(1)
-                                        st.rerun()
-
-                                if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                    st.session_state[edit_key] = False
+                                if st.button("🗑️ 초기화 실행", key=f"btn_{s_no}", type="primary"):
+                                    db_collection.update_one({"serial_no": s_no}, {"$set": {
+                                        "status": "사용전", "worker": "", "machine_no": "", "dressing_hours": 0, 
+                                        "dressing_mins": 0, "start_time": "-", "target_time": "-", "note": "수동 강제 리셋"
+                                    }})
+                                    st.success("💥 리셋 완료!")
                                     st.rerun()
 
+        except Exception as e:
+            st.error(f"데이터 로드 실패: {e}")
 
-#############################################################################################################################################################################
+    #############################################################################################################################################################################
 
 
 
 
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
-        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
-        st.write("<br>", unsafe_allow_html=True)
-        
-        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
-        
-        if target_serial:
-            if len(target_serial) != 12:
-                st.warning("⚠️ 시리얼 넘버는 정확히 12자리 규격이어야 합니다.")
-            else:
-                exist_item = db_collection.find_one({"serial_no": target_serial})
-                
-                if exist_item:
-                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
+            st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
+            st.write("<br>", unsafe_allow_html=True)
+            
+            st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
+            target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
+            
+            if target_serial:
+                if len(target_serial) != 12:
+                    st.warning("⚠️ 시리얼 넘버는 정확히 12자리 규격이어야 합니다.")
+                else:
+                    exist_item = db_collection.find_one({"serial_no": target_serial})
                     
-                    qr_res_bytes = generate_app_qr_bytes(target_serial)
-                    base64_qr = base64.b64encode(qr_res_bytes).decode("utf-8")
-                    
-                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
-                    
-                    html_content = f"""
-                    <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
-                        <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
-                        <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
-                    </div>
-                    """
-                    
-                    # [최종 수정] 팝업 없는 직접 인쇄 버튼
-                    if st.button("🖨️ 이 QR코드 인쇄하기"):
-                        print_body = f"""
-                        <div id='print-area' style='text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;'>
+                    if exist_item:
+                        st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
+                        
+                        qr_res_bytes = generate_app_qr_bytes(target_serial)
+                        base64_qr = base64.b64encode(qr_res_bytes).decode("utf-8")
+                        
+                        st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
+                        
+                        html_content = f"""
+                        <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
                             <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
                             <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
                         </div>
-                        <style>
-                            @media print {{
-                                body * {{ visibility: hidden; }}
-                                #print-area, #print-area * {{ visibility: visible; }}
-                                #print-area {{ position: absolute; left: 0; top: 0; }}
-                            }}
-                        </style>
                         """
-                        st.components.v1.html(f"""
-                            {print_body}
-                            <script>
-                                setTimeout(function() {{ window.print(); }}, 500);
-                            </script>
-                        """, height=0)
+                        
+                        # [최종 수정] 팝업 없는 직접 인쇄 버튼
+                        if st.button("🖨️ 이 QR코드 인쇄하기"):
+                            print_body = f"""
+                            <div id='print-area' style='text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;'>
+                                <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
+                                <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
+                            </div>
+                            <style>
+                                @media print {{
+                                    body * {{ visibility: hidden; }}
+                                    #print-area, #print-area * {{ visibility: visible; }}
+                                    #print-area {{ position: absolute; left: 0; top: 0; }}
+                                }}
+                            </style>
+                            """
+                            st.components.v1.html(f"""
+                                {print_body}
+                                <script>
+                                    setTimeout(function() {{ window.print(); }}, 500);
+                                </script>
+                            """, height=0)
 
-                else:
-                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
-                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
-                        t_code = target_serial[:3]
-                        new_blank = {
-                            "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴" if t_code=="2"else "코어툴",
-                            "status": "사용전",
-                            "input_date": str(today),
-                            "init_time": get_now_kst().strftime("%H:%M"),
-                            "worker": "",
-                            "machine_no": "",
-                            "dressing_hours": 0,
-                            "dressing_mins": 0,
-                            "start_time": "-",
-                            "target_time": "-",
-                            "use_limit": 10000,
-                            "current_use": 0,
-                            "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
-                        }
-                        db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
-                        st.rerun()
+                    else:
+                        st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
+                        if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
+                            t_code = target_serial[:3]
+                            new_blank = {
+                                "serial_no": target_serial,
+                                "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴" if t_code=="2"else "코어툴",
+                                "status": "사용전",
+                                "input_date": str(today),
+                                "init_time": get_now_kst().strftime("%H:%M"),
+                                "worker": "",
+                                "machine_no": "",
+                                "dressing_hours": 0,
+                                "dressing_mins": 0,
+                                "start_time": "-",
+                                "target_time": "-",
+                                "use_limit": 10000,
+                                "current_use": 0,
+                                "waste_date": "-",
+                                "note": "누락 번호 관리자 강제 재발행 완료"
+                            }
+                            db_collection.insert_one(new_blank)
+                            st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
+                            st.rerun()
 
 
 
 
-  
+    
     
     # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
