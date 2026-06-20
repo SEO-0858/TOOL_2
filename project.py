@@ -759,35 +759,41 @@ if qr_scanned_serial:
 
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
-                first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                make_val = first_doc.get('make', 'none')
-                btn_key = f"btn_{spec_detail}_{make_val}"
-                
-            if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
+                btn_key = f"btn_sel_{spec_detail}"
+                if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
                     st.session_state['selected_spec'] = spec_detail
-                    st.rerun()
+                
+
     
             # 5) 선택 시 제조사 드롭다운 보여주기
             if 'selected_spec' in st.session_state:
                 selected_spec = st.session_state['selected_spec']
-                st.success(f"✅ 선택된 스펙: {selected_spec}")
                 
-                # 선택된 스펙에 맞는 제조사 목록 추출
-                matching_specs = [s for s in specs if s.get('spec_detail') == selected_spec]
+                # 해당 스펙에 맞는 제조사 필터링
+                matching_specs = [s for s in specs if s.get('spec_detail', '').strip() == selected_spec]
                 available_makers = sorted(list(set([s.get('make') for s in matching_specs if s.get('make')])))
                 
-                st.markdown("### 🏭 제조사를 선택하세요")
-                selected_make = st.selectbox("제조사 선택", available_makers, key="maker_select")
+                selected_make = st.selectbox("🏭 제조사 선택", available_makers, key="maker_select")
                 
-                # 6) 최종 등록 버튼
+                # 최종 저장 버튼 (여기서 팝업을 호출합니다)
+                if st.button("💾 이 스펙으로 저장"):
+                    if not selected_make:
+                        st.error("⚠️ 제조사를 선택해주세요!")
+                    else:
+                        # 팝업 호출을 위해 세션 상태에 저장
+                        st.session_state['confirm_save'] = True
 
-                if st.button("🚀 상세 스펙 및 제조사 확정 후 재고 등록"):
-                    st.session_state['show_reg_popup'] = True
-                    st.rerun()
-
-                # 팝업 호출 트리거
-                if st.session_state.get('show_reg_popup'):
-                    confirm_new_tool_registration(qr_scanned_serial, selected_spec, selected_make)
+                # 팝업 확인 로직
+                if st.session_state.get('confirm_save'):
+                    st.warning(f"⚠️ {selected_spec} ({selected_make})로 저장하시겠습니까?")
+                    if st.button("✅ 진짜 저장"):
+                        # 1. 재고 처리
+                        update_inventory_count(selected_spec, selected_make, "사용전", "사용중")
+                        # 2. DB 업데이트
+                        db_collection.update_one({"serial_no": qr_scanned_serial}, {"$set": {"spec_detail": selected_spec, "make": selected_make, "status": "사용중"}})
+                        st.success("🎉 저장 완료!")
+                        del st.session_state['confirm_save'] # 상태 초기화
+                        st.rerun()
 
                 st.stop() # 데이터가 등록되기 전까지는 여기서 멈춤
 
