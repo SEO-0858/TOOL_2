@@ -757,9 +757,12 @@ if qr_scanned_serial:
             # 4) 버튼 생성 루프
             for spec_detail in unique_spec_names:
                 first_doc = next(s for s in specs if s.get('spec_detail', '').strip() == spec_detail)
-                btn_key = f"btn_{spec_detail}"
-                if st.button(f"🛠 선택: {spec_detail}", key=btn_key):
+                make_val = first_doc.get('make', 'none')
+                btn_key = f"btn_{spec_detail}_{make_val}"
+               
+                if st.button(f"🛠 선택: {spec_detail} ({make_val})", key=btn_key):
                         st.session_state['selected_spec'] = spec_detail
+                        st.session_state['selected_make'] = make_val # 제조사 정보도 저장
                         st.rerun()
 
             # 5) 선택 시 제조사 드롭다운 보여주기
@@ -789,7 +792,7 @@ if qr_scanned_serial:
 
                 
         # 스펙 선택 버튼 루프 부분
-        # [스펙 선택 버튼 루프 수정]
+   
         for s in specs:
             spec_name = s.get('spec_detail')
             make_name = s.get('make') # make 값을 가져옵니다
