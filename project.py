@@ -838,8 +838,14 @@ if qr_scanned_serial:
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     current_spec = existing_data.get('spec_detail', '스펙없음')
-    u_spec = current_spec  # <--- 이 코드를 반드시 넣어주어야 858번 줄에서 값을 인식합니다.
-    st.markdown(f"**현재 스펙:** {u_spec}") # 화면에 출력도 확실하게
+    u_spec = current_spec 
+    st.markdown(f"""
+    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px;">
+        <p style="font-size: 20px; font-weight: bold; color: #d63384; margin: 0;">
+            세부 스펙: {u_spec}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
  
 
     st.markdown("### ⏳ 드레싱 및 특이사항")
