@@ -450,6 +450,10 @@ def add_error(msg):
 st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
 # [2단계: 사이드바 오류 표시 영역]
 with st.sidebar:
+    st.markdown("### 🛠 시스템 제어")
+    if st.button("🔄 상세창 모두 닫기"):
+        st.session_state.edit_serial = None # 상세창을 여는 모든 조건을 무효화
+        st.rerun() #
     st.subheader("⚠️ 시스템 통합 알림")
     
     # 1. 오류 표시 공간(Placeholder) 만들기
