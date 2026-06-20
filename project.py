@@ -1254,29 +1254,26 @@ else:
                                     st.rerun()
 
                             if st.button("❌ 변경 취소하고 돌아가기", key=f"cancel_{s_no}"):
-                                st.session_state[edit_key] = False
                                 st.rerun()
                                 
-                        else:
-                            col_x, col_y = st.columns(2)
-                            with col_x:
-                                st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
-                                st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
-                                st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
-                                st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
-                                if item.get("status") == "폐기":
-                                    st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
-                            with col_y:
-                                East_mach = item.get('machine_no') if item.get('machine_no') else '-'
-                                st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
-                                st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
-                                st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
-                                st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
-                            st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
-                            
-                            if st.button("✏️ 이 툴 정보 직접 수정하기", key=f"btn_edit_{s_no}", type="secondary"):
-                                st.session_state[edit_key] = True
-                                st.rerun()
+                     
+                        col_x, col_y = st.columns(2)
+                        with col_x:
+                            st.write(f"• **💎 툴 종류:** {item.get('tool_type', '-')}")
+                            st.write(f"• **📅 최초 발행일:** {item.get('input_date', '-')}")
+                            st.write(f"• **📅 최초 장착 시간:** {item.get('start_time', '-')}")
+                            st.write(f"• **👷 교체 작업자:** {item.get('worker') if item.get('worker') else '-'}")
+                            if item.get("status") == "폐기":
+                                st.write(f"• **🗑️ 폐기 일시:** {item.get('waste_date', '-')}")
+                        with col_y:
+                            East_mach = item.get('machine_no') if item.get('machine_no') else '-'
+                            st.write(f"• **⚙️ 기계 가공 호기:** {East_mach}")
+                            st.write(f"• **⏳ 설정된 드레싱 주기:** {item.get('dressing_hours', 0)}시간 {item.get('dressing_mins', 0)}분")
+                            st.write(f"• **⚙️ 설정된 사용 한도 횟수 (Limit):** {int(item.get('use_limit', 10000))} 회")
+                            st.write(f"• **🎯 다음 마감 시간:** {item.get('target_time', '-')}")
+                        st.write(f"• **📝 현장 특이 사항:** {item.get('note', '')}")
+                        
+
                                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
