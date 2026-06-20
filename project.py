@@ -1322,6 +1322,7 @@ else:
                                         st.stop()
 
                                     # [2단계: PC 검문소 설치]
+                                    ed_spec = item.get('spec_detail', '스펙없음')
                                     is_valid, msg = validate_process(db_current_status, ed_status)
                                     # 사용전 툴 폐기는 검문소 통과
                                     if not is_valid and not (db_current_status == "사용전" and ed_status == "폐기"):
