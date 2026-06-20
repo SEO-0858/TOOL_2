@@ -1181,8 +1181,11 @@ else:
                        
                         expander_title = f"🆔 {s_no} | 💎 {item.get('tool_type', '툴')} | {status_badge}"
                         
+                        
+                        if f"open_{s_no}" not in st.session_state:
+                            st.session_state[f"open_{s_no}"] = False
 
-                        with st.expander(expander_title):
+                        with st.expander(expander_title, expanded=st.session_state[f"open_{s_no}"]):
                       
                             col_x, col_y = st.columns(2)
                             with col_x:
@@ -1256,13 +1259,11 @@ else:
                                     st.success("💥 최초 발행 년월일 및 시·분 정보까지 완벽하게 보존 리셋되었습니다!")
                                     time.sleep(1)
                                     st.rerun()
-
-                       
                             if st.button("❌ 창 닫기", key=f"close_{s_no}"):
-                                st.session_state.edit_serial = None
-                                time.sleep(1.5)
+                                st.session_state[f"open_{s_no}"] = False # 스위치를 끕니다
                                 st.rerun()
-                            st.stop()
+                                                    
+                            
                                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
