@@ -1257,11 +1257,11 @@ else:
                                     time.sleep(1)
                                     st.rerun()
 
-                         
-                            if st.button("❌ 창 닫기", key=f"close_{s_no}"):
-                                st.session_state.edit_serial = None # 상세창 닫기 트리거
-                                time.sleep(1.5)
-                                st.rerun()    
+                       
+                            def close_detail_view():
+                                st.session_state.edit_serial = None
+
+                            st.button("❌ 창 닫기", key=f"close_{s_no}", on_click=close_detail_view)
 
                                 
         except Exception as e:
