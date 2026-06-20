@@ -1255,9 +1255,9 @@ else:
                                     st.rerun()
 
                          
-                            if st.button("❌ 창 닫기", key=f"cancel_{s_no}"):
-                                st.session_state.edit_serial = None # 상세창 닫기 트리거
-                                st.rerun() # 새로고침으로 깔끔하게 Expander 닫힘     
+                        if st.button("❌ 창 닫기", key=f"cancel_{s_no}"):
+                            st.session_state.edit_serial = None # 상세창 닫기 트리거
+                            st.rerun() # 새로고침으로 깔끔하게 Expander 닫힘     
                      
 
                                 
