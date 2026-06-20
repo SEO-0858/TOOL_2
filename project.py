@@ -1177,20 +1177,19 @@ else:
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
                                 st.rerun()
 
-                            # [버튼 2] 스펙 오류 삭제 및 재고 보정
+                            # [버튼 2] 스펙 오류 삭제 및 재고 보정 (폐기수량 건드리지 않음)
                             if st.button(f"🗑️ [스펙 오류] 삭제 및 재고 보정", key=f"reset_spec_{s_no}", type="primary"):
-                                # 유효성 검사
                                 if not current_spec or not spec_info:
-                                    st.error(f"🚨 경고: [{current_spec if current_spec else '공란'}]은 등록되지 않은 스펙이거나 마스터에 존재하지 않습니다!")
+                                    st.error(f"🚨 경고: 등록되지 않았거나 유효하지 않은 스펙입니다!")
                                 else:
                                     st.session_state[f"confirm_spec_{s_no}"] = True
                                     st.rerun()
                             
                             if st.session_state.get(f"confirm_spec_{s_no}", False):
-                                st.warning(f"⚠️ [{current_spec}] 스펙의 재고를 -1 차감하고 삭제하시겠습니까?")
+                                st.warning(f"⚠️ [{current_spec}] 스펙의 재고를 수정하고 삭제하시겠습니까?")
                                 c1, c2 = st.columns(2)
                                 if c1.button("✅ 진짜 진행", key=f"do_spec_{s_no}"):
-                                    # 1. 재고 보정: tool_specs_master 차감
+                                    # 1. 재고 보정: 오직 new_tool_count만 변경 (disposed_tool_count는 절대 건드리지 않음)
                                     db["tool_specs_master"].update_one(
                                         {"spec_detail": current_spec},
                                         {"$inc": {"new_tool_count": -1}}
