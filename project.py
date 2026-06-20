@@ -1363,11 +1363,11 @@ else:
                                     
                                     # 1. 기본 기록 생성 (상태 변화)
                                     log_time_str = real_now_kst.strftime("%Y-%m-%d %H:%M:%S")
-                                    change_msg = f" 상태: {ed_status}"
+                                    change_msg = f" 상태: {ed_status}, (스펙: {ed_spec})"
 
                                     # 2. 스펙 변경 체크 및 기록
                                     if old_spec != new_spec:
-                                        change_msg += f", (스펙 변경: {old_spec} -> {new_spec})"
+                                        change_msg = f" 상태: {ed_status}, (스펙 변경: {old_spec} -> {new_spec})"
 
                                     # 3. 상세 스펙이 기록에 없다면 추가
                                     if f"상세 스펙: {ed_spec}" not in final_note_val:
@@ -1376,6 +1376,7 @@ else:
                                     # 4. 로그 메시지 결합
                                     auto_log_msg = f"\n[{log_time_str}]{change_msg}, 작업자: {ed_worker}, 기계: {full_mach_name}"
                                     final_note_val += auto_log_msg
+                                    
 
                                     db_collection.update_one(
                                         {"serial_no": s_no},
