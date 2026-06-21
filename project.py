@@ -921,7 +921,7 @@ if qr_scanned_serial:
 
 
     
-    st.divider()
+    #st.divider()
     
     st.markdown("### 📝 기본 정보")
     u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
