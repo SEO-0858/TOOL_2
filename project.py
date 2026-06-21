@@ -36,16 +36,25 @@ def disposal_can_do(serial, data):
             
         current_mach = data.get('machine_no', '')
         machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
+
+        current_worker = data.get('worker', '')
+        worker_input = st.text_input("작업자 이름:", value=current_worker)
         
         col1, col2 = st.columns(2)
         if col1.button("✅ 최종 폐기 저장"):
             if not selected_reason:
                 st.error("사유를 선택해주세요.")
+            elif not worker_input: # 작업자 이름이 비어있으면 경고
+                st.error("작업자 이름을 입력해주세요.")
             else:
+                # 1) 로그 데이터에 worker_input 사용
                 log_data = {
-                    "serial_no": serial, "machine_no": machine_input,
-                    "disposal_reason": selected_reason, "detail_reason": detail_reason,
-                    "worker": data.get('worker', ''), "spec_detail": data.get('spec_detail', ''),
+                    "serial_no": serial,
+                    "machine_no": machine_input,
+                    "disposal_reason": selected_reason,
+                    "detail_reason": detail_reason,
+                    "worker": worker_input, # 여기서 입력받은 값을 사용
+                    "spec_detail": data.get('spec_detail', ''),
                     "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                 }
                 db.disposal_log.insert_one(log_data)
@@ -54,6 +63,7 @@ def disposal_can_do(serial, data):
                 st.session_state['waste_reason_data'] = selected_reason
                 st.session_state['show_waste_dialog'] = False
                 st.rerun()
+
         if col2.button("❌ 취소"):
             st.session_state['show_waste_dialog'] = False
             st.rerun()
