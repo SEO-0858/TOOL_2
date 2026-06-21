@@ -903,7 +903,7 @@ if qr_scanned_serial:
     if st.session_state.get('show_waste_dialog', False):
         disposal_can_do(qr_scanned_serial, existing_data)
 
-    st.divider()
+    #st.divider()
 
     # --- 3. [데이터 확인 및 저장 버튼] ---
     # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
