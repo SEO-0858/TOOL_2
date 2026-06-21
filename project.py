@@ -15,8 +15,84 @@ import pytz
 import mong
 
 
-
 st.cache_data.clear()
+
+#폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
+
+def disposal_can_do(serial, data):
+    """
+    폐기 전용 팝업 함수 (컨트롤 타워)
+    - serial: 현재 툴의 시리얼 번호
+    - data: 현재 툴의 전체 데이터 (existing_data)
+    """
+    @st.dialog("⚠️ 툴 폐기 처리")
+    def waste_dialog():
+        st.write(f"시리얼 번호: **{serial}**")
+        
+        # 1. 폐기 사유 선택 (6가지 항목)
+        reason_options = [
+            "1. 다이아팁 전면 2mm 이하",
+            "2. 툴 형상변화",
+            "3. 툴 진원도 불량",
+            "4. 지정 한계 수량",
+            "5. 파손",
+            "6. 기타사유(직접기입)"
+        ]
+        selected_reason = st.selectbox("폐기 사유 선택:", reason_options)
+        
+        detail_reason = ""
+        if selected_reason == "6. 기타사유(직접기입)":
+            detail_reason = st.text_input("상세 사유 입력:")
+            
+        # 2. 기계 번호 입력 (기본값: 기존 기계 번호)
+        current_mach = data.get('machine_no', '')
+        machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
+        
+        col1, col2 = st.columns(2)
+        
+        # [최종 저장 버튼]
+        if col1.button("✅ 최종 폐기 저장"):
+            if not selected_reason:
+                st.error("사유를 선택해주세요.")
+            else:
+                # 1) disposal_log 컬렉션에 로그 데이터 삽입
+                log_data = {
+                    "serial_no": serial,
+                    "machine_no": machine_input,
+                    "disposal_reason": selected_reason,
+                    "detail_reason": detail_reason,
+                    "worker": data.get('worker', ''),
+                    "spec_detail": data.get('spec_detail', ''),
+                    "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                # DB 객체가 db_collection 상위의 db 객체라면 아래와 같이 사용
+                db.disposal_log.insert_one(log_data)
+                
+                # 2) tools_management 상태 업데이트 ("폐기"로 변경)
+                db_collection.update_one(
+                    {"serial_no": serial},
+                    {"$set": {"status": "폐기", "disposal_reason": selected_reason}}
+                )
+                
+                # 3) tool_specs_master 폐기 카운트 증가 (+1)
+                update_inventory_count(serial, "폐기")
+                
+                # 임시로 저장된 폐기 사유를 세션에 저장 (데이터 확인 및 저장 로직용)
+                st.session_state['waste_reason_data'] = selected_reason
+                
+                st.success("폐기 정보가 저장되었습니다.")
+                st.session_state['show_waste_dialog'] = False
+                st.rerun()
+        
+        # [취소 버튼] - 상태 원복
+        if col2.button("❌ 취소"):
+            st.session_state['show_waste_dialog'] = False
+            st.rerun()
+
+    waste_dialog()
+
+
+
 
 
 @st.dialog("🛠 신규 툴 등록 최종 확인")
@@ -826,10 +902,14 @@ if qr_scanned_serial:
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
     u_status = st.radio("상태를 선택하세요", status_options, index=idx, horizontal=True)
-   
-    u_disposal_reason = "" 
     if u_status == "폐기":
-        u_disposal_reason = st.text_input("⚠️ 폐기 사유 입력")
+        st.session_state['show_waste_dialog'] = True
+    else:
+        st.session_state['show_waste_dialog'] = False
+    if st.session_state.get('show_waste_dialog', False):
+        disposal_can_do(qr_scanned_serial, existing_data)
+   
+
 
     
     st.divider()
@@ -872,7 +952,7 @@ if qr_scanned_serial:
             'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
             'make': existing_data.get('make', ''),
             'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
-            'disposal_reason': u_disposal_reason
+            'disposal_reason': st.session_state.get('waste_reason_data', '')
         }
         st.session_state['show_confirm_dialog'] = True
         st.rerun() # 팝업을 띄우기 위해 화면 새로고침
