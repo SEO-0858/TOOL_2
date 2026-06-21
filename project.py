@@ -881,11 +881,11 @@ if qr_scanned_serial:
                 with st.container(border=True):
                     st.write("### 📝 등록 정보 확인")
                     
-                    # 1. 상세 스펙: text_area를 읽기 전용으로 활용하면 긴 텍스트도 줄바꿈되어 전체가 나옵니다.
+                    # 상세 스펙 강조
                     st.write("**상세 스펙**")
-                    st.text_area(label="spec", value=final_spec, height=70, disabled=True, label_visibility="collapsed")
+                    st.info(f"**{final_spec}**") # 배경색과 함께 볼드체로 강조
                     
-                    # 2. 제조사: 기존처럼 표시
+                    # 제조사 강조
                     st.write(f"**제조사:** {final_make}")
 
                     # 저장 및 초기화 버튼을 가로로 배치 (선택의 명확화)
