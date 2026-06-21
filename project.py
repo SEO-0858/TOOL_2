@@ -871,50 +871,51 @@ if qr_scanned_serial:
 
             
             # [단계 3] 팝업 확인창 (최종 확정 단계)
-            if st.session_state.get('confirm_save'):
-                st.markdown("---")
-                st.error("⚠️ 작업 내용을 최종 확인해주세요!")
+            # [단계 3] 팝업 확인창 (최종 확정 단계)
+if st.session_state.get('confirm_save'):
+    st.markdown("---")
+    st.error("⚠️ 작업 내용을 최종 확인해주세요!")
 
-                final_spec = st.session_state.get('selected_spec')
-                final_make = st.session_state.get('maker_select')
+    final_spec = st.session_state.get('selected_spec')
+    final_make = st.session_state.get('maker_select')
 
-                with st.container(border=True):
-                    st.write("### 📝 등록 정보 확인")
-                    col1, col2 = st.columns(2)
-                    col1.metric("상세 스펙", final_spec)
-                    col2.metric("제조사", final_make)
+    with st.container(border=True):
+        st.write("### 📝 등록 정보 확인")
+        col1, col2 = st.columns(2)
+        col1.metric("상세 스펙", final_spec)
+        col2.metric("제조사", final_make)
 
-                    # 저장 및 초기화 버튼을 가로로 배치 (선택의 명확화)
-                    btn_col1, btn_col2 = st.columns(2)
+        btn_col1, btn_col2 = st.columns(2)
 
-                    # 1. 확정 및 저장 버튼 (DB 로직 실행)
-                    if btn_col1.button("✅ 진짜 저장", type="primary"):
-                        # DB 업데이트 로직 (기존 로직 유지)
-                        update_inventory_count(final_spec, final_make, "none", "사용중")
-                        
-                        db_collection.database['tool_specs_master'].update_one(
-                            {"spec_detail": final_spec, "make": final_make},
-                            {"$inc": {"new_tool_count": 1}},
-                            upsert=True
-                        )
-                        
-                        db_collection.update_one(
-                            {"serial_no": qr_scanned_serial},
-                            {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용중"}}
-                        )
-                        
-                        st.success("성공적으로 저장되었습니다!")
-                        
-                        # 모든 세션 초기화 (다음 작업을 위해)
-                        for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
-                            if k in st.session_state: del st.session_state[k]
-                        st.rerun()
+        # 1. 확정 및 저장 버튼
+        if btn_col1.button("✅ 진짜 저장", type="primary"):
+            # [수정] 상세 스펙 등록 시에는 상태를 "사용전"으로 업데이트
+            update_inventory_count(final_spec, final_make, "none", "사용전")
+            
+            db_collection.database['tool_specs_master'].update_one(
+                {"spec_detail": final_spec, "make": final_make},
+                {"$inc": {"new_tool_count": 1}},
+                upsert=True
+            )
+            
+            # [수정] 여기서도 상태를 "사용전"으로 명시
+            db_collection.update_one(
+                {"serial_no": qr_scanned_serial},
+                {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
+            )
+            
+            st.success("상세 스펙이 성공적으로 등록되었습니다!")
+            
+            # 세션 초기화
+            for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
+                if k in st.session_state: del st.session_state[k]
+            st.rerun()
 
-                    # 2. 내용 틀림 시 초기화 (데이터 반영 없이 처음 단계로)
-                    if btn_col2.button("❌ 내용이 틀림 (초기화)"):
-                        for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
-                            if k in st.session_state: del st.session_state[k]
-                        st.rerun()
+        # 2. 내용 틀림 시 초기화
+        if btn_col2.button("❌ 내용이 틀림 (초기화)"):
+            for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
+                if k in st.session_state: del st.session_state[k]
+            st.rerun()
 
     if not existing_data.get('spec_detail'):
         st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
