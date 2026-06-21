@@ -42,35 +42,48 @@ def disposal_can_do(serial, data):
         
         col1, col2 = st.columns(2)
         if col1.button("✅ 최종 폐기 저장"):
+            # 1. 입력 검증
             if not selected_reason:
                 st.error("사유를 선택해주세요.")
-            elif not worker_input: # 작업자 이름이 비어있으면 경고
+            elif not 'worker_input' in locals() and not worker_input: # 안전장치 추가
                 st.error("작업자 이름을 입력해주세요.")
             else:
-                # 1) 로그 데이터에 worker_input 사용
+                # 2. 로그 데이터 구성
                 log_data = {
                     "serial_no": serial,
                     "machine_no": machine_input,
                     "disposal_reason": selected_reason,
                     "detail_reason": detail_reason,
-                    "worker": worker_input, # 여기서 입력받은 값을 사용
+                    "worker": worker_input, 
                     "spec_detail": data.get('spec_detail', ''),
                     "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                 }
-               
-                db_collection.update_one(
-                    {"serial_no": serial}, 
-                    {"$set": {"status": "폐기", "disposal_reason": selected_reason}}
-                )
-                update_inventory_count(
-                    data.get('spec_detail', ''),   # 1. spec_detail
-                    data.get('make', ''),          # 2. make (제조사 정보)
-                    data.get('status', '사용전'),   # 3. old_status (현재 툴의 기존 상태)
-                    "폐기"                         # 4. new_status (새로운 상태)
+                
+                # 3. 데이터 삽입 및 업데이트
+                try:
+                    # [중요] 컬렉션 이름을 disposal_log로 통일했습니다
+                    db.disposal_log.insert_one(log_data)
+                    
+                    # [수정] 61라인 문법 오류 해결 (중괄호 사용)
+                    db_collection.update_one(
+                        {"serial_no": serial},
+                        {"$set": {"status": "폐기", "disposal_reason": selected_reason}}
                     )
-                st.session_state['waste_reason_data'] = selected_reason
-                st.session_state['show_waste_dialog'] = False
-                st.rerun()
+                    
+                    # 4. 재고 카운트 업데이트
+                    update_inventory_count(
+                        data.get('spec_detail', ''),
+                        data.get('make', ''),
+                        data.get('status', '사용전'),
+                        "폐기"
+                    )
+                    
+                    st.success("폐기 정보가 저장되었습니다.")
+                    st.session_state['waste_reason_data'] = selected_reason
+                    st.session_state['show_waste_dialog'] = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"저장 중 오류 발생: {e}")
 
         if col2.button("❌ 취소"):
             st.session_state['show_waste_dialog'] = False
