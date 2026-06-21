@@ -759,9 +759,9 @@ def confirm_and_save(serial, data):
     st.markdown("---")
     # 2. 요약 정보
     st.write(f"- **작업자:** {data.get('worker', '정보 없음')}")
-    st.write(f"- **기계 호기:** {data['machine_no']}")
+    st.write(f"- **기계 호기:** {data.get('machine_no', '정보 없음')}")
     st.write(f"- **세부 스펙:** {data.get('spec_detail', '스펙 정보 없음')}")
-    st.write(f"- **설정 주기:** {data['dressing_hours']}시간 {data['dressing_mins']}분")
+    st.write(f"- **설정 주기:** {data.get('dressing_hours', 0)}시간 {data.get('dressing_mins', 0)}분")
 
 
     if data['status'] == "폐기":
