@@ -213,8 +213,19 @@ def show_machine_dashboard():
     ]
 
     active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-    machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
-                        for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+    #machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
+                        #for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+    machine_tool_map = {}
+    for t in active_tools:
+        m_no_match = re.findall(r'\d+', str(t.get('machine_no', '')))
+        if m_no_match:
+            m_no = int(m_no_match[0])
+            # 해당 기계 번호 키가 없으면 리스트를 만들고, 있으면 기존 리스트에 툴을 추가(append)
+        if m_no not in machine_tool_map:
+            machine_tool_map[m_no] = []
+        machine_tool_map[m_no].append(t)
+
+
 
     for row in layout:
         cols = st.columns(len(row))
