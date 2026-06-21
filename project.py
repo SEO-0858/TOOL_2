@@ -1215,6 +1215,7 @@ else:
                                     
                                     col_a, col_b = st.columns(2)
                                     # 확인 버튼: 재고 -1 하고, 데이터를 초기화(None)
+                                   
                                     if col_a.button(f"✅ 확인 (삭제 및 원복)", key=f"confirm_del_{s_no}", type="primary"):
                                         # 1. 재고 -1 차감 (마스터 DB)
                                         db["tool_specs_master"].update_one(
@@ -1223,24 +1224,24 @@ else:
                                         )
                                         
                                         # 2. 데이터 리셋 (현장 DB)
+                                        # $unset을 사용하여 spec_detail 필드만 삭제하고, 
+                                        # 나머지 데이터(입고일, 최초 발행 시간 등)는 그대로 보존합니다.
                                         db["tools_management"].update_one(
                                             {"serial_no": s_no},
-                                            {"$set": {
-                                                "status": "사용전",
-                                                "spec_detail": None,  # 핵심: 스펙을 비움
-                                                "worker": "",
-                                                "machine_no": "",
-                                                "note": f"스펙 오류 보정: '{current_spec}' 삭제 및 초기화"
-                                            }}
+                                            {
+                                                "$unset": {"spec_detail": "", "make": ""}, # 스펙과 제조사 정보만 삭제
+                                                "$set": {
+                                                    "status": "사용전",
+                                                    "worker": "",
+                                                    "machine_no": "",
+                                                    "note": f"[{get_now_kst().strftime('%Y-%m-%d %H:%M')} 발행] 현장 입고일 완료 (현장 기입 대기) - 이전 스펙('{current_spec}') 오류 삭제 완료"
+                                                }
+                                            }
                                         )
                                         st.session_state[f"confirm_spec_{s_no}"] = False
-                                        st.success("✨ 초기화 완료되었습니다.")
+                                        st.success("✨ 발행 정보는 유지하고 스펙만 초기화되었습니다.")
                                         st.rerun()
 
-                                    # 취소 버튼
-                                    if col_b.button("취소", key=f"cancel_del_{s_no}"):
-                                        st.session_state[f"confirm_spec_{s_no}"] = False
-                                        st.rerun()
 
 
 
