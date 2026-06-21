@@ -890,7 +890,7 @@ if qr_scanned_serial:
                     # 1. 확정 및 저장 버튼 (DB 로직 실행)
                     if btn_col1.button("✅ 진짜 저장", type="primary"):
                         # DB 업데이트 로직 (기존 로직 유지)
-                        update_inventory_count(final_spec, final_make, "none", "사용중")
+                        update_inventory_count(final_spec, final_make, "none", "사용전")
                         
                         db_collection.database['tool_specs_master'].update_one(
                             {"spec_detail": final_spec, "make": final_make},
