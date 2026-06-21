@@ -880,9 +880,13 @@ if qr_scanned_serial:
 
                 with st.container(border=True):
                     st.write("### 📝 등록 정보 확인")
-                    col1, col2 = st.columns(2)
-                    col1.metric("상세 스펙", final_spec)
-                    col2.metric("제조사", final_make)
+                    
+                    # 1. 상세 스펙: text_area를 읽기 전용으로 활용하면 긴 텍스트도 줄바꿈되어 전체가 나옵니다.
+                    st.write("**상세 스펙**")
+                    st.text_area(label="spec", value=final_spec, height=70, disabled=True, label_visibility="collapsed")
+                    
+                    # 2. 제조사: 기존처럼 표시
+                    st.write(f"**제조사:** {final_make}")
 
                     # 저장 및 초기화 버튼을 가로로 배치 (선택의 명확화)
                     btn_col1, btn_col2 = st.columns(2)
