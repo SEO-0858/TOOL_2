@@ -212,9 +212,7 @@ def show_machine_dashboard():
         [44, 45, 46, 47, 48, 49, 50, 51]
     ]
 
-    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
-    #machine_tool_map = {int(re.findall(r'\d+', str(t.get('machine_no', '')))[0]): [t] 
-                        #for t in active_tools if re.findall(r'\d+', str(t.get('machine_no', '')))}
+
     machine_tool_map = {}
     for t in active_tools:
         m_no_match = re.findall(r'\d+', str(t.get('machine_no', '')))
@@ -937,7 +935,7 @@ if qr_scanned_serial:
     # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
     if 'last_valid_status' not in st.session_state:
         st.session_state['last_valid_status'] = prev_status
-    if st.button("데이터 확인 및 저장"):
+    #if st.button("데이터 확인 및 저장"):
         st.session_state['confirm_data'] = {
             'status': u_status,
             'prev_status': prev_status,
