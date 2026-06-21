@@ -20,7 +20,7 @@ st.cache_data.clear()
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
 
 def disposal_can_do(serial, data):
-    db = db_collection.database['disposal_logs']
+    #db = db_collection.database['disposal_logs']
     @st.dialog("⚠️ 툴 폐기 처리")
     def waste_dialog():
         st.write(f"시리얼 번호: **{serial}**")
