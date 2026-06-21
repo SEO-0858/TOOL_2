@@ -903,13 +903,15 @@ if qr_scanned_serial:
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
     u_status = st.radio("상태를 선택하세요", status_options, index=idx, horizontal=True)
-    if u_status == "폐기":
+
+
+    # 폐기를 선택했을 때만 팝업 플래그를 True로 만듦 (한 번만 작동하도록)
+    if u_status == "폐기" and st.session_state.get('prev_radio') != "폐기":
         st.session_state['show_waste_dialog'] = True
-    else:
-        st.session_state['show_waste_dialog'] = False
-    if st.session_state.get('show_waste_dialog', False):
-        disposal_can_do(qr_scanned_serial, existing_data)
-   
+
+    # 현재 radio 상태를 기록해둠 (나중에 비교용)
+    st.session_state['prev_radio'] = u_status
+    
 
 
     
