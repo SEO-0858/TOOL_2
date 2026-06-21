@@ -900,7 +900,7 @@ if qr_scanned_serial:
                         
                         db_collection.update_one(
                             {"serial_no": qr_scanned_serial},
-                            {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용중"}}
+                            {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
                         )
                         
                         st.success("성공적으로 저장되었습니다!")
