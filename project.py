@@ -920,13 +920,13 @@ if qr_scanned_serial:
     if st.session_state.get('show_waste_dialog', False):
         disposal_can_do(qr_scanned_serial, existing_data)
 
-    #st.divider()
+    st.divider()
 
     # --- 3. [데이터 확인 및 저장 버튼] ---
     # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
     if 'last_valid_status' not in st.session_state:
         st.session_state['last_valid_status'] = prev_status
-    if st.button("데이터 확인 및 저장"):
+    #if st.button("데이터 확인 및 저장"):
         st.session_state['confirm_data'] = {
             'status': u_status,
             'prev_status': prev_status,
@@ -938,7 +938,7 @@ if qr_scanned_serial:
 
 
     
-    #st.divider()
+    st.divider()
     
     st.markdown("### 📝 기본 정보")
     u_worker = st.text_input("👷 교체 작업자 이름", value=existing_data.get('worker', ''))
