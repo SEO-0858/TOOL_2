@@ -929,7 +929,7 @@ if qr_scanned_serial:
        
 
 
-    if st.button("데이터 확인 및 저장"):
+    if st.button("데이터 확인 및 저장", key="main_save_button"):
         st.session_state['confirm_data'] = {
             'status': u_status,
             'prev_status': prev_status,
