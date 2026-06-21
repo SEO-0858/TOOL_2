@@ -66,7 +66,10 @@ def disposal_can_do(serial, data):
 
         if col2.button("❌ 취소"):
             st.session_state['show_waste_dialog'] = False
+            st.session_state['u_status'] = st.session_state['last_valid_status']
             st.rerun()
+
+            
     waste_dialog()
 
 
@@ -899,6 +902,8 @@ if qr_scanned_serial:
 
     # --- 3. [데이터 확인 및 저장 버튼] ---
     # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
+    if 'last_valid_status' not in st.session_state:
+        st.session_state['last_valid_status'] = prev_status
     if st.button("데이터 확인 및 저장"):
         st.session_state['confirm_data'] = {
             'status': u_status,
