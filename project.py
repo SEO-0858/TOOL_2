@@ -59,7 +59,12 @@ def disposal_can_do(serial, data):
                 }
                 db.disposal_log.insert_one(log_data)
                 db_collection.update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason}})
-                update_inventory_count(serial, "폐기")
+                update_inventory_count(
+                    data.get('spec_detail', ''),   # 1. spec_detail
+                    data.get('make', ''),          # 2. make (제조사 정보)
+                    data.get('status', '사용전'),   # 3. old_status (현재 툴의 기존 상태)
+                    "폐기"                         # 4. new_status (새로운 상태)
+                    )
                 st.session_state['waste_reason_data'] = selected_reason
                 st.session_state['show_waste_dialog'] = False
                 st.rerun()
@@ -69,7 +74,7 @@ def disposal_can_do(serial, data):
             st.session_state['u_status'] = st.session_state['last_valid_status']
             st.rerun()
 
-            
+
     waste_dialog()
 
 
