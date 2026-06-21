@@ -20,6 +20,7 @@ st.cache_data.clear()
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
 
 def disposal_can_do(serial, data):
+    db = db_collection.database['disposal_logs']
     """
     폐기 전용 팝업 함수 (컨트롤 타워)
     - serial: 현재 툴의 시리얼 번호
