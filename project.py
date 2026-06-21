@@ -21,6 +21,7 @@ st.cache_data.clear()
 
 def disposal_can_do(serial, data):
     db = db_collection.database['disposal_logs']
+    
     @st.dialog("⚠️ 툴 폐기 처리")
     def waste_dialog():
         st.write(f"시리얼 번호: **{serial}**")
@@ -62,7 +63,7 @@ def disposal_can_do(serial, data):
                 # 3. 데이터 삽입 및 업데이트
                 try:
                     # [중요] 컬렉션 이름을 disposal_log로 통일했습니다
-                    client['disposal']['logs'].insert_one(log_data)
+                    db_collection.database['disposal_logs'].insert_one(log_data)
                     
                     # [수정] 61라인 문법 오류 해결 (중괄호 사용)
                     db_collection.update_one(
