@@ -57,8 +57,11 @@ def disposal_can_do(serial, data):
                     "spec_detail": data.get('spec_detail', ''),
                     "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                 }
-                #db.disposal_log.insert_one(log_data)
-                db.update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason}})
+               
+                db_collection.update_one(
+                    {"serial_no": serial}, 
+                    {"$set": {"status": "폐기", "disposal_reason": selected_reason}}
+                )
                 update_inventory_count(
                     data.get('spec_detail', ''),   # 1. spec_detail
                     data.get('make', ''),          # 2. make (제조사 정보)
