@@ -898,7 +898,7 @@ if qr_scanned_serial:
                         
                         db_collection.database['tool_specs_master'].update_one(
                             {"spec_detail": final_spec, "make": final_make},
-                            {"$inc": {"new_tool_count": 1}},
+                            {"$inc": {"new_tool_count": +1}},
                             upsert=True
                         )
                         
@@ -1138,7 +1138,7 @@ else:
                     }}
                     printWindow.document.close();
                     printWindow.print();
-                }}, 500);
+                }}, 500);   
             " style="padding: 15px; font-size: 16px; cursor: pointer; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold;">
                 🖨️ 해당 QR코드 인쇄하기
             </button>
