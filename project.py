@@ -14,8 +14,7 @@ from datetime import timedelta
 import pytz
 import mong
 
-if 'last_status' not in st.session_state:
-    st.session_state['last_status'] = prev_status
+
 st.cache_data.clear()
 
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
