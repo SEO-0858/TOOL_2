@@ -71,12 +71,15 @@ def disposal_can_do(serial, data):
                     current_note = data.get('note', '')
                     new_log = f"\n[{now_str}] 폐기됨, 사유: {selected_reason}, 작업자: {worker_input}, 기계: {machine_input}"
                     updated_note = str(current_note) + new_log
+                    final_reason = selected_reason
+                    if selected_reason == "직접기입":
+                        final_reason = f"직접기입: {detail_reason}"
                     
                     db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
                         {"$set": {
                             "status": "폐기",
-                            "disposal_reason": selected_reason,
+                            "disposal_reason": final_reason,
                             "note": updated_note,
                             "worker": worker_input,
                             "machine_no": machine_input
