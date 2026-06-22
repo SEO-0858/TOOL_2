@@ -110,8 +110,13 @@ def disposal_can_do(serial, data):
 
         if col2.button("❌ 취소"):
             st.session_state['show_waste_dialog'] = False
-            st.session_state['u_status'] = st.session_state['last_valid_status']
-            st.rerun()
+            if 'last_valid_status' in st.session_state:
+            # 기존에 저장해둔 상태가 있으면 그대로 복구
+                st.session_state['u_status'] = st.session_state['last_valid_status']
+            else:
+            # 만약 저장된 게 없다면, 현재 DB에 있는 값(data['status'])을 읽어와서 복구
+                st.session_state['u_status'] = data.get('status', '사용전')
+                st.rerun()
 
 
     waste_dialog()
