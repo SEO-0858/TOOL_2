@@ -198,6 +198,7 @@ def show_machine_dashboard():
         st.rerun()
     now_kst = get_now_kst()
     st.write(f"**현재 기준 시간:** {now_kst.strftime('%Y-%m-%d %H:%M')}")
+    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}}))
     # 1. 레이아웃 및 데이터 매핑 (기존 기능 유지)
     layout = [
         [27, 28, 29, 30, 31, 9, 8, 7],
@@ -941,25 +942,8 @@ if qr_scanned_serial:
     # 팝업 호출부
     if st.session_state.get('show_waste_dialog', False):
         disposal_can_do(qr_scanned_serial, existing_data)
-
-    
-
-    # --- 3. [데이터 확인 및 저장 버튼] ---
-    # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
-    # if 'last_valid_status' not in st.session_state:
-    #     st.session_state['last_valid_status'] = prev_status
-    # if st.button("데이터 확인 및 저장"):
-    #     st.session_state['confirm_data'] = {
-    #         'status': u_status,
-    #         'prev_status': prev_status,
-    #         # ... (중략) ...
-    #         'disposal_reason': st.session_state.get('waste_reason_data', '') 
-    #     }
-    #     st.session_state['show_confirm_dialog'] = True
-    
-
-
-    
+  
+   
     st.divider()
     
     st.markdown("### 📝 기본 정보")
