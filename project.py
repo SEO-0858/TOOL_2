@@ -755,62 +755,66 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
 
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
-# 1. 팝업 함수
-@st.dialog("데이터 최종 확인")
+@st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
-    st.info(f"현재 상태 유지: {data.get('status')}")
-    st.write(f"**작업자:** {data.get('worker', '정보 없음')}")
-    st.write(f"**기계 호기:** {data.get('machine_no', '정보 없음')}")
+    # 1. 상태 대조 및 강조 로직
+    if data['status'] != data['prev_status']:
+        if data['status'] == "폐기":
+            st.error(f"⚠️ 경고: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 변경합니다!")
+        else:
+            st.warning(f"🔄 알림: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 상태가 변경됩니다.")
+    else:
+        st.info(f"현재 상태 유지: [ {data['status']} ]")
+    reason = data.get('disposal_reason', '사유 없음')
+    st.markdown("---")
+    # 2. 요약 정보
+    st.write(f"- **작업자:** {data.get('worker', '정보 없음')}")
+    st.write(f"- **기계 호기:** {data.get('machine_no', '정보 없음')}")
+    st.write(f"- **세부 스펙:** {data.get('spec_detail', '스펙 정보 없음')}")
+    st.write(f"- **설정 주기:** {data.get('dressing_hours', 0)}시간 {data.get('dressing_mins', 0)}분")
+
+
+    if data['status'] == "폐기":
+        reason = data.get('disposal_reason', '사유 없음')
+        st.write(f"- **폐기 사유:** {reason}")
     
-    # 폐기 시 수량 입력 기능 유지
-    if data.get('status') == "폐기":
-        st.error(f"**폐기 사유:** {data.get('disposal_reason', '사유 없음')}")
-        # 세션 스테이트에 수량 저장을 위한 키 추가 필요 시 여기에 로직 삽입
-    
-    if st.button("확인 및 저장 진행"):
-        st.session_state['ready_to_save'] = True
+    qty = 0
+    if data['status'] in ["폐기", "재사용대기"]:
+        qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
+
+    # 상태가 '폐기'로 변경될 때만 로그 남기기
+        if data['status'] == "폐기":           
+            log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
+    if st.button("✅ 최종 확정 및 저장"):
+        final_note = data['note']
+        if data['status'] != data['prev_status']:
+            now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
+            if qty > 0: log += f", 최종수량:{qty}개"
+            final_note += log
+
+        # 재고 계산 함수 호출
+        update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
+
+        db_collection.update_one(
+            {"serial_no": serial},
+            {"$set": {
+                "status": data['status'],
+                "worker": "" if data['status'] in ["사용전", "폐기"] else data['worker'],
+                "machine_no": "" if data['status'] in ["사용전", "폐기"] else data['machine_no'],
+                "dressing_hours": data['dressing_hours'],
+                "dressing_mins": data['dressing_mins'],
+                "note": final_note,
+                "spec_detail": data['spec_detail'],
+                "start_time": data['start_time'],
+                "target_time": data['target_time']
+            }},
+            upsert=True
+        )
+        st.success("✅ 저장 완료되었습니다!")
+        time.sleep(1.0) 
+        st.session_state['show_confirm_dialog'] = False
         st.rerun()
-
-# 2. 메인 실행 로직 (기존 로직과 100% 호환)
-if st.session_state.get('ready_to_save'):
-    # 선생님의 기존 코드에서 사용하던 data 구조를 그대로 대입
-    data = existing_data 
-    serial = qr_scanned_serial
-    
-    # 1. 노트 생성 (기존 로직 그대로)
-    existing_note = data.get('note', '')
-    now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-    new_log = f"\n[{now_str}] 상태:{data['status']}, 사유:{data.get('disposal_reason', '없음')}"
-    
-    # 수량 기록이 있었다면 포함 (기존 log_disposal 로직과 일치)
-    updated_note = str(existing_note) + new_log
-
-    # 2. DB 업데이트 (핵심 데이터 동기화)
-    db_collection.update_one(
-        {"serial_no": serial},
-        {"$set": {
-            "status": data['status'],
-            "note": updated_note,
-            "worker": data.get('worker', ''),
-            "machine_no": data.get('machine_no', ''),
-            "disposal_reason": data.get('disposal_reason', ''),
-            "disposal_date": now_str
-        }}
-    )
-    
-    # 3. 기존 함수 호출 (순서 및 인자값 그대로 유지)
-    log_disposal(serial, data.get('spec_detail'), data.get('worker'), data.get('disposal_reason', '사유 없음'))
-    update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), data.get('status'))
-    
-    # 4. 마무리
-    st.session_state['ready_to_save'] = False
-    st.session_state['show_waste_dialog'] = False 
-    
-    st.success("✅ 폐기 처리가 완료되었습니다!")
-    import time
-    time.sleep(1)
-    st.rerun()
-
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
