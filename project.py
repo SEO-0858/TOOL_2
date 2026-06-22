@@ -896,8 +896,6 @@ if qr_scanned_serial:
                         # DB 업데이트 로직 (기존 로직 유지)
                         update_inventory_count(final_spec, final_make, "none", "사용전")
                         
-
-                        
                         db_collection.update_one(
                             {"serial_no": qr_scanned_serial},
                             {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
@@ -916,8 +914,8 @@ if qr_scanned_serial:
                             if k in st.session_state: del st.session_state[k]
                         st.rerun()
 
-    if not existing_data.get('spec_detail'):
-        st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
+    #if not existing_data.get('spec_detail'):
+        #st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
         st.stop()    
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
