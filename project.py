@@ -789,40 +789,43 @@ def confirm_and_save(serial, data):
 
     # 기존: if st.button("✅ 최종 확정 및 저장"):
     if st.button("✅ 최종 확정 및 저장"):
-        # 1. 노트 문자열 생성 (기존 내용을 유지하면서 새 로그 추가)
-        existing_note = data.get('note', '')
-        now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # 로그 포맷 구성
-        new_log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}, 사유:{data.get('disposal_reason', '없음')}"
-        if qty > 0:
-            new_log += f", 회수수량:{qty}개"
-        
-        updated_note = existing_note + new_log
+            # 디버깅: 데이터가 제대로 들어오는지 콘솔에 출력 (터미널 창 확인)
+            st.write("DEBUG: 시작됨")
+            st.write(f"DEBUG: 기존 note -> {data.get('note')}")
 
-        # 2. tools_management 업데이트 (누락된 핵심 단계!)
-        db_collection.update_one(
-            {"serial_no": serial},
-            {"$set": {
-                "status": data['status'],
-                "note": updated_note,
-                "worker": data['worker'],
-                "machine_no": data['machine_no'],
-                "disposal_reason": data.get('disposal_reason', ''),
-                "disposal_date": now_str  # 폐기 날짜 필드 추가
-            }}
-        )
+            # 1. 노트 문자열 생성
+            existing_note = data.get('note', '')
+            now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+            
+            new_log = f"\n[{now_str}] 상태:{data['status']}, 사유:{data.get('disposal_reason', '없음')}"
+            updated_note = str(existing_note) + new_log # 문자열 강제 변환
 
-        # 3. 기존 함수 호출 (로직 유지)
-        log_disposal(serial, data.get('spec_detail'), data.get('worker'), data.get('disposal_reason', '사유 없음'))
-        # 재고 계산 함수 호출
-        update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), data.get('status'))
+            # 2. tools_management 업데이트
+            try:
+                result = db_collection.update_one(
+                    {"serial_no": serial},
+                    {"$set": {
+                        "status": data['status'],
+                        "note": updated_note,
+                        "worker": data['worker'],
+                        "machine_no": data['machine_no'],
+                        "disposal_reason": data.get('disposal_reason', ''),
+                        "disposal_date": now_str
+                    }}
+                )
+                st.write(f"DEBUG: DB 업데이트 결과 -> {result.modified_count}개 수정됨")
+            except Exception as e:
+                st.error(f"DB 오류 발생: {e}")
 
-        # 4. 사용자 피드백
-        st.success("✅ 폐기 처리가 완료되었습니다!")
-        import time # 타임 함수가 없다면 추가
-        time.sleep(1) 
-        st.rerun()
+            # 3. 기존 함수 호출
+            log_disposal(serial, data.get('spec_detail'), data.get('worker'), data.get('disposal_reason', '사유 없음'))
+            update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), data.get('status'))
+
+            # 4. 사용자 피드백
+            st.success("✅ 폐기 처리가 완료되었습니다!")
+            import time
+            time.sleep(2)
+            st.rerun()
 
 
 
