@@ -66,35 +66,32 @@ def disposal_can_do(serial, data):
                     # 로그 컬렉션 저장
                     db_collection.database['disposal_logs'].insert_one(log_data)
                     
-                    # tools_management 컬렉션 업데이트 (Note 누적 및 정보 갱신)
-                    now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    current_note = data.get('note', '')
+                                    # 1. DB에서 현재 시점의 최신 문서를 직접 가져옵니다. (가장 정확함)
+                    latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
+                    current_note = latest_doc.get('note', '') if latest_doc else ''
 
-                    # 1. 사유 결정 (기본값 설정 후 직접기입 처리)
-                    final_reason = selected_reason
-                    reason_text = selected_reason # 로그에 남길 텍스트
-                    
+                    # 2. 사유와 로그 텍스트를 명확하게 구성합니다.
+                    reason_text = selected_reason
                     if selected_reason == "직접기입":
-                        final_reason = detail_reason # 상세 내용을 final_reason에 담음
-                        reason_text = f"직접기입({detail_reason})" # 로그용 텍스트 구성
+                        reason_text = f"6. 기타사유(직접기입): {detail_reason}"
 
-                    # 2. 노트 내용 구성 (딱 한 번만 생성!)
+                    # 3. 로그 문자열을 깔끔하게 만듭니다.
+                    now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                     new_log = f"\n[{now_str}] 폐기됨, 사유: {reason_text}, 작업자: {worker_input}, 기계: {machine_input}"
                     updated_note = str(current_note) + new_log
 
-                    # 3. DB 업데이트 (이후 동일)
+                    # 4. DB 업데이트 (데이터가 확실히 들어가도록)
                     db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
                         {"$set": {
                             "status": "폐기",
-                            "disposal_reason": final_reason, 
+                            "disposal_reason": reason_text, 
                             "detail_reason": detail_reason, 
                             "note": updated_note,
                             "worker": worker_input,
                             "machine_no": machine_input
                         }}
                     )
-
                     # 4. 재고 카운트 업데이트
                     update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), '폐기')
 
