@@ -792,6 +792,9 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
+    if not st.session_state.get('show_confirm_dialog', False):
+        st.session_state['u_status'] = data.get('prev_status')
+        return
     # 1. 상태 대조 및 강조 로직
     if data['status'] != data['prev_status']:
         if data['status'] == "폐기":
