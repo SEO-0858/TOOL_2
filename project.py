@@ -823,15 +823,24 @@ def confirm_and_save(serial, data):
     # 상태가 '폐기'로 변경될 때만 로그 남기기
         if data['status'] == "폐기":           
             log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
+
+
     if st.button("✅ 최종 확정 및 저장"):
         final_note = data['note']
         if data['status'] != data['prev_status']:
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
-            if qty > 0: log += f", 최종수량:{qty}개"
+            if data['status'] == "폐기":
+                log = f"\n[{now_str}] 상태:폐기, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
+                if qty > 0:
+                    log += f", 최종수량:{qty}개" # 수량 이름을 '최종수량'으로 변경
+            else:
+                # 폐기가 아닐 때의 기본 로그
+                log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
+                if qty > 0: log += f", 수량:{qty}개"
+            
             final_note += log
-
-        # 재고 계산 함수 호출
+            
+        # 재고 계산 함수 호출        
         update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
 
         db_collection.update_one(
@@ -1462,7 +1471,7 @@ else:
                                 body * {{ visibility: hidden; }}
                                 #print-area, #print-area * {{ visibility: visible; }}
                                 #print-area {{ position: absolute; left: 0; top: 0; }}
-                            }}
+                            }}  
                         </style>
                         """
                         st.components.v1.html(f"""
@@ -1587,6 +1596,5 @@ else:
 
     elif tool_menu == "🔍 툴 종합 검색":
         mong.render_search_menu()                
-
 
 
