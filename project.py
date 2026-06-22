@@ -785,36 +785,45 @@ def confirm_and_save(serial, data):
     # 상태가 '폐기'로 변경될 때만 로그 남기기
         if data['status'] == "폐기":           
             log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
+
+
+    # 기존: if st.button("✅ 최종 확정 및 저장"):
     if st.button("✅ 최종 확정 및 저장"):
-        final_note = data['note']
-        if data['status'] != data['prev_status']:
-            now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
-            if qty > 0: log += f", 최종수량:{qty}개"
-            final_note += log
+        # 1. 노트 문자열 생성 (기존 내용을 유지하면서 새 로그 추가)
+        existing_note = data.get('note', '')
+        now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 로그 포맷 구성
+        new_log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}, 사유:{data.get('disposal_reason', '없음')}"
+        if qty > 0:
+            new_log += f", 회수수량:{qty}개"
+        
+        updated_note = existing_note + new_log
 
-        # 재고 계산 함수 호출
-        update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
-
+        # 2. tools_management 업데이트 (누락된 핵심 단계!)
         db_collection.update_one(
             {"serial_no": serial},
             {"$set": {
                 "status": data['status'],
-                "worker": "" if data['status'] in ["사용전", "폐기"] else data['worker'],
-                "machine_no": "" if data['status'] in ["사용전", "폐기"] else data['machine_no'],
-                "dressing_hours": data['dressing_hours'],
-                "dressing_mins": data['dressing_mins'],
-                "note": final_note,
-                "spec_detail": data['spec_detail'],
-                "start_time": data['start_time'],
-                "target_time": data['target_time']
-            }},
-            upsert=True
+                "note": updated_note,
+                "worker": data['worker'],
+                "machine_no": data['machine_no'],
+                "disposal_reason": data.get('disposal_reason', ''),
+                "disposal_date": now_str  # 폐기 날짜 필드 추가
+            }}
         )
-        st.success("✅ 저장 완료되었습니다!")
-        time.sleep(1.0) 
-        st.session_state['show_confirm_dialog'] = False
+
+        # 3. 기존 함수 호출 (로직 유지)
+        log_disposal(serial, data.get('spec_detail'), data.get('worker'), data.get('disposal_reason', '사유 없음'))
+        # 재고 계산 함수 호출
+        update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), data.get('status'))
+
+        # 4. 사용자 피드백
+        st.success("✅ 폐기 처리가 완료되었습니다!")
+        import time # 타임 함수가 없다면 추가
+        time.sleep(1) 
         st.rerun()
+
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
