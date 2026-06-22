@@ -98,7 +98,8 @@ def disposal_can_do(serial, data):
                         }}
                     )
                     # 4. 재고 카운트 업데이트
-                    update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), '폐기')
+                    current_status = data.get('status') # 'prev_status' 대신 'status'를 사용해 보세요
+                    update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), current_status, '폐기')
 
                     # 5. 성공 피드백 및 화면 갱신
                     st.success("✅ 폐기 정보가 저장되었습니다.")
