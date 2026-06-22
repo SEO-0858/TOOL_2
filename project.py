@@ -976,6 +976,10 @@ if qr_scanned_serial:
     st.markdown("### 🛠 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
+    if not st.session_state.get('show_confirm_dialog', False):
+        if 'last_confirmed_status' in st.session_state:
+            if st.session_state.get('u_status') != st.session_state['last_confirmed_status']:
+                st.session_state['u_status'] = st.session_state['last_confirmed_status']
 
     u_status = st.radio(
         "상태를 선택하세요", status_options, index=idx, key="u_status",
@@ -1590,13 +1594,3 @@ else:
 
 
 
-#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# [thr.py 파일의 가장 하단부 - 수정된 감시자 로직]
-
-
-if not st.session_state.get('show_confirm_dialog', False):
-    # 'u_status'가 존재하고, 이전에 기억된 상태와 비교가 가능할 때만 실행
-    if 'u_status' in st.session_state and 'last_confirmed_status' in st.session_state:
-        if st.session_state['u_status'] != st.session_state['last_confirmed_status']:
-            st.session_state['u_status'] = st.session_state['last_confirmed_status']
-            st.rerun()
