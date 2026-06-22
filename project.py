@@ -173,7 +173,7 @@ def log_disposal(serial_no, spec_detail, worker,reason):
 #재고 계산기 함수----------------------------------------------------------------------------------------------------------------
 
 def update_inventory_count(spec_detail, make, old_status, new_status):
-    st.sidebar.write(f"디버그: old={old_status}, new={new_status}, spec={spec_detail}")
+    st.write(f"디버그: old={old_status}, new={new_status}, spec={spec_detail}")
       # 재고 관리 컬렉션 연결 (db_collection이 정의된 곳에서 불러옵니다)
     col = db_collection.database['tool_specs_master']
     query = {"spec_detail": spec_detail, "make": make}
