@@ -73,8 +73,8 @@ def disposal_can_do(serial, data):
                     # 2. 사유와 상세 내용을 합쳐서 하나의 텍스트로 만듭니다.
                     # 예: "6. 기타사유(직접기입): 이동중 파손"
                     combined_reason = f"{selected_reason}"
-                    if selected_reason == "직접기입":
-                        combined_reason = f"직접기입: {detail_reason}"
+                    if selected_reason == "기타사유(직접기입)":
+                        combined_reason = f"기타사유: {detail_reason}"
 
                     # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
