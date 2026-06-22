@@ -896,17 +896,13 @@ if qr_scanned_serial:
                         # DB 업데이트 로직 (기존 로직 유지)
                         update_inventory_count(final_spec, final_make, "none", "사용전")
                         
-                        db_collection.database['tool_specs_master'].update_one(
-                            {"spec_detail": final_spec, "make": final_make},
-                            {"$inc": {"new_tool_count": +1}},
-                            upsert=True
-                        )
+
                         
                         db_collection.update_one(
                             {"serial_no": qr_scanned_serial},
                             {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
                         )
-                        
+                        time.sleep(1.5)
                         st.success("성공적으로 저장되었습니다!")
                         
                         # 모든 세션 초기화 (다음 작업을 위해)
