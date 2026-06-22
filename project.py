@@ -24,6 +24,8 @@ def disposal_can_do(serial, data):
     
     @st.dialog("⚠️ 툴 폐기 처리")
     def waste_dialog():
+        serial = st.session_state.get('temp_serial')
+        data = st.session_state.get('temp_data')
         st.write(f"시리얼 번호: **{serial}**")
         reason_options = [
             "1. 다이아팁 전면 2mm 이하", "2. 툴 형상변화", "3. 툴 진원도 불량",
@@ -120,7 +122,9 @@ def disposal_can_do(serial, data):
 
 
     if st.session_state.get('show_waste_dialog', False):
-        waste_dialog(serial, data)
+        st.session_state['temp_serial'] = serial # 데이터 임시 저장
+        st.session_state['temp_data'] = data     # 데이터 임시 저장
+        waste_dialog()
 
 
 
