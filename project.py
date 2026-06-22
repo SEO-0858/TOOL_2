@@ -965,7 +965,7 @@ if qr_scanned_serial:
     prev_status = existing_data.get("status", "사용전")
     
     def trigger_waste():
-        st.session_state['last_confirmed_status'] = prev_status
+       
         if st.session_state.get("u_status") == "폐기":
             st.session_state['show_waste_dialog'] = True
         else:
