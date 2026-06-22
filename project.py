@@ -854,7 +854,6 @@ def confirm_and_save(serial, data):
 
     if st.button("❌ 취소하고 전 상태로 돌아가기"):
         st.session_state['show_confirm_dialog'] = False
-        st.session_state['u_status'] = data['prev_status']
         st.rerun()    
 
 
@@ -966,6 +965,7 @@ if qr_scanned_serial:
     prev_status = existing_data.get("status", "사용전")
     
     def trigger_waste():
+        st.session_state['last_confirmed_status'] = prev_status
         if st.session_state.get("u_status") == "폐기":
             st.session_state['show_waste_dialog'] = True
         else:
@@ -978,7 +978,7 @@ if qr_scanned_serial:
         if 'last_confirmed_status' in st.session_state:
             if st.session_state.get('u_status') != st.session_state['last_confirmed_status']:
                 st.session_state['u_status'] = st.session_state['last_confirmed_status']
-
+  
 
     u_status = st.radio(
         "상태를 선택하세요", status_options, index=idx, key="u_status",
