@@ -853,6 +853,7 @@ def confirm_and_save(serial, data):
 
     if st.button("❌ 닫기"):
         st.session_state['show_confirm_dialog'] = False
+        st.session_state['u_status'] = data['prev_status']
         st.rerun()    
 
 
