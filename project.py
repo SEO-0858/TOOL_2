@@ -981,6 +981,11 @@ if qr_scanned_serial:
         "상태를 선택하세요", status_options, index=idx, key="u_status",
         on_change=trigger_waste, horizontal=True
     )
+   
+
+    # [중요] 사용자가 라디오 버튼을 바꾸기 직전의 상태를 기억함
+    if 'last_known_status' not in st.session_state:
+        st.session_state['last_known_status'] = prev_status
 
     # 팝업 호출부
     if st.session_state.get('show_waste_dialog', False):
@@ -1016,6 +1021,7 @@ if qr_scanned_serial:
 
 
     if st.button("데이터 확인 및 저장", key="main_save_button"):
+        st.session_state['last_confirmed_status'] = u_status
         st.session_state['confirm_data'] = {
             'status': u_status,
             'prev_status': prev_status,
@@ -1581,3 +1587,12 @@ else:
 
     elif tool_menu == "🔍 툴 종합 검색":
         mong.render_search_menu()                
+
+
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+if not st.session_state.get('show_confirm_dialog', False):
+    if 'last_confirmed_status' in st.session_state:
+        if st.session_state.get('u_status') != st.session_state.get('last_confirmed_status'):
+            st.session_state['u_status'] = st.session_state['last_confirmed_status']
+            st.rerun()        
