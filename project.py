@@ -907,7 +907,7 @@ if qr_scanned_serial:
                         for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
                             if k in st.session_state: del st.session_state[k]
                         st.rerun()
-                        st.write("*********************** 이제 시리얼에 상세스펙이 등록되었습니다 창을 닫아주세요!!!!!!!*********************************")
+
 
                     # 2. 내용 틀림 시 초기화 (데이터 반영 없이 처음 단계로)
                     if btn_col2.button("❌ 내용이 틀림 (초기화)"):
@@ -942,20 +942,20 @@ if qr_scanned_serial:
     if st.session_state.get('show_waste_dialog', False):
         disposal_can_do(qr_scanned_serial, existing_data)
 
-    #st.divider()
+    
 
     # --- 3. [데이터 확인 및 저장 버튼] ---
     # (이 부분의 939라인 폐기 사유 참조를 아래와 같이 수정하세요)
-    if 'last_valid_status' not in st.session_state:
-        st.session_state['last_valid_status'] = prev_status
-    if st.button("데이터 확인 및 저장"):
-        st.session_state['confirm_data'] = {
-            'status': u_status,
-            'prev_status': prev_status,
-            # ... (중략) ...
-            'disposal_reason': st.session_state.get('waste_reason_data', '') 
-        }
-        st.session_state['show_confirm_dialog'] = True
+    # if 'last_valid_status' not in st.session_state:
+    #     st.session_state['last_valid_status'] = prev_status
+    # if st.button("데이터 확인 및 저장"):
+    #     st.session_state['confirm_data'] = {
+    #         'status': u_status,
+    #         'prev_status': prev_status,
+    #         # ... (중략) ...
+    #         'disposal_reason': st.session_state.get('waste_reason_data', '') 
+    #     }
+    #     st.session_state['show_confirm_dialog'] = True
     
 
 
