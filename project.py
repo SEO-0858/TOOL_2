@@ -914,6 +914,7 @@ if qr_scanned_serial:
                             if k in st.session_state: del st.session_state[k]
                         st.rerun()
 
+                    st.stop()  
     #if not existing_data.get('spec_detail'):
         #st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
         st.stop()    
