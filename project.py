@@ -912,9 +912,9 @@ if qr_scanned_serial:
                             {"serial_no": qr_scanned_serial},
                             {"$set": {"spec_detail": final_spec, "make": final_make, "status": "사용전"}}
                         )
-                        time.sleep(1.5)
+                    
                         st.success("성공적으로 저장되었습니다!")
-                        
+                        time.sleep(2.5)
                         # 모든 세션 초기화 (다음 작업을 위해)
                         for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
                             if k in st.session_state: del st.session_state[k]
