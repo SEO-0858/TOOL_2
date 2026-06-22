@@ -119,7 +119,8 @@ def disposal_can_do(serial, data):
                 st.rerun()
 
 
-    waste_dialog()
+    if st.session_state.get('show_waste_dialog', False):
+        waste_dialog(serial, data)
 
 
 
