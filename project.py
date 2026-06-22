@@ -792,7 +792,9 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
-
+    if not st.session_state.get('show_confirm_dialog', False):
+        st.session_state['u_status'] = data.get('prev_status')
+        return
     # 1. 상태 대조 및 강조 로직
     if data['status'] != data['prev_status']:
         if data['status'] == "폐기":
@@ -854,6 +856,7 @@ def confirm_and_save(serial, data):
 
     if st.button("❌ 취소하고 전 상태로 돌아가기"):
         st.session_state['show_confirm_dialog'] = False
+        st.session_state['u_status'] = data['prev_status']
         st.rerun()    
 
 
@@ -965,7 +968,6 @@ if qr_scanned_serial:
     prev_status = existing_data.get("status", "사용전")
     
     def trigger_waste():
-       
         if st.session_state.get("u_status") == "폐기":
             st.session_state['show_waste_dialog'] = True
         else:
@@ -974,11 +976,6 @@ if qr_scanned_serial:
     st.markdown("### 🛠 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
-    if not st.session_state.get('show_confirm_dialog', False):
-        if 'last_confirmed_status' in st.session_state:
-            if st.session_state.get('u_status') != st.session_state['last_confirmed_status']:
-                st.session_state['u_status'] = st.session_state['last_confirmed_status']
-  
 
     u_status = st.radio(
         "상태를 선택하세요", status_options, index=idx, key="u_status",
