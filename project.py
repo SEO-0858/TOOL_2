@@ -87,7 +87,7 @@ def disposal_can_do(serial, data):
                         {"serial_no": serial},
                         {"$set": {
                             "status": "폐기",
-                            "disposal_reason": combined_reason, 
+                            "disposal_reason":selected_reason , 
                             "detail_reason": combined_reason, 
                             "note": updated_note,
                             "worker": worker_input,
