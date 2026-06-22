@@ -69,19 +69,26 @@ def disposal_can_do(serial, data):
                     # tools_management 컬렉션 업데이트 (Note 누적 및 정보 갱신)
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                     current_note = data.get('note', '')
-                    new_log = f"\n[{now_str}] 폐기됨, 사유: {selected_reason}, 작업자: {worker_input}, 기계: {machine_input}"
-                    updated_note = str(current_note) + new_log
+
+                    # 1. 사유 결정 (기본값 설정 후 직접기입 처리)
                     final_reason = selected_reason
+                    reason_text = selected_reason # 로그에 남길 텍스트
+                    
                     if selected_reason == "직접기입":
-                        final_reason = f"직접기입: {detail_reason}"
-                        new_log = f"\n[{now_str}] 폐기됨, 사유: {final_reason}, 작업자: {worker_input}, 기계: {machine_input}"
-                        updated_note = str(current_note) + new_log
+                        final_reason = detail_reason # 상세 내용을 final_reason에 담음
+                        reason_text = f"직접기입({detail_reason})" # 로그용 텍스트 구성
+
+                    # 2. 노트 내용 구성 (딱 한 번만 생성!)
+                    new_log = f"\n[{now_str}] 폐기됨, 사유: {reason_text}, 작업자: {worker_input}, 기계: {machine_input}"
+                    updated_note = str(current_note) + new_log
+
+                    # 3. DB 업데이트 (이후 동일)
                     db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
                         {"$set": {
                             "status": "폐기",
-                            "disposal_reason": final_reason,
-                            "detail_reason": detail_reason,
+                            "disposal_reason": final_reason, 
+                            "detail_reason": detail_reason, 
                             "note": updated_note,
                             "worker": worker_input,
                             "machine_no": machine_input
