@@ -1021,8 +1021,13 @@ if qr_scanned_serial:
             'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
             'disposal_reason': st.session_state.get('waste_reason_data', '')
         }
-        st.session_state['show_confirm_dialog'] = True
-        st.rerun() # 팝업을 띄우기 위해 화면 새로고침
+
+        if u_status == "폐기":
+            confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
+        else:
+            st.session_state['show_confirm_dialog'] = True
+            st.rerun()
+   
 
     # [추가된 부분] 팝업 호출 트리거
     if st.session_state.get('show_confirm_dialog'):
