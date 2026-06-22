@@ -82,7 +82,7 @@ def disposal_can_do(serial, data):
                         combined_reason = f"{selected_reason}"
                     # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 상태: 폐기, 스펙: {spec_info}, 사유: {combined_reason}, 작업자: {worker_input}, 기계: {machine_input}, 최종수량:{waste_qty}개"
+                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_input}, 최종수량:{waste_qty}개"
                     updated_note =  str(current_note)+new_log
 
                     # 4. DB 업데이트 (데이터가 확실히 들어가도록)
