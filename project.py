@@ -80,6 +80,7 @@ def disposal_can_do(serial, data):
                     )
                     
                     st.success("폐기 정보가 저장되었습니다.")
+                    time.sleep(2.0)
                     st.session_state['waste_reason_data'] = selected_reason
                     st.session_state['show_waste_dialog'] = False
                     st.rerun()
