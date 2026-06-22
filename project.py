@@ -1591,8 +1591,11 @@ else:
 
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# [thr.py 파일의 가장 하단부 - 수정된 감시자 로직]
+
 if not st.session_state.get('show_confirm_dialog', False):
-    if 'last_confirmed_status' in st.session_state:
-        if st.session_state.get('u_status') != st.session_state.get('last_confirmed_status'):
+    # 'u_status'가 존재하고, 이전에 기억된 상태와 비교가 가능할 때만 실행
+    if 'u_status' in st.session_state and 'last_confirmed_status' in st.session_state:
+        if st.session_state['u_status'] != st.session_state['last_confirmed_status']:
             st.session_state['u_status'] = st.session_state['last_confirmed_status']
-            st.rerun()        
+            st.rerun()
