@@ -66,18 +66,19 @@ def disposal_can_do(serial, data):
                     # 로그 컬렉션 저장
                     db_collection.database['disposal_logs'].insert_one(log_data)
                     
-                                    # 1. DB에서 현재 시점의 최신 문서를 직접 가져옵니다. (가장 정확함)
+                    # 1. DB에서 최신 note를 가져옵니다.
                     latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
                     current_note = latest_doc.get('note', '') if latest_doc else ''
 
-                    # 2. 사유와 로그 텍스트를 명확하게 구성합니다.
-                    reason_text = selected_reason
+                    # 2. 사유와 상세 내용을 합쳐서 하나의 텍스트로 만듭니다.
+                    # 예: "6. 기타사유(직접기입): 이동중 파손"
+                    combined_reason = f"{selected_reason}"
                     if selected_reason == "직접기입":
-                        reason_text = f"6. 기타사유(직접기입): {detail_reason}"
+                        combined_reason = f"직접기입: {detail_reason}"
 
-                    # 3. 로그 문자열을 깔끔하게 만듭니다.
+                    # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 폐기됨, 사유: {reason_text}, 작업자: {worker_input}, 기계: {machine_input}"
+                    new_log = f"\n[{now_str}] 폐기됨, 사유: {combined_reason}, 작업자: {worker_input}, 기계: {machine_input}"
                     updated_note = str(current_note) + new_log
 
                     # 4. DB 업데이트 (데이터가 확실히 들어가도록)
@@ -85,8 +86,8 @@ def disposal_can_do(serial, data):
                         {"serial_no": serial},
                         {"$set": {
                             "status": "폐기",
-                            "disposal_reason": reason_text, 
-                            "detail_reason": detail_reason, 
+                            "disposal_reason": combined_reason, 
+                            "detail_reason": combined_reason, 
                             "note": updated_note,
                             "worker": worker_input,
                             "machine_no": machine_input
