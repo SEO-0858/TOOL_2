@@ -14,7 +14,8 @@ from datetime import timedelta
 import pytz
 import mong
 
-
+if 'last_status' not in st.session_state:
+    st.session_state['last_status'] = prev_status
 st.cache_data.clear()
 
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
@@ -792,9 +793,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
-    if not st.session_state.get('show_confirm_dialog', False):
-        st.session_state['u_status'] = data.get('prev_status')
-        return
+
     # 1. 상태 대조 및 강조 로직
     if data['status'] != data['prev_status']:
         if data['status'] == "폐기":
@@ -980,6 +979,7 @@ if qr_scanned_serial:
         if 'last_confirmed_status' in st.session_state:
             if st.session_state.get('u_status') != st.session_state['last_confirmed_status']:
                 st.session_state['u_status'] = st.session_state['last_confirmed_status']
+
 
     u_status = st.radio(
         "상태를 선택하세요", status_options, index=idx, key="u_status",
