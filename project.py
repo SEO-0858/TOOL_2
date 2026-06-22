@@ -74,7 +74,8 @@ def disposal_can_do(serial, data):
                     final_reason = selected_reason
                     if selected_reason == "직접기입":
                         final_reason = f"직접기입: {detail_reason}"
-                    
+                        new_log = f"\n[{now_str}] 폐기됨, 사유: {final_reason}, 작업자: {worker_input}, 기계: {machine_input}"
+                        updated_note = str(current_note) + new_log
                     db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
                         {"$set": {
