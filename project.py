@@ -851,6 +851,10 @@ def confirm_and_save(serial, data):
         st.session_state['show_confirm_dialog'] = False
         st.rerun()
 
+    if st.button("❌ 닫기"):
+        st.session_state['show_confirm_dialog'] = False
+        st.rerun()    
+
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] ---
 if qr_scanned_serial:
