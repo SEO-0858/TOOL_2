@@ -60,32 +60,42 @@ def disposal_can_do(serial, data):
                     "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                 }
                 
-                # 3. 데이터 삽입 및 업데이트
+
+    # 3. 데이터 삽입 및 업데이트 (컬렉션 구분)
                 try:
-                    # [중요] 컬렉션 이름을 disposal_log로 통일했습니다
+                    # 로그 컬렉션 저장
                     db_collection.database['disposal_logs'].insert_one(log_data)
                     
-                    # [수정] 61라인 문법 오류 해결 (중괄호 사용)
-                    db_collection.update_one(
+                    # tools_management 컬렉션 업데이트 (Note 누적 및 정보 갱신)
+                    now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+                    current_note = data.get('note', '')
+                    new_log = f"\n[{now_str}] 폐기됨, 사유: {selected_reason}, 작업자: {worker_input}, 기계: {machine_input}"
+                    updated_note = str(current_note) + new_log
+                    
+                    db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
-                        {"$set": {"status": "폐기", "disposal_reason": selected_reason}}
+                        {"$set": {
+                            "status": "폐기",
+                            "disposal_reason": selected_reason,
+                            "note": updated_note,
+                            "worker": worker_input,
+                            "machine_no": machine_input
+                        }}
                     )
-                    
+
                     # 4. 재고 카운트 업데이트
-                    update_inventory_count(
-                        data.get('spec_detail', ''),
-                        data.get('make', ''),
-                        data.get('status', '사용전'),
-                        "폐기"
-                    )
-                    
-                    st.success("폐기 정보가 저장되었습니다.")
-                    time.sleep(2.0)
+                    update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('prev_status'), '폐기')
+
+                    # 5. 성공 피드백 및 화면 갱신
+                    st.success("✅ 폐기 정보가 저장되었습니다.")
+                    import time
+                    time.sleep(1.5)
                     st.session_state['waste_reason_data'] = selected_reason
                     st.session_state['show_waste_dialog'] = False
                     st.rerun()
+
                 except Exception as e:
-                    st.error(f"저장 중 오류 발생: {e}")
+                    st.error(f"오류 발생: {e}")
 
         if col2.button("❌ 취소"):
             st.session_state['show_waste_dialog'] = False
