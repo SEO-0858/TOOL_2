@@ -72,8 +72,8 @@ def disposal_can_do(serial, data):
                     # 1. DB에서 최신 note를 가져옵니다.
                     latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
                     current_note = latest_doc.get('note', '') if latest_doc else ''
-
-                    # 2. 사유와 상세 내용을 합쳐서 하나의 텍스트로 만듭니다.
+                    spec_info = latest_doc.get('spec_detail', '스펙없음') if latest_doc else '스펙없음'
+                  
                     # 예: "6. 기타사유(직접기입): 이동중 파손"
                     combined_reason = f"{selected_reason}"
                     if selected_reason == "6. 기타사유(직접기입)": 
@@ -82,7 +82,7 @@ def disposal_can_do(serial, data):
                         combined_reason = f"{selected_reason}"
                     # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 상태: 폐기됨, 사유: {combined_reason}, 작업자: {worker_input}, 기계: {machine_input}, 최종수량: {waste_qty}개,"
+                    new_log = f"\n[{now_str}] 상태: 폐기, 스펙: {spec_info}, 사유: {combined_reason}, 작업자: {worker_input}, 기계: {machine_input}, 최종수량:{waste_qty}개"
                     updated_note =  str(current_note)+new_log
 
                     # 4. DB 업데이트 (데이터가 확실히 들어가도록)
