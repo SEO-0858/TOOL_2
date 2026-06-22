@@ -907,16 +907,17 @@ if qr_scanned_serial:
                         for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
                             if k in st.session_state: del st.session_state[k]
                         st.rerun()
+                        st.write("*********************** 이제 시리얼에 상세스펙이 등록되었습니다 창을 닫아주세요!!!!!!!*********************************")
 
                     # 2. 내용 틀림 시 초기화 (데이터 반영 없이 처음 단계로)
                     if btn_col2.button("❌ 내용이 틀림 (초기화)"):
                         for k in ['confirm_save', 'selected_spec', 'maker_select', 'radio_spec']:
                             if k in st.session_state: del st.session_state[k]
                         st.rerun()
-
-                    st.stop()  
-    #if not existing_data.get('spec_detail'):
-        #st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
+                        
+                
+    if not existing_data.get('spec_detail'):
+        st.info("💡 상세 스펙을 선택하면 상세 정보가 나타납니다.")
         st.stop()    
 
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
