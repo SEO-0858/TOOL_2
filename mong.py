@@ -4,6 +4,7 @@ from recover import run_recover
 import os
 
 def render_search_menu():
+    st.write("---")
     st.sidebar.write("### 검색 옵션")
     # 1. 사이드바 라디오 버튼으로 모드 선택
     mode = st.sidebar.radio(
