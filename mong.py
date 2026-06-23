@@ -25,19 +25,33 @@ def render_search_menu():
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        # 버튼을 누르면 메모리에서 데이터를 가져와 즉시 다운로드 버튼 생성
-        if st.button("백업 데이터 생성"):
-            with st.spinner("데이터 처리 중..."):
-                excel_buffer = run_backup() # back.py의 함수 실행
-                
-                # 다운로드 버튼 표시
-                st.download_button(
-                    label="📥 백업 파일 다운로드",
-                    data=excel_buffer,
-                    file_name="full_backup.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            st.success("데이터 생성 완료! 위 버튼을 눌러 저장하세요.")
+        # 버튼을 누르면 '백업 상태'를 기록함
+        if st.button("백업 시작"):
+            with st.spinner("백업 중..."):
+                run_backup()
+            st.session_state['backup_complete'] = True # 백업 성공 기록
+            st.rerun() # 화면을 새로고침
+
+        # 백업이 성공한 상태라면 다운로드 버튼을 보여줌
+        if st.session_state.get('backup_complete'):
+            st.success("백업이 완료되었습니다!")
+            
+            # 여기서 파일을 찾아 다운로드 버튼을 생성
+            backup_path = "./backup_data"
+            if os.path.exists(backup_path):
+                files = [f for f in os.listdir(backup_path) if f.endswith('.xlsx')]
+                for file in files:
+                    file_path = os.path.join(backup_path, file)
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            label=f"📥 {file} 다운로드",
+                            data=f,
+                            file_name=file,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+            
+            # 다운로드 후에는 다시 백업 상태를 초기화하고 싶다면 이 아래 줄을 주석 해제하세요
+            # if st.button("초기화"): st.session_state['backup_complete'] = False; st.rerun()
    
 
 
