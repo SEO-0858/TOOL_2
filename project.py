@@ -39,9 +39,21 @@ def disposal_can_do(serial, data):
             
         current_mach = data.get('machine_no', '')
         machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
+        machine_val = machine_input.strip()
+
+        # 만약 입력값이 숫자라면 '호기'를 붙이고, 아니라면(보관 등) 그대로 둡니다.
+        numbers = re.findall(r'\d+', machine_val)
+        if numbers:
+            machine_final = f"{numbers[0]} 호기"
+        else:
+            machine_final = machine_val
+
+
         waste_qty = st.number_input("가공수량(!!가공수량이 없으면 0 을 넣으세요!!)(개)", min_value=0, value=0, step=1)
         current_worker = data.get('worker', '')
         worker_input = st.text_input("작업자 이름:", value=current_worker)
+        if not worker_input: 
+            st.error("작업자 이름을 입력해주세요.")
         
         col1, col2 = st.columns(2)
         if col1.button("✅ 최종 폐기 저장"):
@@ -58,7 +70,7 @@ def disposal_can_do(serial, data):
                 # 2. 로그 데이터 구성
                 log_data = {
                     "serial_no": serial,
-                    "machine_no": machine_input,
+                    "machine_no": machine_final,
                     "disposal_reason": selected_reason,
                     "detail_reason": detail_reason,
                     "worker": worker_input,
@@ -1635,4 +1647,3 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 저장과 복구":
         mong.render_search_menu()                
-
