@@ -1287,6 +1287,18 @@ else:
                             if match_count == 0:
                                 st.error(f"❌ 데이터베이스에 `{target_single_serial}` 번호가 존재하지 않습니다. 번호를 다시 확인해 주세요.")
                             else:
+                                # [추가] 삭제 직전에 재고를 먼저 차감하는 로직
+                                item_to_delete = db_collection.find_one({"serial_no": target_single_serial})
+                                if item_to_delete:
+                                    make_val = item_to_delete.get("make")
+                                    detail_val = item_to_delete.get("spec_detail")
+                                    if make_val and detail_val:
+                                        # 데이터베이스 접근을 확실하게 하기 위해 db_collection.database 사용
+                                        db_collection.database['tool_specs_master'].update_one(
+                                            {"make": make_val, "spec_detail": detail_val}, 
+                                            {"$inc": {"new_tool_count": -1}}
+                                        )
+
                                 db_collection.delete_one({"serial_no": target_single_serial})
                                 st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
                                 st.session_state.reset_success = True
