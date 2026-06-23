@@ -3,3 +3,4 @@ qrcode
 pillow
 pandas
 pytz
+xlsxwriter
