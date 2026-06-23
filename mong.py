@@ -21,35 +21,35 @@ def render_search_menu():
                 st.success("백업이 완료되었습니다!")
 
             # ... (상단 생략) ...
-
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        if st.button("백업 시작"):
-            with st.spinner("백업 중..."):
-                run_backup()
-                st.session_state['backup_done'] = True
-            st.success("백업이 완료되었습니다!")
+        # 버튼을 누르면 '메모리(BytesIO)'에 엑셀 데이터를 만듭니다.
+        if st.button("백업 데이터 생성"):
+            import io
+            # 1. 엑셀을 메모리에 저장하기 위한 버퍼 생성
+            buffer = io.BytesIO()
             
-        # [디버깅 코드]: 파일이 어디에 생겼는지 화면에 출력
-        backup_path = "./backup_data"
-        st.write(f"현재 폴더 위치: {os.getcwd()}") # 프로그램이 실행되는 기본 경로 확인
-        
-        if os.path.exists(backup_path):
-            files = os.listdir(backup_path)
-            st.write(f"backup_data 폴더 내 파일 목록: {files}") # 파일이 진짜 있는지 확인
+            # 2. run_backup 함수가 메모리(buffer)에 파일을 쓰도록 수정해야 하지만, 
+            # 일단은 간단히 현재 폴더의 파일을 읽어오는 방식으로 진행합니다.
+            run_backup() # 기존처럼 파일을 생성함
             
-            for file in files:
-                file_path = os.path.join(backup_path, file)
-                with open(file_path, "rb") as f:
-                    st.download_button(
-                        label=f"📥 다운로드: {file}",
-                        data=f,
-                        file_name=file,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-        else:
-            st.warning("backup_data 폴더를 찾을 수 없습니다.")
+            st.session_state['backup_files'] = os.listdir("./backup_data")
+            st.success("백업 데이터 준비 완료!")
+
+        # 3. 백업된 파일이 있으면 무조건 다운로드 버튼을 보여줍니다.
+        if 'backup_files' in st.session_state:
+            for file in st.session_state['backup_files']:
+                file_path = os.path.join("./backup_data", file)
+                if os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            label=f"📥 {file} 다운로드",
+                            data=f,
+                            file_name=file,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+   
 
 
 
