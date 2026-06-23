@@ -51,6 +51,10 @@ def disposal_can_do(serial, data):
             elif not 'worker_input' in locals() and not worker_input: # 안전장치 추가
                 st.error("작업자 이름을 입력해주세요.")
             else:
+                latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
+                current_note = latest_doc.get('note', '') if latest_doc else ''
+                quantities = re.findall(r'(?:수량|가공갯수)[:\s]*(\d+)개', current_note)
+                total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty
                 # 2. 로그 데이터 구성
                 log_data = {
                     "serial_no": serial,
@@ -58,7 +62,7 @@ def disposal_can_do(serial, data):
                     "disposal_reason": selected_reason,
                     "detail_reason": detail_reason,
                     "worker": worker_input,
-                    "waste_qty": waste_qty, 
+                    "waste_qty": total_accumulated_qty, 
                     "spec_detail": data.get('spec_detail', ''),
                     "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                 }
@@ -549,7 +553,7 @@ def parse_serial_new(s):
 if 'sidebar_errors' not in st.session_state:
     st.session_state.sidebar_errors = []
 
-# 파일 최상단 import 아래에 이 함수를 추가하세요
+
 def get_elapsed_time_str(start_time_val):
     try:
         if not start_time_val or start_time_val == "-":
