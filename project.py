@@ -39,7 +39,7 @@ def disposal_can_do(serial, data):
             
         current_mach = data.get('machine_no', '')
         machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
-        waste_qty = st.number_input("폐기 가공 수량(개)", min_value=0, value=0, step=1)
+        waste_qty = st.number_input("최종 가공 수량(개)", min_value=0, value=0, step=1)
         current_worker = data.get('worker', '')
         worker_input = st.text_input("작업자 이름:", value=current_worker)
         
@@ -80,11 +80,13 @@ def disposal_can_do(serial, data):
                         combined_reason = f"{detail_reason}"
                     else:
                         combined_reason = f"{selected_reason}"
+
+                    quantities = re.findall(r'(?:수량|가공갯수)[:\s]*(\d+)개', current_note)
+                    total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty    
                     # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_input}, 최종수량:{waste_qty}개"
-                    updated_note =  str(current_note)+new_log
-
+                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_input}, 최종수량:{total_accumulated_qty}개"
+                    updated_note = str(current_note) + new_log
                     # 4. DB 업데이트 (데이터가 확실히 들어가도록)
                     db_collection.database['tools_management'].update_one(
                         {"serial_no": serial},
