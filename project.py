@@ -760,6 +760,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
             add_error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
             st.stop()
             
+        spec = db_collection.find_one({"serial_no": s_no}).get('spec_detail', '스펙없음')    
         log_now = get_now_kst()
         log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
