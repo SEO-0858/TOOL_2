@@ -24,33 +24,19 @@ def render_search_menu():
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        # 1. 백업 실행 버튼
-        if st.button("백업 시작"):
-            with st.spinner("백업 중..."):
-                run_backup()
-            st.success("백업이 완료되었습니다!")
-            st.rerun() # 버튼을 누른 즉시 화면을 새로고침하여 아래쪽 코드가 동작하게 함
-            
-        # 2. 백업 파일 확인 및 다운로드 버튼 (실시간 확인)
-        backup_path = "./backup_data"
-        if os.path.exists(backup_path):
-            files = [f for f in os.listdir(backup_path) if f.endswith('.xlsx')]
-            
-            if files:
-                st.write("### 📥 다운로드 가능한 파일 목록")
-                for file in files:
-                    file_path = os.path.join(backup_path, file)
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            label=f"📥 {file} 다운로드",
-                            data=f,
-                            file_name=file,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-            else:
-                st.info("현재 생성된 백업 파일이 없습니다. [백업 시작]을 눌러주세요.")
-        else:
-            st.warning("백업 폴더를 찾을 수 없습니다.")
+        # 버튼을 누르면 메모리에서 데이터를 가져와 즉시 다운로드 버튼 생성
+        if st.button("백업 데이터 생성"):
+            with st.spinner("데이터 처리 중..."):
+                excel_buffer = run_backup() # back.py의 함수 실행
+                
+                # 다운로드 버튼 표시
+                st.download_button(
+                    label="📥 백업 파일 다운로드",
+                    data=excel_buffer,
+                    file_name="full_backup.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            st.success("데이터 생성 완료! 위 버튼을 눌러 저장하세요.")
    
 
 
