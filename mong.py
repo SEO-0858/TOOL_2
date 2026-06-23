@@ -25,28 +25,31 @@ def render_search_menu():
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-     # 1. 백업 실행 버튼
         if st.button("백업 시작"):
             with st.spinner("백업 중..."):
-                run_backup() # 엑셀 파일 생성
-                st.session_state['backup_done'] = True # 백업 완료 상태 저장
+                run_backup()
+                st.session_state['backup_done'] = True
             st.success("백업이 완료되었습니다!")
             
-        # 2. 백업 완료 상태일 때만 다운로드 버튼 표시
-        if st.session_state.get('backup_done'):
-            backup_path = "./backup_data"
-            if os.path.exists(backup_path):
-                files = os.listdir(backup_path)
-                st.write("### 📥 생성된 백업 파일")
-                for file in files:
-                    file_path = os.path.join(backup_path, file)
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            label=f"다운로드: {file}",
-                            data=f,
-                            file_name=file,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+        # [디버깅 코드]: 파일이 어디에 생겼는지 화면에 출력
+        backup_path = "./backup_data"
+        st.write(f"현재 폴더 위치: {os.getcwd()}") # 프로그램이 실행되는 기본 경로 확인
+        
+        if os.path.exists(backup_path):
+            files = os.listdir(backup_path)
+            st.write(f"backup_data 폴더 내 파일 목록: {files}") # 파일이 진짜 있는지 확인
+            
+            for file in files:
+                file_path = os.path.join(backup_path, file)
+                with open(file_path, "rb") as f:
+                    st.download_button(
+                        label=f"📥 다운로드: {file}",
+                        data=f,
+                        file_name=file,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+        else:
+            st.warning("backup_data 폴더를 찾을 수 없습니다.")
 
 
 
