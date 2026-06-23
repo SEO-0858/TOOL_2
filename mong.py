@@ -25,19 +25,19 @@ def render_search_menu():
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        # 1. 백업 실행 버튼
+     # 1. 백업 실행 버튼
         if st.button("백업 시작"):
             with st.spinner("백업 중..."):
-                run_backup() # 여기서 실제 파일을 backup_data 폴더에 만듭니다.
+                run_backup() # 엑셀 파일 생성
+                st.session_state['backup_done'] = True # 백업 완료 상태 저장
             st.success("백업이 완료되었습니다!")
             
-        # 2. 백업 파일 다운로드 버튼 (실행 후 파일이 있으면 나타남)
-        backup_path = "./backup_data"
-        if os.path.exists(backup_path):
-            files = os.listdir(backup_path)
-            if files:
-                st.write("---")
-                st.write("### 📥 생성된 백업 파일 다운로드")
+        # 2. 백업 완료 상태일 때만 다운로드 버튼 표시
+        if st.session_state.get('backup_done'):
+            backup_path = "./backup_data"
+            if os.path.exists(backup_path):
+                files = os.listdir(backup_path)
+                st.write("### 📥 생성된 백업 파일")
                 for file in files:
                     file_path = os.path.join(backup_path, file)
                     with open(file_path, "rb") as f:
