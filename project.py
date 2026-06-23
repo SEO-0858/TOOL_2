@@ -1601,7 +1601,7 @@ else:
                     st.rerun()
 
 
-    elif tool_menu == "🔍 툴 종합 검색":
+    elif tool_menu == "🔍 툴 재고 검색 및 저장과 복구":
         mong.render_search_menu()                
 
 
