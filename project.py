@@ -44,7 +44,7 @@ def disposal_can_do(serial, data):
         # 만약 입력값이 숫자라면 '호기'를 붙이고, 아니라면(보관 등) 그대로 둡니다.
         numbers = re.findall(r'\d+', machine_val)
         if numbers:
-            machine_final = f"{numbers[0]} 호기"
+            machine_final = f"{int(numbers[0]):02d}호기"
         else:
             machine_final = machine_val
 
