@@ -14,45 +14,39 @@ def render_search_menu():
 )
 
     # 2. 선택된 모드에 따라 오른쪽 메인 화면을 다르게 그리기
-    if mode == "데이터베이스 BACK UP":
-            st.header("💾 데이터베이스 백업 모드")
-            if st.button("백업 실행"):
-                # 여기서 아까 만든 run_backup() 함수를 호출합니다!
-                run_backup()
-                st.success("백업이 완료되었습니다!")
+    # if mode == "데이터베이스 BACK UP":
+    #         st.header("💾 데이터베이스 백업 모드")
+    #         if st.button("백업 실행"):
+    #             # 여기서 아까 만든 run_backup() 함수를 호출합니다!
+    #             run_backup()
+    #             st.success("백업이 완료되었습니다!")
 
             # ... (상단 생략) ...
-    elif mode == "데이터베이스 BACK UP":
+    if mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        # 버튼을 누르면 '백업 상태'를 기록함
         if st.button("백업 시작"):
             with st.spinner("백업 중..."):
                 run_backup()
-            st.session_state['backup_complete'] = True # 백업 성공 기록
-            st.rerun() # 화면을 새로고침
+                st.session_state['just_did_backup'] = True
+            st.success("백업 함수 실행 완료!")
+            st.rerun()
 
-        # 백업이 성공한 상태라면 다운로드 버튼을 보여줌
-        if st.session_state.get('backup_complete'):
-            st.success("백업이 완료되었습니다!")
+        # [진짜 디버깅] 파일이 어디에 있는지 화면에 다 출력
+        st.write(f"현재 실행 경로: {os.getcwd()}")
+        backup_path = "./backup_data"
+        st.write(f"폴더 존재 여부: {os.path.exists(backup_path)}")
+        
+        if os.path.exists(backup_path):
+            files = os.listdir(backup_path)
+            st.write(f"폴더 안의 파일들: {files}")
             
-            # 여기서 파일을 찾아 다운로드 버튼을 생성
-            backup_path = "./backup_data"
-            if os.path.exists(backup_path):
-                files = [f for f in os.listdir(backup_path) if f.endswith('.xlsx')]
-                for file in files:
-                    file_path = os.path.join(backup_path, file)
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            label=f"📥 {file} 다운로드",
-                            data=f,
-                            file_name=file,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-            
-            # 다운로드 후에는 다시 백업 상태를 초기화하고 싶다면 이 아래 줄을 주석 해제하세요
-            # if st.button("초기화"): st.session_state['backup_complete'] = False; st.rerun()
-   
+            for file in files:
+                file_path = os.path.join(backup_path, file)
+                with open(file_path, "rb") as f:
+                    st.download_button(label=f"다운로드 {file}", data=f, file_name=file)
+        else:
+            st.error("폴더가 없습니다. 백업 함수에서 save_folder를 다시 확인하세요.")
 
 
 
