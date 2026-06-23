@@ -1241,8 +1241,28 @@ else:
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
                                 code_prefix = target_reset_code.split(" ")[0]
+                                current_db = db_collection.database
+        
+                                serials_to_delete = list(db_collection.find({"serial_no": {"$regex": f"^{code_prefix}"}}))
+                                for item in serials_to_delete:
+                                    # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
+                                    make_val = item.get("make")
+                                    detail_val = item.get("spec_detail")
+                                    if make_val and detail_val:
+                                        target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
+                                        
+                                        if target:
+                                            current_db['tool_specs_master'].update_one(
+                                                {"_id": target["_id"]}, 
+                                                {"$inc": {"new_tool": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
+                                                            # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
+                                            )
+                   
+
                                 db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                                st.session_state.reset_message = f"💥 선택하신 {target_reset_code} 데이터 초기화 처리가 완벽하게 끝났습니다!"
+                                st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
+
+ 
                             
                             st.session_state.show_qr_grid = False
                             st.session_state.current_view_serials = []
@@ -1603,5 +1623,4 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 저장과 복구":
         mong.render_search_menu()                
-
 
