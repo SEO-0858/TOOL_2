@@ -101,7 +101,7 @@ def disposal_can_do(serial, data):
                     total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty    
                     # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
                     now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_input}, 최종수량:{total_accumulated_qty}개"
+                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
                     updated_note = str(current_note) + new_log
                     # 4. DB 업데이트 (데이터가 확실히 들어가도록)
                     db_collection.database['tools_management'].update_one(
@@ -112,7 +112,7 @@ def disposal_can_do(serial, data):
                             "detail_reason": combined_reason, 
                             "note": updated_note,
                             "worker": worker_input,
-                            "machine_no": machine_input
+                            "machine_no": machine_final
                         }}
                     )
                     # 4. 재고 카운트 업데이트
