@@ -12,7 +12,9 @@ def run_backup():
     
     # 환경별 경로 설정
     if os.path.exists(r"\\192.168.0.221\제조2팀"):
-        save_folder = r"\\192.168.0.221\제조2팀\4part\4part\tool"
+        #save_folder = r"\\192.168.0.221\제조2팀\4part\4part\tool"
+        save_folder = "./backup_data" # 네트워크 드라이브 무시하고 무조건 여기로!
+        os.makedirs(save_folder, exist_ok=True)
     else:
         # 클라우드 서버 환경(Streamlit Cloud)에서는 서버 내부의 './backup_data' 폴더를 사용합니다.
         save_folder = "./backup_data"
