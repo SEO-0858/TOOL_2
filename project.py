@@ -39,7 +39,7 @@ def disposal_can_do(serial, data):
             
         current_mach = data.get('machine_no', '')
         machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
-        waste_qty = st.number_input("최종 가공 수량(개)", min_value=0, value=0, step=1)
+        waste_qty = st.number_input("가공수량(!!가공수량이 없으면 0 을 넣으세요!!)(개)", min_value=0, value=0, step=1)
         current_worker = data.get('worker', '')
         worker_input = st.text_input("작업자 이름:", value=current_worker)
         
@@ -759,7 +759,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         if chosen_reason == "5. 기타 (직접기입)" and not detail_reason:
             add_error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
             st.stop()
-            
+
         spec = db_collection.find_one({"serial_no": s_no}).get('spec_detail', '스펙없음')    
         log_now = get_now_kst()
         log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
