@@ -10,6 +10,12 @@ def run_backup():
     # [여기에 4개 컬렉션 이름을 적어주세요]
     collections = ['disposal_logs', 'tool_inventory', 'tool_specs_master', 'tools_management'] 
     save_folder = r"\\192.168.0.221\제조2팀\4part\tool"
+    if os.path.exists(r"\\192.168.0.221\제조2팀"):
+        save_folder = r"\\192.168.0.221\제조2팀\4part\tool"
+    else:
+        # 클라우드 서버 환경(Streamlit Cloud)에서는 서버 내부의 './backup_data' 폴더를 사용합니다.
+        save_folder = "./backup_data" 
+        os.makedirs(save_folder, exist_ok=True)
 
     # 2. 일괄 백업 시작
     for col_name in collections:
