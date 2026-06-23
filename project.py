@@ -1254,7 +1254,7 @@ else:
                                         if target:
                                             current_db['tool_specs_master'].update_one(
                                                 {"_id": target["_id"]}, 
-                                                {"$inc": {"new_tool": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
+                                                {"$inc": {"new_tool_count": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
                                                             # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
                                             )
                    
