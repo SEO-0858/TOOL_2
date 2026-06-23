@@ -24,24 +24,22 @@ def render_search_menu():
     elif mode == "데이터베이스 BACK UP":
         st.header("💾 데이터베이스 백업")
         
-        # 버튼을 누르면 '메모리(BytesIO)'에 엑셀 데이터를 만듭니다.
-        if st.button("백업 데이터 생성"):
-            import io
-            # 1. 엑셀을 메모리에 저장하기 위한 버퍼 생성
-            buffer = io.BytesIO()
+        # 1. 백업 실행 버튼
+        if st.button("백업 시작"):
+            with st.spinner("백업 중..."):
+                run_backup()
+            st.success("백업이 완료되었습니다!")
+            st.rerun() # 버튼을 누른 즉시 화면을 새로고침하여 아래쪽 코드가 동작하게 함
             
-            # 2. run_backup 함수가 메모리(buffer)에 파일을 쓰도록 수정해야 하지만, 
-            # 일단은 간단히 현재 폴더의 파일을 읽어오는 방식으로 진행합니다.
-            run_backup() # 기존처럼 파일을 생성함
+        # 2. 백업 파일 확인 및 다운로드 버튼 (실시간 확인)
+        backup_path = "./backup_data"
+        if os.path.exists(backup_path):
+            files = [f for f in os.listdir(backup_path) if f.endswith('.xlsx')]
             
-            st.session_state['backup_files'] = os.listdir("./backup_data")
-            st.success("백업 데이터 준비 완료!")
-
-        # 3. 백업된 파일이 있으면 무조건 다운로드 버튼을 보여줍니다.
-        if 'backup_files' in st.session_state:
-            for file in st.session_state['backup_files']:
-                file_path = os.path.join("./backup_data", file)
-                if os.path.exists(file_path):
+            if files:
+                st.write("### 📥 다운로드 가능한 파일 목록")
+                for file in files:
+                    file_path = os.path.join(backup_path, file)
                     with open(file_path, "rb") as f:
                         st.download_button(
                             label=f"📥 {file} 다운로드",
@@ -49,6 +47,10 @@ def render_search_menu():
                             file_name=file,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
+            else:
+                st.info("현재 생성된 백업 파일이 없습니다. [백업 시작]을 눌러주세요.")
+        else:
+            st.warning("백업 폴더를 찾을 수 없습니다.")
    
 
 
