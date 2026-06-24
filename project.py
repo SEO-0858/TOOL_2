@@ -1647,36 +1647,42 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-        
-        # CSS: 인쇄 시 사이드바/버튼 숨기기
+        # CSS: 인쇄 시 불필요한 요소 숨기기
         st.markdown("""
             <style>
             @media print {
+                .print-hide { display: none !important; }
                 [data-testid="stSidebar"] { display: none !important; }
-                button { display: none !important; }
+                #MainMenu { visibility: hidden; }
+                footer { visibility: hidden; }
             }
+            table { width: 100% !important; border-collapse: collapse !important; }
+            th, td { border: 1px solid black !important; padding: 8px !important; text-align: center !important; }
             </style>
         """, unsafe_allow_html=True)
+
+        # 헤더 영역 (인쇄 시 숨김)
+        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # 1. 상태 초기화
         if 'target_cat' not in st.session_state:
             st.session_state['target_cat'] = None
 
-        # 2. 버튼 영역
+        # 2. 버튼 영역 (인쇄 시 숨김)
+        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
         cols = st.columns(5)
         categories = ["전체", "전착", "레진", "메탈", "코어"]
         for i, cat in enumerate(categories):
             btn_name = cat if cat == "전체" else f"{cat}툴"
             if cols[i].button(btn_name):
                 st.session_state['target_cat'] = cat
-                # 여기서 st.rerun()을 하지 않고 상태값만 바꿉니다. 
-                # (깜빡임을 최소화하기 위해)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # 3. 데이터 출력 영역 (버튼이 눌린 경우에만 실행)
+        # 3. 데이터 로직 및 출력
         if st.session_state['target_cat'] is not None:
-            
-            # 데이터 처리 함수
+            # 데이터 파싱 함수
             def get_tool_data(category):
                 mongo_uri = st.secrets["database"]["MONGO_URI"]
                 client = MongoClient(mongo_uri)
@@ -1686,6 +1692,7 @@ else:
                 for item in master_data:
                     inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                     
+                    # 규격/메쉬 분리 (# 기준)
                     full_spec = item.get("spec_detail", "-")
                     pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
                     mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
@@ -1706,10 +1713,14 @@ else:
             # 데이터 출력
             df = get_tool_data(st.session_state['target_cat'])
             
-            st.divider() # 버튼과 데이터 구분선
-            st.markdown(f"<h2 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h2>", unsafe_allow_html=True)
+            # 인쇄 영역 (헤더 + 표)
+            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h3>", unsafe_allow_html=True)
             st.table(df)
-            st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
+            
+            # 인쇄 안내 (인쇄 시 숨김)
+            st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+            st.info("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요.")
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # 데이터가 선택되기 전 초기화면
             st.write("👉 위의 분류 버튼을 선택하면 해당 리스트가 나타납니다.")
