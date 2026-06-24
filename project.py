@@ -1712,13 +1712,13 @@ else:
        
         
        
+       
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-            # [🔥 인쇄 전용 숨김 CSS 마크다운 추가]
-            # 일반 화면에서는 다 보이지만, 프린터 인쇄(@media print) 모드가 켜지면 
-            # 사이드바, 버튼 등 데이터 외의 모든 메뉴를 강제로 숨깁니다.
+            # [🔥 인쇄 전용 숨김 CSS 마크다운]
+            # 인쇄 모드(@media print)가 켜지면 대메뉴 제목(st.title)까지 모조리 감춥니다.
             st.markdown(
                 """
                 <style>
@@ -1731,8 +1731,11 @@ else:
                         header, [data-testid="stHeader"] {
                             display: none !important;
                         }
-                            /* 🔍 툴 재고 검색 및 인쇄 타이틀을 포함한 상단 요소 숨김 */
+                        /* 🔍 툴 재고 검색 및 인쇄 타이틀을 포함한 상단 요소 숨김 */
                         div[data-testid="stVerticalBlock"] > div:has(h1) {
+                            display: none !important;
+                        }
+                        h1, .stMarkdown h1 {
                             display: none !important;
                         }
                         /* 화면 하단 앱 관리자 영역 및 인쇄/돌아가기 버튼 숨김 */
