@@ -1720,12 +1720,17 @@ else:
             # st.dataframe 대신 st.table 사용 (선이 더 진함)
             st.table(df)
             
-            if st.button("🖨 프린터로 인쇄하기"):
-                st.markdown("""
-                    <script>
-                        window.print();
-                    </script>
-                """, unsafe_allow_html=True)
+            st.markdown("""
+            <button onclick="window.print()" style="
+                background-color: #2E8B57;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                font-weight: bold;
+                cursor: pointer;
+            ">🖨 프린터로 인쇄하기</button>
+        """, unsafe_allow_html=True)
                 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
