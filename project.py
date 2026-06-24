@@ -17,135 +17,78 @@ import pytz
 
 st.cache_data.clear()
 
+@st.dialog("⚠️ 툴 폐기 처리")
+def waste_dialog(serial, data):
+    st.write(f"시리얼 번호: **{serial}**")
+    
+    # 1. 입력 UI 정의
+    reason_options = ["1. 다이아팀 전면 2mm 이하", "2. 튐 현상변화", "3. 튐 진원도 불량", "4. 지정 외세 수량", "5. 파손", "6. 기타사유(직접기입)"]
+    selected_reason = st.selectbox("폐기 사유 선택:", reason_options)
+    
+    detail_reason = ""
+    if selected_reason == "6. 기타사유(직접기입)":
+        detail_reason = st.text_input("상세 사유 입력:")
+
+    current_mach = data.get('machine_no', '')
+    machine_input = st.text_input("기계 번호 (또는 보관/이동):", value=current_mach)
+    machine_val = machine_input.strip()
+    
+    # 기계번호 로직
+    import re
+    numbers = re.findall(r'\d+', machine_val)
+    machine_final = f"{int(numbers[0]):02d}호기" if numbers else machine_val
+
+    waste_qty = st.number_input("(!!가공수량이 없으면 0을 넣으세요!!) (개)", min_value=0, value=0, step=1)
+    current_worker = data.get('worker', '')
+    worker_input = st.text_input("작업자 이름:", value=current_worker)
+
+    # 2. 버튼 및 저장 로직 (이곳에 기존 로직 모두 포함)
+    col1, col2 = st.columns(2)
+    if col1.button("✅ 최종 폐기 저장", key="final_save_btn"):
+        if not selected_reason:
+            st.error("사유를 선택해주세요.")
+        elif not worker_input:
+            st.error("작업자 이름을 입력해주세요.")
+        else:
+            try:
+                # 기존 로직 (로그 생성 및 DB 업데이트)
+                db = db_collection.database['disposal_logs']
+                latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
+                current_note = latest_doc.get('note', '') if latest_doc else ""
+                quantities = re.findall(r'(?:수량|가공갯수):\s*(\d+)개', current_note)
+                total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty
+                
+                log_data = {
+                    "serial_no": serial, "machine_no": machine_final, "disposal_reason": selected_reason,
+                    "detail_reason": detail_reason, "worker": worker_input, "waste_qty": total_accumulated_qty,
+                    "spec_detail": data.get('spec_detail', ''), "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                db_collection.database['disposal_logs'].insert_one(log_data)
+                
+                # DB 업데이트
+                combined_reason = f"{selected_reason}: {detail_reason}" if selected_reason == "6. 기타사유(직접기입)" else selected_reason
+                new_log = f"\n{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')} 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
+                db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}})
+                
+                update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
+                
+                st.success("✅ 폐기 정보가 저장되었습니다.")
+                st.session_state['show_waste_dialog'] = False
+                st.rerun()
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
+
+    if col2.button("❌ 취소", key="cancel_btn"):
+        st.session_state['show_waste_dialog'] = False
+        st.rerun()
+        
+
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
 
 def disposal_can_do(serial, data):
-    db = db_collection.database['disposal_logs']
-    
-    @st.dialog("⚠️ 툴 폐기 처리")
-    def waste_dialog():
-        serial = st.session_state.get('temp_serial')
-        data = st.session_state.get('temp_data')
-        st.write(f"시리얼 번호: **{serial}**")
-        reason_options = [
-            "1. 다이아팁 전면 2mm 이하", "2. 툴 형상변화", "3. 툴 진원도 불량",
-            "4. 지정 한계 수량", "5. 파손", "6. 기타사유(직접기입)"
-        ]
-        selected_reason = st.selectbox("폐기 사유 선택:", reason_options)
-        
-        detail_reason = ""
-        if selected_reason == "6. 기타사유(직접기입)":
-            detail_reason = st.text_input("상세 사유 입력:")
-            
-        current_mach = data.get('machine_no', '')
-        machine_input = st.text_input("기계 번호 (또는 '보관/이동'):", value=current_mach)
-        machine_val = machine_input.strip()
-
-        # 만약 입력값이 숫자라면 '호기'를 붙이고, 아니라면(보관 등) 그대로 둡니다.
-        numbers = re.findall(r'\d+', machine_val)
-        if numbers:
-            machine_final = f"{int(numbers[0]):02d}호기"
-        else:
-            machine_final = machine_val
-
-
-        waste_qty = st.number_input("가공수량(!!가공수량이 없으면 0 을 넣으세요!!)(개)", min_value=0, value=0, step=1)
-        current_worker = data.get('worker', '')
-        worker_input = st.text_input("작업자 이름:", value=current_worker)
-        if not worker_input: 
-            st.error("작업자 이름을 입력해주세요.")
-        
-        col1, col2 = st.columns(2)
-        if col1.button("✅ 최종 폐기 저장"):
-            # 1. 입력 검증
-            if not selected_reason:
-                st.error("사유를 선택해주세요.")
-            elif not 'worker_input' in locals() and not worker_input: # 안전장치 추가
-                st.error("작업자 이름을 입력해주세요.")
-            else:
-                latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
-                current_note = latest_doc.get('note', '') if latest_doc else ''
-                quantities = re.findall(r'(?:수량|가공갯수)[:\s]*(\d+)개', current_note)
-                total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty
-                # 2. 로그 데이터 구성
-                log_data = {
-                    "serial_no": serial,
-                    "machine_no": machine_final,
-                    "disposal_reason": selected_reason,
-                    "detail_reason": detail_reason,
-                    "worker": worker_input,
-                    "waste_qty": total_accumulated_qty, 
-                    "spec_detail": data.get('spec_detail', ''),
-                    "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                }
-                
-
-    # 3. 데이터 삽입 및 업데이트 (컬렉션 구분)
-                try:
-                    # 로그 컬렉션 저장
-                    db_collection.database['disposal_logs'].insert_one(log_data)
-                    
-                    # 1. DB에서 최신 note를 가져옵니다.
-                    latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
-                    current_note = latest_doc.get('note', '') if latest_doc else ''
-                    spec_info = latest_doc.get('spec_detail', '스펙없음') if latest_doc else '스펙없음'
-                  
-                    # 예: "6. 기타사유(직접기입): 이동중 파손"
-                    combined_reason = f"{selected_reason}"
-                    if selected_reason == "6. 기타사유(직접기입)": 
-                        combined_reason = f"{detail_reason}"
-                    else:
-                        combined_reason = f"{selected_reason}"
-
-                    quantities = re.findall(r'(?:수량|가공갯수)[:\s]*(\d+)개', current_note)
-                    total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty    
-                    # 3. [핵심] 로그에 사유와 상세 내용을 한 번에 기록합니다.
-                    now_str = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    new_log = f"\n[{now_str}] 상태:폐기, 스펙:{spec_info}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
-                    updated_note = str(current_note) + new_log
-                    # 4. DB 업데이트 (데이터가 확실히 들어가도록)
-                    db_collection.database['tools_management'].update_one(
-                        {"serial_no": serial},
-                        {"$set": {
-                            "status": "폐기",
-                            "disposal_reason":selected_reason , 
-                            "detail_reason": combined_reason, 
-                            "note": updated_note,
-                            "worker": worker_input,
-                            "machine_no": machine_final
-                        }}
-                    )
-                    # 4. 재고 카운트 업데이트
-                    current_status = data.get('status') # 'prev_status' 대신 'status'를 사용해 보세요
-                    update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), current_status, '폐기')
-
-                    # 5. 성공 피드백 및 화면 갱신
-                    st.success("✅ 폐기 정보가 저장되었습니다.")
-                    import time
-                    time.sleep(1.5)
-                    st.session_state['waste_reason_data'] = selected_reason
-                    st.session_state['show_waste_dialog'] = False
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"오류 발생: {e}")
-
-        if col2.button("❌ 취소"):
-            st.session_state['show_waste_dialog'] = False
-            if 'last_valid_status' in st.session_state:
-            # 기존에 저장해둔 상태가 있으면 그대로 복구
-                st.session_state['u_status'] = st.session_state['last_valid_status']
-            else:
-            # 만약 저장된 게 없다면, 현재 DB에 있는 값(data['status'])을 읽어와서 복구
-                st.session_state['u_status'] = data.get('status', '사용전')
-                st.rerun()
-
-
-    if st.session_state.get('show_waste_dialog', False):
-        st.session_state['temp_serial'] = serial # 데이터 임시 저장
-        st.session_state['temp_data'] = data     # 데이터 임시 저장
-        waste_dialog()
-
+    st.session_state['temp_serial'] = serial
+    st.session_state['temp_data'] = data
+    st.session_state['show_waste_dialog'] = True
 
 
 
@@ -1017,7 +960,7 @@ if qr_scanned_serial:
 
     # 팝업 호출부
     if st.session_state.get('show_waste_dialog', False):
-        disposal_can_do(qr_scanned_serial, existing_data)
+        waste_dialog(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
   
    
     st.divider()
