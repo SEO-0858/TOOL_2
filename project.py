@@ -1709,6 +1709,7 @@ else:
             return pd.DataFrame(refined_list)
 
    
+      
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
@@ -1717,11 +1718,10 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # [🔥 최종 해결: 제목과 본문 전체 강제 정중앙 정렬]
-            # 표 자체를 HTML로 변환하면서 제목(th)과 본문(td)에 모두 가운데 정렬을 주입합니다.
+            # 표 데이터만 HTML로 추출 (0번 인덱스 열 제거)
             html_table = df.to_html(index=False, justify='center')
             
-            # HTML 태그 내부에 전체 center 스타일을 한 번 더 먹여서 확실하게 고정합니다.
+            # 제목 헤더(th)와 데이터 칸(td) 모두 강제로 가운데 정렬하는 스타일 결합
             custom_html = f"""
             <style>
                 .custom-table-container table {{
@@ -1744,7 +1744,7 @@ else:
             </div>
             """
             
-            # 화면에 최종 출력
+            # HTML 태그 기능을 활성화하여 화면에 최종 출력
             st.markdown(custom_html, unsafe_allow_html=True)
                 
             # 인쇄 버튼 (JS 사용)
