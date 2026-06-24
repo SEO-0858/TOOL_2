@@ -1644,6 +1644,7 @@ else:
                     db.delete_one({"_id": s['_id']})
                     st.rerun()
 
+#####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         st.subheader("🔍 툴 재고 검색 및 인쇄")
@@ -1669,14 +1670,14 @@ else:
         if col4.button("메탈툴"): selected_cat = "메탈"
         if col5.button("코어툴"): selected_cat = "코어"
 
-        # 3. 데이터 로직 (조회 및 파싱)
+        # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
-            # 3.1 Master 데이터 가져오기
+            global db # 파일 상단의 db 연결 객체를 참조
             master_data = list(db.tool_specs_master.find({}))
             
             refined_list = []
             for item in master_data:
-                # 3.2 Inventory에서 main_code 찾기 (제조사/스펙 일치 기준)
+                # Inventory에서 main_code 찾기
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
                 # 파싱: main_code의 첫 번째 글자를 번호로 활용
@@ -1686,7 +1687,7 @@ else:
                 cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
                 cat_name = cat_map.get(code_num, "기타")
                 
-                # 3.3 필터링 적용
+                # 필터링
                 if category == "전체" or category == cat_name:
                     refined_list.append({
                         "대분류": cat_name,
@@ -1701,13 +1702,13 @@ else:
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-            # 인쇄를 위한 제목 출력 (프린터 출력 시 보이도록)
+            # 인쇄용 제목 (화면에도 표시됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
             st.dataframe(df, use_container_width=True)
             
-            # 인쇄 버튼 (클릭 시 브라우저 인쇄창 호출)
+            # 인쇄 버튼 (JS 사용)
             if st.button("🖨 프린터로 인쇄하기"):
                 st.markdown("""
                     <script>
