@@ -1709,6 +1709,7 @@ else:
             return pd.DataFrame(refined_list)
 
         
+       
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
@@ -1717,12 +1718,12 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # [🔥 최종 해결책: st.table과 스타일 조합]
-            # 1. Pandas 자체 정렬 기능을 이용해 데이터 전체를 가운데로 정렬합니다.
-            df_styled = df.style.set_properties(**{'text-align': 'center'})
+            # [🔥 최종 해결책: 마크다운 텍스트 변환 방식]
+            # 1. 0번 인덱스를 제외하고 모든 열을 가운데 정렬(:---:)하는 마크다운 텍스트로 표를 변환합니다.
+            markdown_table = df.to_markdown(index=False, justify='center')
             
-            # 2. st.table은 헤더와 본문 모두 정중앙 정렬을 완벽하게 수용합니다.
-            st.table(df_styled)
+            # 2. 순정 마크다운 형식으로 화면에 출력 (버전 버그 프리, 무조건 전체 가운데 정렬)
+            st.markdown(markdown_table)
 
         if st.button("🏠 돌아가기"):
             st.rerun()
