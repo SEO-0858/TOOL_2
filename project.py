@@ -1406,7 +1406,7 @@ else:
 
                             # [확인 창 및 실제 실행 로직]
                             if st.session_state.get(f"confirm_spec_{s_no}", False):
-                                st.warning(f"⚠️ [{current_spec}] 스펙 오류를 보정하시겠습니까?")
+                                #st.warning(f"⚠️ [{current_spec}] 스펙 오류를 보정하시겠습니까?")
                                 
                                 # 올바른 스펙을 선택하는 입력창 (선생님의 새로운 올바른 스펙 입력을 위해)
                                 # 기존 변수 충돌 방지를 위해 new_spec_input 변수 사용
