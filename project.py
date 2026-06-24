@@ -1649,47 +1649,74 @@ else:
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         st.subheader("🔍 툴 재고 검색 및 인쇄")
 
-        # 1. 탭 정의
-        tab_names = ["전체", "전착", "레진", "메탈", "코어"]
-        tabs = st.tabs(tab_names)
+        # 1. 디자인 (녹색 버튼, 굵은 글씨)
+        st.markdown("""
+            <style>
+            div.stButton > button:first-child {
+                background-color: #2E8B57;
+                color: black;
+                font-weight: bold;
+                width: 100%;
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
-        # 2. 데이터 검색 함수 (카테고리별로 완벽히 분리)
+        # 2. 상단 필터 버튼
+        col1, col2, col3, col4, col5 = st.columns(5)
+        selected_cat = None
+        if col1.button("전체 보기"): selected_cat = "전체"
+        if col2.button("전착툴"): selected_cat = "전착"
+        if col3.button("레진툴"): selected_cat = "레진"
+        if col4.button("메탈툴"): selected_cat = "메탈"
+        if col5.button("코어툴"): selected_cat = "코어"
+
+        # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
             client = MongoClient(mongo_uri)
-            db = client["dashboard_db"]
+            db = client["dashboard_db"] # 파일 상단의 db 연결 객체를 참조
             master_data = list(db.tool_specs_master.find({}))
+            
             refined_list = []
             for item in master_data:
+                # Inventory에서 main_code 찾기
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
-                full_spec = item.get("spec_detail", "-")
-                pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
-                mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
-
+                # 파싱: main_code의 첫 번째 글자를 번호로 활용
                 main_code_str = str(inv.get("main_code", "")) if inv else ""
-                cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
-                cat_name = cat_map.get(main_code_str[:1], "기타")
+                code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
                 
-                # 여기서 선택된 카테고리와 일치하는 것만 리스트에 담습니다
+                cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
+                cat_name = cat_map.get(code_num, "기타")
+                
+                # 필터링
                 if category == "전체" or category == cat_name:
                     refined_list.append({
-                        "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
-                        "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
+                        "대분류": cat_name,
+                        "메쉬": item.get("mesh", "-"),
+                        "규격": item.get("spec_detail", "-"),
+                        "현재 재고": item.get("new_tool_count", 0),
+                        "중고 재고": item.get("used_tool_count", 0)
                     })
-            
-            df = pd.DataFrame(refined_list)
-            if not df.empty: df.index = range(1, len(df) + 1)
-            return df
+            return pd.DataFrame(refined_list)
 
-        # 3. 탭별로 별도 세션 상태 부여 (데이터 섞임 방지)
-        for i, tab in enumerate(tabs):
-            with tab:
-                # 해당 탭이 클릭되었을 때만 데이터 로딩
-                target_cat = tab_names[i]
-                df = get_tool_data(target_cat)
+        # 4. 결과 출력 및 인쇄 버튼
+        if selected_cat:
+            df = get_tool_data(selected_cat)
+            
+            # 인쇄용 제목 (화면에도 표시됨)
+            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+            
+            st.dataframe(df, use_container_width=True)
+            
+            # 인쇄 버튼 (JS 사용)
+            if st.button("🖨 프린터로 인쇄하기"):
+                st.markdown("""
+                    <script>
+                    window.print();
+                    </script>
+                """, unsafe_allow_html=True)
                 
-                if not df.empty:
-                    st.table(df)
-                else:
-                    st.write(f"등록된 {target_cat} 데이터가 없습니다.")
+            if st.button("⬅️ 돌아가기"):
+                st.rerun()
