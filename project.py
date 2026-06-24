@@ -1708,6 +1708,7 @@ else:
             # [🔥 핵심 수정] 아무런 스타일도 먹이지 않은 순수 데이터프레임 상태로 반환합니다.
             return pd.DataFrame(refined_list)
 
+        
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
@@ -1716,34 +1717,20 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # 순수 데이터프레임을 HTML 표로 변환 (0번 인덱스 제거)
-            html_table = df.to_html(index=False, justify='center')
-            
-            # CSS 스타일 강제 결합 (th, td 전체 정중앙 정렬)
-            custom_html = f"""
-            <style>
-                .custom-table-container table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    text-align: center !important;
-                }}
-                .custom-table-container th, .custom-table-container td {{
-                    border: 1px solid #e6e9ef;
-                    padding: 8px;
-                    text-align: center !important;
-                }}
-                .custom-table-container th {{
-                    background-color: #f0f2f6;
-                    font-weight: bold;
-                }}
-            </style>
-            <div class="custom-table-container">
-                {html_table}
-            </div>
-            """
-            
-            # HTML 변환 활성화 출력
-            st.markdown(custom_html, unsafe_allow_html=True)
+            # [🔥 HTML 없이 100% 성공하는 순정 가운데 정렬 방식]
+            # column_config 옵션에 헤더(제목)와 본문 정렬을 한 번에 맞추는 설정을 주입합니다.
+            st.dataframe(
+                df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    col: st.column_config.Column(
+                        label=col,          # 원래 컬럼명을 그대로 유지
+                        alignment="center"  # 제목 헤더와 본문 데이터를 모두 정중앙 정렬
+                    ) 
+                    for col in df.columns
+                }
+            )
 
         if st.button("🏠 돌아가기"):
             st.rerun()
