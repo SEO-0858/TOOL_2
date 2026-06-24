@@ -1711,16 +1711,50 @@ else:
         
        
         
+       
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
+            # [🔥 인쇄 전용 숨김 CSS 마크다운 추가]
+            # 일반 화면에서는 다 보이지만, 프린터 인쇄(@media print) 모드가 켜지면 
+            # 사이드바, 버튼 등 데이터 외의 모든 메뉴를 강제로 숨깁니다.
+            st.markdown(
+                """
+                <style>
+                    @media print {
+                        /* 사이드바 영역 전체 숨김 */
+                        [data-testid="stSidebar"], section[data-testid="stSidebar"] {
+                            display: none !important;
+                        }
+                        /* 상단 헤더, 작업 메뉴 바 숨김 */
+                        header, [data-testid="stHeader"] {
+                            display: none !important;
+                        }
+                        /* 화면 하단 앱 관리자 영역 및 인쇄/돌아가기 버튼 숨김 */
+                        .stButton, div.stButton, iframe, footer {
+                            display: none !important;
+                        }
+                        /* 메인 영역 여백 제거하여 인쇄 용지에 꽉 차게 조절 */
+                        [data-testid="stAppViewContainer"] {
+                            padding: 0px !important;
+                            background: white !important;
+                        }
+                        .main .block-container {
+                            padding-top: 10px !important;
+                            padding-bottom: 10px !important;
+                        }
+                    }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
             # 인쇄용 제목 (화면에도 표시됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             st.write("<br>", unsafe_allow_html=True)
             
-            # [🔥 최종 해결: 순정 컬럼 매핑 정중앙 정렬 방식]
             # 1. 표의 제목 헤더 영역 생성 (5개 칸 분할)
             th1, th2, th3, th4, th5 = st.columns([1.5, 3, 1.5, 1.5, 1.5])
             with th1: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>대분류</p>", unsafe_allow_html=True)
@@ -1739,6 +1773,5 @@ else:
                 with td5: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['중고 재고']}</p>", unsafe_allow_html=True)
                 
             st.write("<br>", unsafe_allow_html=True)
-
         if st.button("🏠 돌아가기"):
             st.rerun()
