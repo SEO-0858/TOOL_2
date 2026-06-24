@@ -1647,49 +1647,49 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-    st.subheader("🔍 툴 재고 검색 및 인쇄")
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
 
-    # 1. 탭 정의
-    tab_names = ["전체", "전착", "레진", "메탈", "코어"]
-    tabs = st.tabs(tab_names)
+        # 1. 탭 정의
+        tab_names = ["전체", "전착", "레진", "메탈", "코어"]
+        tabs = st.tabs(tab_names)
 
-    # 2. 데이터 검색 함수 (카테고리별로 완벽히 분리)
-    def get_tool_data(category):
-        mongo_uri = st.secrets["database"]["MONGO_URI"]
-        client = MongoClient(mongo_uri)
-        db = client["dashboard_db"]
-        master_data = list(db.tool_specs_master.find({}))
-        refined_list = []
-        for item in master_data:
-            inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+        # 2. 데이터 검색 함수 (카테고리별로 완벽히 분리)
+        def get_tool_data(category):
+            mongo_uri = st.secrets["database"]["MONGO_URI"]
+            client = MongoClient(mongo_uri)
+            db = client["dashboard_db"]
+            master_data = list(db.tool_specs_master.find({}))
+            refined_list = []
+            for item in master_data:
+                inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+                
+                full_spec = item.get("spec_detail", "-")
+                pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
+                mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
+
+                main_code_str = str(inv.get("main_code", "")) if inv else ""
+                cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
+                cat_name = cat_map.get(main_code_str[:1], "기타")
+                
+                # 여기서 선택된 카테고리와 일치하는 것만 리스트에 담습니다
+                if category == "전체" or category == cat_name:
+                    refined_list.append({
+                        "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
+                        "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
+                    })
             
-            full_spec = item.get("spec_detail", "-")
-            pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
-            mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
+            df = pd.DataFrame(refined_list)
+            if not df.empty: df.index = range(1, len(df) + 1)
+            return df
 
-            main_code_str = str(inv.get("main_code", "")) if inv else ""
-            cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
-            cat_name = cat_map.get(main_code_str[:1], "기타")
-            
-            # 여기서 선택된 카테고리와 일치하는 것만 리스트에 담습니다
-            if category == "전체" or category == cat_name:
-                refined_list.append({
-                    "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
-                    "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
-                })
-        
-        df = pd.DataFrame(refined_list)
-        if not df.empty: df.index = range(1, len(df) + 1)
-        return df
-
-    # 3. 탭별로 별도 세션 상태 부여 (데이터 섞임 방지)
-    for i, tab in enumerate(tabs):
-        with tab:
-            # 해당 탭이 클릭되었을 때만 데이터 로딩
-            target_cat = tab_names[i]
-            df = get_tool_data(target_cat)
-            
-            if not df.empty:
-                st.table(df)
-            else:
-                st.write(f"등록된 {target_cat} 데이터가 없습니다.")
+        # 3. 탭별로 별도 세션 상태 부여 (데이터 섞임 방지)
+        for i, tab in enumerate(tabs):
+            with tab:
+                # 해당 탭이 클릭되었을 때만 데이터 로딩
+                target_cat = tab_names[i]
+                df = get_tool_data(target_cat)
+                
+                if not df.empty:
+                    st.table(df)
+                else:
+                    st.write(f"등록된 {target_cat} 데이터가 없습니다.")
