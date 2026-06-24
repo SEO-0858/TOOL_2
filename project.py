@@ -1679,22 +1679,30 @@ else:
             
             refined_list = []
             for item in master_data:
-                # Inventory에서 main_code 찾기
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
-                # 파싱: main_code의 첫 번째 글자를 번호로 활용
+                # --- 메쉬와 규격 분리 로직 시작 ---
+                full_spec = item.get("spec_detail", "-")
+                if "#" in full_spec:
+                    parts = full_spec.split("#")
+                    pure_spec = parts[0]      # # 앞부분: 규격
+                    mesh_val = "#" + parts[1] # # 뒷부분: 메쉬
+                else:
+                    pure_spec = full_spec
+                    mesh_val = "-"
+                # --- 메쉬와 규격 분리 로직 끝 ---
+
+                # 파싱 로직 (기존과 동일)
                 main_code_str = str(inv.get("main_code", "")) if inv else ""
                 code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
-                
                 cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
                 cat_name = cat_map.get(code_num, "기타")
                 
-                # 필터링
                 if category == "전체" or category == cat_name:
                     refined_list.append({
                         "대분류": cat_name,
-                        "메쉬": item.get("mesh", "-"),
-                        "규격": item.get("spec_detail", "-"),
+                        "규격": pure_spec,       # 분리된 규격
+                        "메쉬": mesh_val,       # 분리된 메쉬
                         "현재 재고": item.get("new_tool_count", 0),
                         "중고 재고": item.get("used_tool_count", 0)
                     })
