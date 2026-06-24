@@ -960,7 +960,7 @@ if qr_scanned_serial:
     def trigger_waste():
         if st.session_state.get("u_status") == "폐기":
             # 여기서 serial과 data를 확실하게 세션에 박아넣습니다.
-            st.session_state['temp_serial'] = serial_no # 현재 시리얼 변수명으로 변경하세요
+            st.session_state['temp_serial'] = qr_scanned_serial # 현재 시리얼 변수명으로 변경하세요
             st.session_state['temp_data'] = existing_data     # 현재 데이터 변수명으로 변경하세요
             st.session_state['show_waste_dialog'] = True
         else:
