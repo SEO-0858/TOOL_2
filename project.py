@@ -1646,39 +1646,37 @@ else:
 
 #####################################################################################################################################
 
+    
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-    # 1. 강력한 인쇄 전용 CSS (표와 제목 외 전부 숨김)
+    # 1. 인쇄 전용 CSS (최대한 단순하고 강력하게)
         st.markdown("""
             <style>
             @media print {
-                /* 사이드바, 버튼, 서브헤더, 안내문구 등 모든 요소 숨김 */
-                [data-testid="stSidebar"], .stButton, .stsubheader, .stInfo, header, footer {
-                    display: none !important;
-                }
-                /* 오직 인쇄할 내용만 강조 */
-                body { visibility: visible; }
-                .printable { display: block !important; }
+                .no-print { display: none !important; }
             }
-            table { width: 100% !important; border-collapse: collapse !important; }
-            th, td { border: 1px solid black !important; padding: 8px !important; text-align: center !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. 버튼 및 안내 문구 영역 (인쇄 시 숨김 처리됨)
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-        
+        # 2. 데이터 유지용 세션 (선택 없으면 None)
         if 'target_cat' not in st.session_state:
             st.session_state['target_cat'] = None
 
-        cols = st.columns(5)
-        categories = ["전체", "전착", "레진", "메탈", "코어"]
-        for i, cat in enumerate(categories):
-            btn_name = cat if cat == "전체" else f"{cat}툴"
-            if cols[i].button(btn_name):
-                st.session_state['target_cat'] = cat
+        # 3. 화면 표시 영역 (no-print 클래스로 인쇄 시 숨김 처리)
+        with st.container():
+            st.markdown('<div class="no-print">', unsafe_allow_html=True)
+            st.subheader("🔍 툴 재고 검색 및 인쇄")
+            
+            cols = st.columns(5)
+            categories = ["전체", "전착", "레진", "메탈", "코어"]
+            for i, cat in enumerate(categories):
+                btn_label = cat if cat == "전체" else f"{cat}툴"
+                if cols[i].button(btn_label):
+                    st.session_state['target_cat'] = cat
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # 3. 데이터 출력 영역
-        if st.session_state['target_cat'] is not None:
+        # 4. 데이터 영역 (선택했을 때만 출력)
+        if st.session_state['target_cat']:
             def get_tool_data(category):
                 mongo_uri = st.secrets["database"]["MONGO_URI"]
                 client = MongoClient(mongo_uri)
@@ -1700,16 +1698,16 @@ else:
                             "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
                             "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
                         })
-                df = pd.DataFrame(refined_list)
-                if not df.empty: df.index = range(1, len(df) + 1)
-                return df
+                return pd.DataFrame(refined_list)
 
             df = get_tool_data(st.session_state['target_cat'])
             
-            # 제목과 표 (인쇄 시 보일 영역)
-            st.markdown(f"<div class='printable'><h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            # 인쇄 영역 (no-print 적용 안 함)
+            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h3>", unsafe_allow_html=True)
             st.table(df)
-            st.markdown("</div>", unsafe_allow_html=True)
-            
+
+            # 안내 문구는 인쇄 시 숨김
+            st.markdown('<div class="no-print">', unsafe_allow_html=True)
             st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
+            st.markdown('</div>', unsafe_allow_html=True)
