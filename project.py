@@ -1710,6 +1710,7 @@ else:
 
         
        
+        
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
@@ -1717,13 +1718,27 @@ else:
             # 인쇄용 제목 (화면에도 표시됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+            st.write("<br>", unsafe_allow_html=True)
             
-            # [🔥 최종 해결책: 마크다운 텍스트 변환 방식]
-            # 1. 0번 인덱스를 제외하고 모든 열을 가운데 정렬(:---:)하는 마크다운 텍스트로 표를 변환합니다.
-            markdown_table = df.to_markdown(index=False, justify='center')
+            # [🔥 최종 해결: 순정 컬럼 매핑 정중앙 정렬 방식]
+            # 1. 표의 제목 헤더 영역 생성 (5개 칸 분할)
+            th1, th2, th3, th4, th5 = st.columns([1.5, 3, 1.5, 1.5, 1.5])
+            with th1: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>대분류</p>", unsafe_allow_html=True)
+            with th2: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>규격</p>", unsafe_allow_html=True)
+            with th3: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>메쉬</p>", unsafe_allow_html=True)
+            with th4: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>현재 재고</p>", unsafe_allow_html=True)
+            with th5: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>중고 재고</p>", unsafe_allow_html=True)
             
-            # 2. 순정 마크다운 형식으로 화면에 출력 (버전 버그 프리, 무조건 전체 가운데 정렬)
-            st.markdown(markdown_table)
+            # 2. 데이터 본문 내용 영역 생성 (반복문으로 한 줄씩 정중앙 정렬하여 출력)
+            for _, row in df.iterrows():
+                td1, td2, td3, td4, td5 = st.columns([1.5, 3, 1.5, 1.5, 1.5])
+                with td1: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['대분류']}</p>", unsafe_allow_html=True)
+                with td2: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['규격']}</p>", unsafe_allow_html=True)
+                with td3: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['메쉬']}</p>", unsafe_allow_html=True)
+                with td4: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['현재 재고']}</p>", unsafe_allow_html=True)
+                with td5: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['중고 재고']}</p>", unsafe_allow_html=True)
+                
+            st.write("<br>", unsafe_allow_html=True)
 
         if st.button("🏠 돌아가기"):
             st.rerun()
