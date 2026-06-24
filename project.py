@@ -194,9 +194,9 @@ def confirm_mobile_spec_change(new_spec, serial_no):
         current_status = existing_data.get("status")
         if current_status in ["사용전", "재사용대기"]:
             # 기존 스펙에서 빼기
-            update_inventory_count(existing_data.get("spec_detail"), current_status, "폐기") 
+            update_inventory_count(existing_data.get("spec_detail"),existing_data.get("make"), current_status, "폐기") 
             # 신규 스펙에 더하기 (폐기/사용중을 거쳐 다시 상태가 돌아가는 개념으로 처리)
-            update_inventory_count(new_spec, "폐기", current_status)
+            update_inventory_count(new_spec,existing_data.get("make"), "폐기", current_status)
         # 1. DB 업데이트
         db_collection.update_one(
             {"serial_no": serial_no},
