@@ -1648,68 +1648,55 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         st.subheader("🔍 툴 재고 검색 및 인쇄")
-        
-        # CSS: 인쇄 시 사이드바/버튼 숨기기
-        st.markdown("""
-            <style>
-            @media print {
-                [data-testid="stSidebar"] { display: none !important; }
-                button { display: none !important; }
-            }
-            </style>
-        """, unsafe_allow_html=True)
 
-        # 1. 상태 초기화
-        if 'target_cat' not in st.session_state:
-            st.session_state['target_cat'] = None
+        # 1. 탭 정의
+        tab_names = ["전체", "전착툴", "레진툴", "메탈툴", "코어툴"]
+        tabs = st.tabs(tab_names)
 
-        # 2. 버튼 영역
-        cols = st.columns(5)
-        categories = ["전체", "전착", "레진", "메탈", "코어"]
-        for i, cat in enumerate(categories):
-            btn_name = cat if cat == "전체" else f"{cat}툴"
-            if cols[i].button(btn_name):
-                st.session_state['target_cat'] = cat
-                # 여기서 st.rerun()을 하지 않고 상태값만 바꿉니다. 
-                # (깜빡임을 최소화하기 위해)
+        # 2. 데이터 검색 함수
+        def get_tool_data(category):
+            mongo_uri = st.secrets["database"]["MONGO_URI"]
+            client = MongoClient(mongo_uri)
+            db = client["dashboard_db"]
+            # DB에서 데이터 가져오기
+            master_data = list(db.tool_specs_master.find({}))
+            refined_list = []
+            for item in master_data:
+                inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+                
+                # 규격/메쉬 분리 로직
+                full_spec = item.get("spec_detail", "-")
+                pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
+                mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
 
-        # 3. 데이터 출력 영역 (버튼이 눌린 경우에만 실행)
-        if st.session_state['target_cat'] is not None:
+                # 카테고리 매핑
+                main_code_str = str(inv.get("main_code", "")) if inv else ""
+                cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
+                cat_name = cat_map.get(main_code_str[:1], "기타")
+                
+                # 필터링
+                if category == "전체" or category == cat_name:
+                    refined_list.append({
+                        "대분류": cat_name, 
+                        "규격": pure_spec, 
+                        "메쉬": mesh_val,
+                        "현재 재고": item.get("new_tool_count", 0), 
+                        "중고 재고": item.get("used_tool_count", 0)
+                    })
             
-            # 데이터 처리 함수
-            def get_tool_data(category):
-                mongo_uri = st.secrets["database"]["MONGO_URI"]
-                client = MongoClient(mongo_uri)
-                db = client["dashboard_db"]
-                master_data = list(db.tool_specs_master.find({}))
-                refined_list = []
-                for item in master_data:
-                    inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
-                    
-                    full_spec = item.get("spec_detail", "-")
-                    pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
-                    mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
+            df = pd.DataFrame(refined_list)
+            if not df.empty:
+                df.index = range(1, len(df) + 1)
+            return df
 
-                    main_code_str = str(inv.get("main_code", "")) if inv else ""
-                    cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
-                    cat_name = cat_map.get(main_code_str[:1], "기타")
-                    
-                    if category == "전체" or category == cat_name:
-                        refined_list.append({
-                            "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
-                            "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
-                        })
-                df = pd.DataFrame(refined_list)
-                if not df.empty: df.index = range(1, len(df) + 1)
-                return df
-
-            # 데이터 출력
-            df = get_tool_data(st.session_state['target_cat'])
-            
-            st.divider() # 버튼과 데이터 구분선
-            st.markdown(f"<h2 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h2>", unsafe_allow_html=True)
-            st.table(df)
-            st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
-        else:
-            # 데이터가 선택되기 전 초기화면
-            st.write("👉 위의 분류 버튼을 선택하면 해당 리스트가 나타납니다.")
+        # 3. 각 탭 클릭 시 데이터 출력
+        for i, tab in enumerate(tabs):
+            with tab:
+                target_cat = "전체" if i == 0 else tab_names[i].replace("툴", "")
+                df = get_tool_data(target_cat)
+                
+                st.markdown(f"### {tab_names[i]} 리스트")
+                if not df.empty:
+                    st.table(df)
+                else:
+                    st.write(f"해당 카테고리에 등록된 데이터가 없습니다.")
