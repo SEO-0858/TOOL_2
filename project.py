@@ -12,7 +12,7 @@ dt_class = dt
 import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
 from datetime import timedelta
 import pytz
-import mong
+
 
 
 st.cache_data.clear()
@@ -1084,7 +1084,7 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 저장과 복구"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄"]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
         
@@ -1645,5 +1645,5 @@ else:
                     st.rerun()
 
 
-    elif tool_menu == "🔍 툴 재고 검색 및 저장과 복구":
-        mong.render_search_menu()                
+    elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
+                        
