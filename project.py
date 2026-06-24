@@ -1712,12 +1712,19 @@ else:
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-            # 인쇄용 제목 (화면에도 표시됨)
-            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+  
+            st.markdown(
+                """
+                <style>
+                    /* 표 내부의 헤더(제목) 글자들을 강제로 중앙 정렬 */
+                    .stDataFrame th {
+                        text-align: center !important;
+                    }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
             
-            # [🔥 에러 해결 및 가운데 정렬 완료 코드]
-            # column_config를 통해 Pandas 버전을 타지 않고 표 내부의 모든 칸을 무조건 정중앙 정렬합니다.
             st.dataframe(
                 df, 
                 use_container_width=True, 
