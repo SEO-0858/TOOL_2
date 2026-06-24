@@ -976,13 +976,12 @@ if qr_scanned_serial:
     if 'last_known_status' not in st.session_state:
         st.session_state['last_known_status'] = prev_status
 
-    # 팝업 호출부
-    if st.session_state.get('show_waste_dialog', False):
+    # 팝업 호출부  
+    if st.session_state.get('show_waste_dialog', False) and st.session_state.get('temp_serial'):
         waste_dialog(
-    st.session_state.get('temp_serial'), 
-    st.session_state.get('temp_data') or {}  # data가 None이면 빈 딕셔너리 {} 사용
-    ) 
-  
+        st.session_state.get('temp_serial'),
+        st.session_state.get('temp_data') or {}
+    )
    
     st.divider()
     
