@@ -126,6 +126,7 @@ def disposal_can_do(serial, data):
                     time.sleep(3.0)
                     st.session_state['waste_reason_data'] = selected_reason
                     st.session_state['show_waste_dialog'] = False
+                    time.sleep(3.0)
                     st.rerun()
 
                 except Exception as e:
