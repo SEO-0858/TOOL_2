@@ -72,9 +72,10 @@ def waste_dialog(serial, data):
                 
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
                 
-                st.success("✅ 폐기 정보가 저장되었습니다.")
+                
                 if st.session_state.get('show_waste_dialog', False):
                     waste_dialog(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
+                st.success("✅ 폐기 정보가 저장되었습니다.")    
                 st.rerun()
             except Exception as e:
                 st.error(f"오류 발생: {e}")
