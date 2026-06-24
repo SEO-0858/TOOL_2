@@ -34,7 +34,7 @@ def waste_dialog(serial, data):
     machine_val = machine_input.strip()
     
     # 기계번호 로직
-    import re
+   
     numbers = re.findall(r'\d+', machine_val)
     machine_final = f"{int(numbers[0]):02d}호기" if numbers else machine_val
 
@@ -72,16 +72,16 @@ def waste_dialog(serial, data):
                 
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
                 
-                
-                if st.session_state.get('show_waste_dialog', False):
-                    waste_dialog(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
-                st.success("✅ 폐기 정보가 저장되었습니다.")    
+                st.session_state['show_waste_dialog'] = False # 다이얼로그 닫기
+                st.session_state['show_success_msg'] = True  # 성공 메시지 예약
                 st.rerun()
+
             except Exception as e:
                 st.error(f"오류 발생: {e}")
 
     if col2.button("❌ 취소", key="cancel_btn"):
         st.session_state['show_waste_dialog'] = False
+        st.session_state['show_success_msg'] = True
         st.rerun()
         
 
