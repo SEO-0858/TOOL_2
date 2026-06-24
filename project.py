@@ -956,8 +956,12 @@ if qr_scanned_serial:
     # 2. 상세 스펙이 채워져 있을 때만 실행되는 기입창 코드
     prev_status = existing_data.get("status", "사용전")
     
+    # 1008라인 근처
     def trigger_waste():
         if st.session_state.get("u_status") == "폐기":
+            # 여기서 serial과 data를 확실하게 세션에 박아넣습니다.
+            st.session_state['temp_serial'] = serial_no # 현재 시리얼 변수명으로 변경하세요
+            st.session_state['temp_data'] = existing_data     # 현재 데이터 변수명으로 변경하세요
             st.session_state['show_waste_dialog'] = True
         else:
             st.session_state['show_waste_dialog'] = False
@@ -977,11 +981,12 @@ if qr_scanned_serial:
         st.session_state['last_known_status'] = prev_status
 
     # 팝업 호출부  
-    if st.session_state.get('show_waste_dialog', False) and st.session_state.get('temp_serial'):
+    # 980라인을 다시 원래대로 돌려주세요 (이게 있어야 창이 뜹니다)
+    if st.session_state.get('show_waste_dialog', False):
         waste_dialog(
-        st.session_state.get('temp_serial'),
-        st.session_state.get('temp_data') or {}
-    )
+            st.session_state.get('temp_serial'),
+            st.session_state.get('temp_data') or {}
+        )
    
     st.divider()
     
