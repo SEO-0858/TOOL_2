@@ -1721,12 +1721,11 @@ else:
             st.table(df)
             
             if st.button("🖨 프린터로 인쇄하기"):
-                js = """
-                <script>
-                window.print();
-                </script>
-                """
-                st.markdown(js, unsafe_allow_html=True)
+                st.markdown("""
+                    <script>
+                        window.print();
+                    </script>
+                """, unsafe_allow_html=True)
                 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
