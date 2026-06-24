@@ -1646,4 +1646,4 @@ else:
 
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-                        
+        pass
