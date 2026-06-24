@@ -57,6 +57,7 @@ def disposal_can_do(serial, data):
         
         col1, col2 = st.columns(2)
         if col1.button("✅ 최종 폐기 저장"):
+            time.sleep(6.0)
             # 1. 입력 검증
             if not selected_reason:
                 st.error("사유를 선택해주세요.")
@@ -122,7 +123,7 @@ def disposal_can_do(serial, data):
                     # 5. 성공 피드백 및 화면 갱신
                     st.success("✅ 폐기 정보가 저장되었습니다.")
                     import time
-                    time.sleep(1.5)
+                    time.sleep(2.0)
                     st.session_state['waste_reason_data'] = selected_reason
                     st.session_state['show_waste_dialog'] = False
                     st.rerun()
