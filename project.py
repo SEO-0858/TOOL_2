@@ -1711,14 +1711,20 @@ else:
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
-            df = df.style.set_properties({'text-align': 'center'}).hide_index()
             
             # 인쇄용 제목 (화면에도 표시됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
-    
-            st.write(df)
             
+            # [🔥 에러 해결 및 가운데 정렬 완료 코드]
+            # column_config를 통해 Pandas 버전을 타지 않고 표 내부의 모든 칸을 무조건 정중앙 정렬합니다.
+            st.dataframe(
+                df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={col: st.column_config.Column(alignment="center") for col in df.columns}
+            )
+                
             # 인쇄 버튼 (JS 사용)
             if st.button("🖨 프린터로 인쇄하기"):
                 st.markdown("""
