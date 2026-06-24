@@ -1670,29 +1670,27 @@ else:
         if col4.button("메탈툴"): selected_cat = "메탈"
         if col5.button("코어툴"): selected_cat = "코어"
 
+       
         # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
             client = MongoClient(mongo_uri)
-            db = client["dashboard_db"] # 파일 상단의 db 연결 객체를 참조
+            db = client["dashboard_db"]
             master_data = list(db.tool_specs_master.find({}))
             
             refined_list = []
             for item in master_data:
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
-                # --- 메쉬와 규격 분리 로직 시작 ---
                 full_spec = item.get("spec_detail", "-")
                 if "#" in full_spec:
                     parts = full_spec.split("#")
-                    pure_spec = parts[0]      # # 앞부분: 규격
-                    mesh_val = "#" + parts[1] # # 뒷부분: 메쉬
+                    pure_spec = parts[0]
+                    mesh_val = "#" + parts[1]
                 else:
                     pure_spec = full_spec
                     mesh_val = "-"
-                # --- 메쉬와 규격 분리 로직 끝 ---
-
-                # 파싱 로직 (기존과 동일)
+                    
                 main_code_str = str(inv.get("main_code", "")) if inv else ""
                 code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
                 cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
@@ -1701,17 +1699,16 @@ else:
                 if category == "전체" or category == cat_name:
                     refined_list.append({
                         "대분류": cat_name,
-                        "규격": pure_spec,       # 분리된 규격
-                        "메쉬": mesh_val,       # 분리된 메쉬
+                        "규격": pure_spec,
+                        "메쉬": mesh_val,
                         "현재 재고": item.get("new_tool_count", 0),
                         "중고 재고": item.get("used_tool_count", 0)
                     })
+                    
+            # [🔥 핵심 수정] 아무런 스타일도 먹이지 않은 순수 데이터프레임 상태로 반환합니다.
             return pd.DataFrame(refined_list)
 
-   
-      
-      
-   
+        # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
@@ -1719,10 +1716,10 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # 표 데이터만 HTML로 추출 (0번 인덱스 열 제거)
+            # 순수 데이터프레임을 HTML 표로 변환 (0번 인덱스 제거)
             html_table = df.to_html(index=False, justify='center')
             
-            # 제목 헤더(th)와 데이터 칸(td) 모두 강제로 가운데 정렬하는 스타일 결합
+            # CSS 스타일 강제 결합 (th, td 전체 정중앙 정렬)
             custom_html = f"""
             <style>
                 .custom-table-container table {{
@@ -1745,16 +1742,8 @@ else:
             </div>
             """
             
-            # HTML 태그 기능을 활성화하여 화면에 최종 출력 (들여쓰기 자릿수 정밀 교정)
+            # HTML 변환 활성화 출력
             st.markdown(custom_html, unsafe_allow_html=True)
-                
-            # 인쇄 버튼 (JS 사용)
-            if st.button("🖨 프린터로 인쇄하기"):
-                st.markdown("""
-                    <script>
-                    window.print();
-                    </script>
-                """, unsafe_allow_html=True)
-                
-            if st.button("⬅️ 돌아가기"):
-                st.rerun()
+
+        if st.button("🏠 돌아가기"):
+            st.rerun()
