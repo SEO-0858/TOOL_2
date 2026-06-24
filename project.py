@@ -1717,20 +1717,12 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # [🔥 HTML 없이 100% 성공하는 순정 가운데 정렬 방식]
-            # column_config 옵션에 헤더(제목)와 본문 정렬을 한 번에 맞추는 설정을 주입합니다.
-            st.dataframe(
-                df, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={
-                    col: st.column_config.Column(
-                        label=col,          # 원래 컬럼명을 그대로 유지
-                        alignment="center"  # 제목 헤더와 본문 데이터를 모두 정중앙 정렬
-                    ) 
-                    for col in df.columns
-                }
-            )
+            # [🔥 최종 해결책: st.table과 스타일 조합]
+            # 1. Pandas 자체 정렬 기능을 이용해 데이터 전체를 가운데로 정렬합니다.
+            df_styled = df.style.set_properties(**{'text-align': 'center'})
+            
+            # 2. st.table은 헤더와 본문 모두 정중앙 정렬을 완벽하게 수용합니다.
+            st.table(df_styled)
 
         if st.button("🏠 돌아가기"):
             st.rerun()
