@@ -1722,14 +1722,24 @@ else:
             
             st.table(df)
             
-            # 인쇄 버튼
+          
+            # 인쇄 버튼 (새 창에서 인쇄창 열기)
             if st.button("🖨 프린터로 인쇄하기"):
-                # 인쇄 전용 자바스크립트 실행 (화면 갱신 방지용)
-                st.markdown("""
-                    <script>
-                        window.print();
-                    </script>
-                """, unsafe_allow_html=True)
+                js_code = f"""
+                <script>
+                    var printWindow = window.open('', '_blank', 'width=800,height=600');
+                    printWindow.document.write('<html><head><title>공구 LIST 인쇄</title>');
+                    printWindow.document.write('<style>table {{ border-collapse: collapse; width: 100%; border: 2px solid black; }} th, td {{ border: 1px solid black; padding: 8px; text-align: center; }}</style>');
+                    printWindow.document.write('</head><body>');
+                    printWindow.document.write('<h1 style="text-align:center;">공구 - LIST</h1>');
+                    printWindow.document.write('<h3 style="text-align:center;">{selected_cat} 리스트</h3>');
+                    printWindow.document.write('{df.to_html(index=False)}');
+                    printWindow.document.write('</body></html>');
+                    printWindow.document.close();
+                    printWindow.print();
+                </script>
+                """
+                st.markdown(js_code, unsafe_allow_html=True)
                 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
