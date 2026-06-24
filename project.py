@@ -1646,7 +1646,14 @@ else:
 
 #####################################################################################################################################
 
-# 1. 먼저 데이터 조회 함수를 정의합니다 (밑줄 방지)
+    elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
+
+        # 1. 탭 정의
+        tab_names = ["전체", "전착", "레진", "메탈", "코어"]
+        tabs = st.tabs(tab_names)
+
+        # 2. 데이터 검색 함수 (카테고리별로 완벽히 분리)
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
             client = MongoClient(mongo_uri)
@@ -1655,6 +1662,7 @@ else:
             refined_list = []
             for item in master_data:
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+                
                 full_spec = item.get("spec_detail", "-")
                 pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
                 mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
@@ -1663,64 +1671,25 @@ else:
                 cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
                 cat_name = cat_map.get(main_code_str[:1], "기타")
                 
+                # 여기서 선택된 카테고리와 일치하는 것만 리스트에 담습니다
                 if category == "전체" or category == cat_name:
                     refined_list.append({
                         "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
                         "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
                     })
+            
             df = pd.DataFrame(refined_list)
             if not df.empty: df.index = range(1, len(df) + 1)
             return df
 
-# 2. 인쇄 및 검색 메뉴 실행부
-    elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-
-        # 인쇄 전용 CSS (인쇄 시 불필요 요소 강제 삭제)
-        st.markdown("""
-            <style>
-            @media print {
-                .no-print { display: none !important; }
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # 인쇄 버튼 (새 창에서 깔끔하게 출력)
-        if st.button("🖨 선택한 목록 인쇄하기"):
-            target = st.session_state.get('target_cat', '전체')
-            df = get_tool_data(target)
-            html_table = df.to_html(index=False, border=1).replace('\n', '')
-            
-            js_code = f"""
-            <script>
-                var printWindow = window.open('', '_blank', 'width=800,height=600');
-                printWindow.document.write('<html><body>');
-                printWindow.document.write('<h1 style="text-align:center;">공구 리스트 ({target})</h1>');
-                printWindow.document.write('{html_table}');
-                printWindow.document.write('<style>table {{width:100%; border-collapse:collapse;}} td, th {{border:1px solid black; padding:8px; text-align:center;}}</style>');
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.print();
-            </script>
-            """
-            st.markdown(js_code, unsafe_allow_html=True)
-
-        # 탭 구성 및 데이터 출력
-        tab_names = ["전체", "전착", "레진", "메탈", "코어"]
-        tabs = st.tabs(tab_names)
-
+        # 3. 탭별로 별도 세션 상태 부여 (데이터 섞임 방지)
         for i, tab in enumerate(tabs):
             with tab:
+                # 해당 탭이 클릭되었을 때만 데이터 로딩
                 target_cat = tab_names[i]
-                st.session_state['target_cat'] = target_cat # 현재 탭 기억
                 df = get_tool_data(target_cat)
                 
                 if not df.empty:
                     st.table(df)
                 else:
                     st.write(f"등록된 {target_cat} 데이터가 없습니다.")
-
-        # 안내 문구 (인쇄 시 숨김)
-        st.markdown('<div class="no-print">', unsafe_allow_html=True)
-        st.info("💡 [선택한 목록 인쇄하기] 버튼을 누르면 인쇄창이 뜹니다.")
-        st.markdown('</div>', unsafe_allow_html=True)
