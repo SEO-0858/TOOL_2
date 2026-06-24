@@ -1731,6 +1731,10 @@ else:
                         header, [data-testid="stHeader"] {
                             display: none !important;
                         }
+                            /* 🔍 툴 재고 검색 및 인쇄 타이틀을 포함한 상단 요소 숨김 */
+                        div[data-testid="stVerticalBlock"] > div:has(h1) {
+                            display: none !important;
+                        }
                         /* 화면 하단 앱 관리자 영역 및 인쇄/돌아가기 버튼 숨김 */
                         .stButton, div.stButton, iframe, footer {
                             display: none !important;
