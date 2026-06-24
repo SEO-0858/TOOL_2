@@ -1708,29 +1708,44 @@ else:
                     })
             return pd.DataFrame(refined_list)
 
+   
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-  
-            st.markdown(
-                """
-                <style>
-                    /* 표 내부의 헤더(제목) 글자들을 강제로 중앙 정렬 */
-                    .stDataFrame th {
-                        text-align: center !important;
-                    }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
+            # 인쇄용 제목 (화면에도 표시됨)
+            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            st.dataframe(
-                df, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={col: st.column_config.Column(alignment="center") for col in df.columns}
-            )
+            # [🔥 최종 해결: 제목과 본문 전체 강제 정중앙 정렬]
+            # 표 자체를 HTML로 변환하면서 제목(th)과 본문(td)에 모두 가운데 정렬을 주입합니다.
+            html_table = df.to_html(index=False, justify='center')
+            
+            # HTML 태그 내부에 전체 center 스타일을 한 번 더 먹여서 확실하게 고정합니다.
+            custom_html = f"""
+            <style>
+                .custom-table-container table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    text-align: center !important;
+                }}
+                .custom-table-container th, .custom-table-container td {{
+                    border: 1px solid #e6e9ef;
+                    padding: 8px;
+                    text-align: center !important;
+                }}
+                .custom-table-container th {{
+                    background-color: #f0f2f6;
+                    font-weight: bold;
+                }}
+            </style>
+            <div class="custom-table-container">
+                {html_table}
+            </div>
+            """
+            
+            # 화면에 최종 출력
+            st.markdown(custom_html, unsafe_allow_html=True)
                 
             # 인쇄 버튼 (JS 사용)
             if st.button("🖨 프린터로 인쇄하기"):
