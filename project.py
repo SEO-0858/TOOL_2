@@ -1713,33 +1713,33 @@ else:
 
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
-            # 데이터를 세션에 저장하여 새로고침 시에도 유지
-            st.session_state['current_data'] = get_tool_data(selected_cat)
-            df = st.session_state['current_data']
+            # 데이터가 유지되도록 세션 상태 사용
+            if 'current_df' not in st.session_state:
+                st.session_state['current_df'] = get_tool_data(selected_cat)
+                
+            df = st.session_state['current_df']
             
-            st.markdown(f"<h1 style='text-align: center; color: black;'>공구 - LIST</h1>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align: center; color: black;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
-            
-            st.table(df)
-            
-          
-            # 인쇄 버튼 (새 창에서 인쇄창 열기)
+            # 버튼을 눌렀을 때만 인쇄 페이지로 진입
             if st.button("🖨 프린터로 인쇄하기"):
-                js_code = f"""
-                <script>
-                    var printWindow = window.open('', '_blank', 'width=800,height=600');
-                    printWindow.document.write('<html><head><title>공구 LIST 인쇄</title>');
-                    printWindow.document.write('<style>table {{ border-collapse: collapse; width: 100%; border: 2px solid black; }} th, td {{ border: 1px solid black; padding: 8px; text-align: center; }}</style>');
-                    printWindow.document.write('</head><body>');
-                    printWindow.document.write('<h1 style="text-align:center;">공구 - LIST</h1>');
-                    printWindow.document.write('<h3 style="text-align:center;">{selected_cat} 리스트</h3>');
-                    printWindow.document.write('{df.to_html(index=False)}');
-                    printWindow.document.write('</body></html>');
-                    printWindow.document.close();
-                    printWindow.print();
-                </script>
-                """
-                st.markdown(js_code, unsafe_allow_html=True)
+                st.session_state['print_mode'] = True
+                st.rerun()
+
+            # 인쇄 모드일 경우 화면을 인쇄 전용으로 재구성
+            if st.session_state.get('print_mode', False):
+                st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+                st.table(df)
+                st.markdown("""
+                    <script>
+                        window.print();
+                    </script>
+                """, unsafe_allow_html=True)
+                if st.button("⬅️ 뒤로가기"):
+                    st.session_state['print_mode'] = False
+                    st.rerun()
+            else:
+                # 일반 모드일 때 화면 출력
+                st.table(df)
                 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
