@@ -1646,35 +1646,50 @@ else:
 
 #####################################################################################################################################
 
+
+
+
+
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-        
-        # CSS: 인쇄 시 사이드바/버튼 숨기기
+        # CSS: 인쇄 시 불필요한 요소(헤더, 버튼, 안내문구) 숨기기
         st.markdown("""
             <style>
             @media print {
+                .print-hide { display: none !important; }
                 [data-testid="stSidebar"] { display: none !important; }
-                button { display: none !important; }
             }
             </style>
         """, unsafe_allow_html=True)
 
+        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
+        st.markdown('</div>', unsafe_allow_html=True
         # 1. 상태 초기화
         if 'target_cat' not in st.session_state:
             st.session_state['target_cat'] = None
 
         # 2. 버튼 영역
+        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
         cols = st.columns(5)
         categories = ["전체", "전착", "레진", "메탈", "코어"]
         for i, cat in enumerate(categories):
             btn_name = cat if cat == "전체" else f"{cat}툴"
             if cols[i].button(btn_name):
                 st.session_state['target_cat'] = cat
-                # 여기서 st.rerun()을 하지 않고 상태값만 바꿉니다. 
-                # (깜빡임을 최소화하기 위해)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # 3. 데이터 출력 영역 (버튼이 눌린 경우에만 실행)
         if st.session_state['target_cat'] is not None:
+        # (중략: get_tool_data 함수 및 데이터 출력 부분은 동일하게 유지)
+        
+            st.divider() 
+            st.markdown(f"<h2 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h2>", unsafe_allow_html=True)
+            st.table(df)
+            
+            # 안내 문구도 인쇄 시 숨김
+            st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+            st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # 데이터 처리 함수
             def get_tool_data(category):
