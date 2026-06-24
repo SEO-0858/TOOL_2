@@ -1667,12 +1667,12 @@ else:
                     /* 하단 버튼 및 기타 불필요 요소 숨김 */
                     .stButton, div.stButton, iframe, footer {
                         display: none !important;
-                        
+                    }    
                     /* 하단 조작 버튼 및 안내 메시지 영역 숨김 */
                     .stButton, div.stButton, iframe, footer, .stAlert {
                         display: none !important;
                     }    
-                    }
+        
                     /* 인쇄 용지 여백 제로화 */
                     [data-testid="stAppViewContainer"] {
                         padding: 0px !important;
