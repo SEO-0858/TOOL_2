@@ -1663,7 +1663,7 @@ else:
 
         st.markdown('<div class="print-hide">', unsafe_allow_html=True)
         st.subheader("🔍 툴 재고 검색 및 인쇄")
-        st.markdown('</div>', unsafe_allow_html=True
+        st.markdown('</div>', unsafe_allow_html=True)
         # 1. 상태 초기화
         if 'target_cat' not in st.session_state:
             st.session_state['target_cat'] = None
