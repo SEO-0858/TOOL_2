@@ -1647,19 +1647,45 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-
-        # 1. 디자인 (녹색 버튼, 굵은 글씨)
-        st.markdown("""
+        # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
+        st.markdown(
+            """
             <style>
-            div.stButton > button:first-child {
-                background-color: #2E8B57;
-                color: black;
-                font-weight: bold;
-                width: 100%;
-            }
+                @media print {
+                    /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
+                    .no-print, [data-testid="stMarkdown"] :has(.no-print) {
+                        display: none !important;
+                    }
+                    /* 사이드바 영역 전체 숨김 */
+                    [data-testid="stSidebar"], section[data-testid="stSidebar"] {
+                        display: none !important;
+                    }
+                    /* 상단 헤더 및 여백 숨김 */
+                    header, [data-testid="stHeader"] {
+                        display: none !important;
+                    }
+                    /* 하단 버튼 및 기타 불필요 요소 숨김 */
+                    .stButton, div.stButton, iframe, footer {
+                        display: none !important;
+                    }
+                    /* 인쇄 용지 여백 제로화 */
+                    [data-testid="stAppViewContainer"] {
+                        padding: 0px !important;
+                        background: white !important;
+                    }
+                    .main .block-container {
+                        padding-top: 10px !important;
+                        padding-bottom: 10px !important;
+                    }
+                }
             </style>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True
+        )
+
+        # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
+        st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
+        st.write("<br>", unsafe_allow_html=True)
 
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -1670,7 +1696,6 @@ else:
         if col4.button("메탈툴"): selected_cat = "메탈"
         if col5.button("코어툴"): selected_cat = "코어"
 
-       
         # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
@@ -1704,65 +1729,18 @@ else:
                         "현재 재고": item.get("new_tool_count", 0),
                         "중고 재고": item.get("used_tool_count", 0)
                     })
-                    
-            # [🔥 핵심 수정] 아무런 스타일도 먹이지 않은 순수 데이터프레임 상태로 반환합니다.
             return pd.DataFrame(refined_list)
 
-        
-       
-        
-       
-       
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-            # [🔥 인쇄 전용 숨김 CSS 마크다운]
-            # 인쇄 모드(@media print)가 켜지면 대메뉴 제목(st.title)까지 모조리 감춥니다.
-            st.markdown(
-                """
-                <style>
-                    @media print {
-                        /* 사이드바 영역 전체 숨김 */
-                        [data-testid="stSidebar"], section[data-testid="stSidebar"] {
-                            display: none !important;
-                        }
-                        /* 상단 헤더, 작업 메뉴 바 숨김 */
-                        header, [data-testid="stHeader"] {
-                            display: none !important;
-                        }
-                        /* 🔍 툴 재고 검색 및 인쇄 타이틀을 포함한 상단 요소 숨김 */
-                        div[data-testid="stVerticalBlock"] > div:has(h1) {
-                            display: none !important;
-                        }
-                        h1, .stMarkdown h1 {
-                            display: none !important;
-                        }
-                        /* 화면 하단 앱 관리자 영역 및 인쇄/돌아가기 버튼 숨김 */
-                        .stButton, div.stButton, iframe, footer {
-                            display: none !important;
-                        }
-                        /* 메인 영역 여백 제거하여 인쇄 용지에 꽉 차게 조절 */
-                        [data-testid="stAppViewContainer"] {
-                            padding: 0px !important;
-                            background: white !important;
-                        }
-                        .main .block-container {
-                            padding-top: 10px !important;
-                            padding-bottom: 10px !important;
-                        }
-                    }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # 인쇄용 제목 (화면에도 표시됨)
+            # 인쇄용 서브 타이틀 (인쇄물에 포함됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             st.write("<br>", unsafe_allow_html=True)
             
-            # 1. 표의 제목 헤더 영역 생성 (5개 칸 분할)
+            # 1) 표의 제목 헤더 영역 생성 (5개 칸 분할 및 정중앙 정렬)
             th1, th2, th3, th4, th5 = st.columns([1.5, 3, 1.5, 1.5, 1.5])
             with th1: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>대분류</p>", unsafe_allow_html=True)
             with th2: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>규격</p>", unsafe_allow_html=True)
@@ -1770,7 +1748,7 @@ else:
             with th4: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>현재 재고</p>", unsafe_allow_html=True)
             with th5: st.markdown("<p style='text-align: center; font-weight: bold; background-color: #f0f2f6; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>중고 재고</p>", unsafe_allow_html=True)
             
-            # 2. 데이터 본문 내용 영역 생성 (반복문으로 한 줄씩 정중앙 정렬하여 출력)
+            # 2) 데이터 본문 내용 영역 생성 (반복문으로 한 줄씩 정중앙 정렬하여 출력)
             for _, row in df.iterrows():
                 td1, td2, td3, td4, td5 = st.columns([1.5, 3, 1.5, 1.5, 1.5])
                 with td1: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['대분류']}</p>", unsafe_allow_html=True)
@@ -1780,5 +1758,14 @@ else:
                 with td5: st.markdown(f"<p style='text-align: center; padding: 8px; margin: 0; border: 1px solid #e6e9ef;'>{row['중고 재고']}</p>", unsafe_allow_html=True)
                 
             st.write("<br>", unsafe_allow_html=True)
-        if st.button("🏠 돌아가기"):
-            st.rerun()
+
+            # 브라우저 기본 인쇄 기능 연동 버튼
+            if st.button("🖨️ 프린터로 인쇄하기"):
+                st.components.v1.html("""
+                    <script>
+                        window.print();
+                    </script>
+                """, height=0)
+
+            if st.button("⬅️ 돌아가기"):
+                st.rerun()
