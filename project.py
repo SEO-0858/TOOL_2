@@ -70,6 +70,19 @@ def waste_dialog(serial, data):
                 new_log = f"\n{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')} 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
                 db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}})
                 
+
+                # 72라인 근처 수정
+                result = db_collection.database['tools_management'].update_one(
+                    {"serial_no": serial}, 
+                    {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}}
+                )
+                
+                # 업데이트된 개수를 확인하는 디버깅 코드 추가
+                if result.matched_count == 0:
+                    st.error(f"오류: 시리얼 번호 {serial}을(를) DB에서 찾을 수 없습니다!")
+                    st.stop()
+                
+                # ... 그 다음 update_inventory_count 실행 ...
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
                 time.sleep(3)
                 st.session_state['show_waste_dialog'] = False # 다이얼로그 닫기
@@ -77,7 +90,7 @@ def waste_dialog(serial, data):
                 st.rerun()
 
             except Exception as e:  
-                st.error(f"오류 발생: {e}")
+                st.error(f"오류 발생: {e}") 
 
     if col2.button("❌ 취소", key="cancel_btn"):
         st.session_state['show_waste_dialog'] = False
