@@ -1711,16 +1711,16 @@ else:
                 df.index = range(1, len(df) + 1) # 인덱스를 1부터 시작
             return df
 
+       
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             # 데이터가 유지되도록 세션 상태 사용
             if 'current_df' not in st.session_state:
                 st.session_state['current_df'] = get_tool_data(selected_cat)
-                
             df = st.session_state['current_df']
             
-            # 버튼을 눌렀을 때만 인쇄 페이지로 진입
-            if st.button("🖨 프린터로 인쇄하기"):
+            # 버튼을 누르면 화면이 인쇄 모드로 전환됨
+            if st.button("🖨 인쇄용 화면으로 보기"):
                 st.session_state['print_mode'] = True
                 st.rerun()
 
@@ -1728,17 +1728,17 @@ else:
             if st.session_state.get('print_mode', False):
                 st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
                 st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
-                st.table(df)
-                st.markdown("""
-                    <script>
-                        window.print();
-                    </script>
-                """, unsafe_allow_html=True)
+                
+                # 인쇄 전용 안내 문구 (인쇄 시 종이에도 찍히도록)
+                st.warning("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요.")
+                
+                st.table(df) # 표 출력
+                
                 if st.button("⬅️ 뒤로가기"):
                     st.session_state['print_mode'] = False
                     st.rerun()
             else:
-                # 일반 모드일 때 화면 출력
+                # 일반 모드일 때
                 st.table(df)
                 
             if st.button("⬅️ 돌아가기"):
