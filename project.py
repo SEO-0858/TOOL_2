@@ -71,12 +71,12 @@ def waste_dialog(serial, data):
                 db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}})
                 
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
-                
+                time.sleep(3)
                 st.session_state['show_waste_dialog'] = False # 다이얼로그 닫기
                 st.session_state['show_success_msg'] = True  # 성공 메시지 예약
                 st.rerun()
 
-            except Exception as e:
+            except Exception as e:  
                 st.error(f"오류 발생: {e}")
 
     if col2.button("❌ 취소", key="cancel_btn"):
