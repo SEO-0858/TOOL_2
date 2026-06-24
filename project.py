@@ -1710,7 +1710,8 @@ else:
 
    
       
-        # 4. 결과 출력 및 인쇄 버튼
+      
+   
         if selected_cat:
             df = get_tool_data(selected_cat)
             
@@ -1744,7 +1745,7 @@ else:
             </div>
             """
             
-            # HTML 태그 기능을 활성화하여 화면에 최종 출력
+            # HTML 태그 기능을 활성화하여 화면에 최종 출력 (들여쓰기 자릿수 정밀 교정)
             st.markdown(custom_html, unsafe_allow_html=True)
                 
             # 인쇄 버튼 (JS 사용)
