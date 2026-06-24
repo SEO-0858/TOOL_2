@@ -1647,22 +1647,25 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        # [🔥 인쇄 전용 숨김 CSS]
-        # 키보드 Ctrl + P를 눌렀을 때 사이드바와 상단 메뉴들을 숨겨 표만 깨끗하게 나오게 유지합니다.
+        # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
         st.markdown(
             """
             <style>
                 @media print {
+                    /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
+                    .no-print, [data-testid="stMarkdown"] :has(.no-print) {
+                        display: none !important;
+                    }
                     /* 사이드바 영역 전체 숨김 */
                     [data-testid="stSidebar"], section[data-testid="stSidebar"] {
                         display: none !important;
                     }
-                    /* 상단 헤더 숨김 */
+                    /* 상단 헤더 및 여백 숨김 */
                     header, [data-testid="stHeader"] {
                         display: none !important;
                     }
-                    /* 하단 조작 버튼 및 안내 메시지 영역 숨김 */
-                    .stButton, div.stButton, iframe, footer, .stAlert {
+                    /* 하단 버튼 및 기타 불필요 요소 숨김 */
+                    .stButton, div.stButton, iframe, footer {
                         display: none !important;
                     }
                     /* 인쇄 용지 여백 제로화 */
@@ -1680,8 +1683,8 @@ else:
             unsafe_allow_html=True
         )
 
-        # 상단 대제목 (인쇄 모드 시 CSS에 의해 지워지지 않고 연동 구조 안정화)
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
+        # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
+        st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
         st.write("<br>", unsafe_allow_html=True)
 
         # 2. 상단 필터 버튼
@@ -1728,11 +1731,11 @@ else:
                     })
             return pd.DataFrame(refined_list)
 
-        # 4. 결과 출력 및 안내 구역
+        # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
             
-            # 인쇄용 서브 타이틀
+            # 인쇄용 서브 타이틀 (인쇄물에 포함됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             st.write("<br>", unsafe_allow_html=True)
@@ -1756,8 +1759,8 @@ else:
                 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [💡 조치 내용: 인쇄용 안내 박스 노출 - 인쇄 시에는 자동 숨김 처리됨]
             st.info("🖨️ 인쇄하려면 키보드의 <<Ctrl + P>> 누르세요.")
+
 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
