@@ -1411,14 +1411,14 @@ else:
                                 # 올바른 스펙을 선택하는 입력창 (선생님의 새로운 올바른 스펙 입력을 위해)
                                 # 기존 변수 충돌 방지를 위해 new_spec_input 변수 사용
                                 all_specs = [s["spec_detail"] for s in db["tool_specs_master"].find()]
-                                new_spec_input = st.selectbox("수정할 올바른 스펙을 선택하세요", all_specs, key=f"select_{s_no}")
+                                #new_spec_input = st.selectbox("수정할 올바른 스펙을 선택하세요", all_specs, key=f"select_{s_no}")
 
                                 c1, c2 = st.columns(2)
                                 #if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"reset_spec_{s_no}", type="primary"):
                                 # [수정된 삭제 및 보정 로직]
-                                if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"btn_del_{s_no}", type="primary"):
-                                    st.session_state[f"confirm_spec_{s_no}"] = True
-                                    st.rerun()
+                                # if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"btn_del_{s_no}", type="primary"):
+                                #     st.session_state[f"confirm_spec_{s_no}"] = True
+                                #     st.rerun()
 
                                 # [확인 창]
                                 if st.session_state.get(f"confirm_spec_{s_no}", False):
