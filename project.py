@@ -1649,26 +1649,25 @@ else:
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         st.subheader("🔍 툴 재고 검색 및 인쇄")
 
-        # 1. 디자인 (녹색 버튼, 굵은 글씨)
+        # 1. 디자인
         st.markdown("""
             <style>
-            div.stButton > button:first-child {
-                background-color: #2E8B57;
-                color: black;
-                font-weight: bold;
-                width: 100%;
-            }
+            div.stButton > button { background-color: #2E8B57; color: black; font-weight: bold; }
+            table { border: 2px solid black; color: black; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. 상단 필터 버튼
-        col1, col2, col3, col4, col5 = st.columns(5)
-        selected_cat = None
-        if col1.button("전체 보기"): selected_cat = "전체"
-        if col2.button("전착툴"): selected_cat = "전착"
-        if col3.button("레진툴"): selected_cat = "레진"
-        if col4.button("메탈툴"): selected_cat = "메탈"
-        if col5.button("코어툴"): selected_cat = "코어"
+        # 2. 데이터 유지용 세션 체크
+        if 'selected_category' not in st.session_state:
+            st.session_state['selected_category'] = "전체"
+
+        # 3. 상단 버튼
+        cols = st.columns(5)
+        categories = ["전체", "전착", "레진", "메탈", "코어"]
+        for i, cat in enumerate(categories):
+            if cols[i].button(cat if cat == "전체" else f"{cat}툴"):
+                st.session_state['selected_category'] = cat
+                st.rerun()
 
         # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
@@ -1681,65 +1680,30 @@ else:
             for item in master_data:
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
-                # --- 메쉬와 규격 분리 로직 시작 ---
+                # 규격/메쉬 분리 로직
                 full_spec = item.get("spec_detail", "-")
-                if "#" in full_spec:
-                    parts = full_spec.split("#")
-                    pure_spec = parts[0]      # # 앞부분: 규격
-                    mesh_val = "#" + parts[1] # # 뒷부분: 메쉬
-                else:
-                    pure_spec = full_spec
-                    mesh_val = "-"
-                # --- 메쉬와 규격 분리 로직 끝 ---
+                pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
+                mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
 
-                # 파싱 로직 (기존과 동일)
                 main_code_str = str(inv.get("main_code", "")) if inv else ""
-                code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
                 cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
-                cat_name = cat_map.get(code_num, "기타")
+                cat_name = cat_map.get(main_code_str[:1], "기타")
                 
                 if category == "전체" or category == cat_name:
                     refined_list.append({
-                        "대분류": cat_name,
-                        "규격": pure_spec,       # 분리된 규격
-                        "메쉬": mesh_val,       # 분리된 메쉬
-                        "현재 재고": item.get("new_tool_count", 0),
-                        "중고 재고": item.get("used_tool_count", 0)
+                        "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
+                        "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
                     })
             df = pd.DataFrame(refined_list)
-            if not df.empty:
-                df.index = range(1, len(df) + 1) # 인덱스를 1부터 시작
+            if not df.empty: df.index = range(1, len(df) + 1)
             return df
 
-       
-        # 4. 결과 출력 및 인쇄 버튼
-        if selected_cat:
-            # 데이터가 유지되도록 세션 상태 사용
-            if 'current_df' not in st.session_state:
-                st.session_state['current_df'] = get_tool_data(selected_cat)
-            df = st.session_state['current_df']
-            
-            # 버튼을 누르면 화면이 인쇄 모드로 전환됨
-            if st.button("🖨 인쇄용 화면으로 보기"):
-                st.session_state['print_mode'] = True
-                st.rerun()
-
-            # 인쇄 모드일 경우 화면을 인쇄 전용으로 재구성
-            if st.session_state.get('print_mode', False):
-                st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
-                st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
-                
-                # 인쇄 전용 안내 문구 (인쇄 시 종이에도 찍히도록)
-                st.warning("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요.")
-                
-                st.table(df) # 표 출력
-                
-                if st.button("⬅️ 뒤로가기"):
-                    st.session_state['print_mode'] = False
-                    st.rerun()
-            else:
-                # 일반 모드일 때
-                st.table(df)
-                
-            if st.button("⬅️ 돌아가기"):
-                st.rerun()
+        # 5. 결과 출력
+        target_cat = st.session_state['selected_category']
+        df = get_tool_data(target_cat)
+        
+        st.markdown(f"<h1 style='text-align: center; color: black;'>공구 - LIST</h1>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: center; color: black;'>{target_cat} 리스트</h3>", unsafe_allow_html=True)
+        st.table(df)
+        
+        st.info("💡 인쇄하시려면 키보드에서 [Ctrl] + [P] 를 눌러주세요.")
