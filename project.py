@@ -1711,13 +1711,13 @@ else:
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
             df = get_tool_data(selected_cat)
-            df = df.style.set_properties(**{'text-align': 'center'})
+            df = df.style.set_properties({'text-align': 'center'}).hide(axis='index')
             
             # 인쇄용 제목 (화면에도 표시됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
     
-            st.write(df, use_container_width=True)
+            st.write(df)
             
             # 인쇄 버튼 (JS 사용)
             if st.button("🖨 프린터로 인쇄하기"):
