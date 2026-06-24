@@ -1734,7 +1734,16 @@ else:
                         "현재 재고": item.get("new_tool_count", 0),
                         "중고 재고": item.get("used_tool_count", 0)
                     })
-            return pd.DataFrame(refined_list)
+            
+            # 순수 데이터프레임으로 만듭니다.
+            df_result = pd.DataFrame(refined_list)
+            
+            # [🔥 대분류 정렬 기능 추가] 
+            # 데이터가 존재하면 "대분류" 가나다순으로 깔끔하게 정렬하여 반환합니다.
+            if not df_result.empty:
+                df_result = df_result.sort_values(by="대분류", ascending=True)
+                
+            return df_result
 
         # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
