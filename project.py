@@ -17,10 +17,31 @@ import pytz
 
 st.cache_data.clear()
 
+
+
+@st.dialog("⚠️ 툴 폐기 처리")
+def waste_dialog_ui(serial, data):
+    st.write(f"시리얼 번호: **{serial}**")
+    reason_options = ["1. 다이아팀 전면 2mm 이하", "2. 튐 현상변화", "3. 튐 진원도 불량", "4. 지정 외세 수량", "5. 파손", "6. 기타사유(직접기입)"]
+    selected_reason = st.selectbox("폐기 사유 선택:", reason_options)
+    
+    # 폐기 로직 (기존 waste_dialog 내부 내용)
+    if st.button("✅ 최종 폐기 저장", key="unique_disposal_btn"):
+        # 여기에 기존 저장 로직들을 그대로 넣으세요
+        st.session_state['show_waste_dialog'] = False
+        st.rerun()
+        
+    if st.button("❌ 취소", key="btn_cancel_waste"):
+        st.session_state['show_waste_dialog'] = False
+        st.rerun()
+
 #폐기관련 전용함수-------------------------------------------------------------------------------------------------------------
 
 def disposal_can_do(serial, data):
     db = db_collection.database['disposal_logs']
+    st.session_state['temp_serial'] = serial
+    st.session_state['temp_data'] = data
+    st.session_state['show_waste_dialog'] = True
     
     @st.dialog("⚠️ 툴 폐기 처리")
     def waste_dialog():
@@ -125,8 +146,7 @@ def disposal_can_do(serial, data):
                     import time
                     time.sleep(3.0)
                     st.session_state['waste_reason_data'] = selected_reason
-                    st.session_state['show_waste_dialog'] = False
-                    time.sleep(3.0)
+                    st.session_state['show_waste_dialog'] = False              
                     st.rerun()
 
                 except Exception as e:
@@ -144,9 +164,7 @@ def disposal_can_do(serial, data):
 
 
     if st.session_state.get('show_waste_dialog', False):
-        st.session_state['temp_serial'] = serial # 데이터 임시 저장
-        st.session_state['temp_data'] = data     # 데이터 임시 저장
-        waste_dialog()
+        waste_dialog_ui(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
 
 
 
@@ -1019,7 +1037,7 @@ if qr_scanned_serial:
 
     # 팝업 호출부
     if st.session_state.get('show_waste_dialog', False):
-        disposal_can_do(qr_scanned_serial, existing_data)
+       waste_dialog_ui(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
   
    
     st.divider()
