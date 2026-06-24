@@ -1647,21 +1647,26 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
-
-        # 1. 디자인
+        # 1. 인쇄 시 사이드바 및 불필요 요소 숨기기 (CSS 설정)
         st.markdown("""
             <style>
-            div.stButton > button { background-color: #2E8B57; color: black; font-weight: bold; }
-            table { border: 2px solid black; color: black; }
+            @media print {
+                [data-testid="stSidebar"] { display: none !important; }
+                .stButton { display: none !important; }
+                div.stMarkdown { margin-top: 0 !important; }
+            }
+            table { border: 2px solid black !important; width: 100% !important; border-collapse: collapse; }
+            th, td { border: 1px solid black !important; padding: 8px !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. 데이터 유지용 세션 체크
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
+
+        # 2. 데이터 유지용 세션 상태
         if 'selected_category' not in st.session_state:
             st.session_state['selected_category'] = "전체"
 
-        # 3. 상단 버튼
+        # 3. 버튼 클릭 시 데이터 즉시 반영 (rerun 사용)
         cols = st.columns(5)
         categories = ["전체", "전착", "레진", "메탈", "코어"]
         for i, cat in enumerate(categories):
@@ -1669,18 +1674,16 @@ else:
                 st.session_state['selected_category'] = cat
                 st.rerun()
 
-        # 3. 데이터 조회 및 파싱 함수
+        # 4. 데이터 조회 함수
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
             client = MongoClient(mongo_uri)
             db = client["dashboard_db"]
             master_data = list(db.tool_specs_master.find({}))
-            
             refined_list = []
             for item in master_data:
                 inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
                 
-                # 규격/메쉬 분리 로직
                 full_spec = item.get("spec_detail", "-")
                 pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
                 mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
@@ -1694,16 +1697,15 @@ else:
                         "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
                         "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
                     })
-            df = pd.DataFrame(refined_list)
-            if not df.empty: df.index = range(1, len(df) + 1)
-            return df
+            return pd.DataFrame(refined_list)
 
-        # 5. 결과 출력
+        # 5. 데이터 결과 출력
         target_cat = st.session_state['selected_category']
         df = get_tool_data(target_cat)
         
         st.markdown(f"<h1 style='text-align: center; color: black;'>공구 - LIST</h1>", unsafe_allow_html=True)
         st.markdown(f"<h3 style='text-align: center; color: black;'>{target_cat} 리스트</h3>", unsafe_allow_html=True)
-        st.table(df)
         
-        st.info("💡 인쇄하시려면 키보드에서 [Ctrl] + [P] 를 눌러주세요.")
+        st.table(df) # table 사용 (데이터 프레임보다 훨씬 안정적)
+        
+        st.info("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요. (좌측 메뉴는 자동으로 사라집니다.)")
