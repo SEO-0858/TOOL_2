@@ -960,7 +960,10 @@ if qr_scanned_serial:
 
     # 팝업 호출부
     if st.session_state.get('show_waste_dialog', False):
-        waste_dialog(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
+        waste_dialog(
+    st.session_state.get('temp_serial'), 
+    st.session_state.get('temp_data') or {}  # data가 None이면 빈 딕셔너리 {} 사용
+    ) 
   
    
     st.divider()
