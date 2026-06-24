@@ -1688,16 +1688,17 @@ else:
         st.write("<br>", unsafe_allow_html=True)
 
 
+        # [🔥 세션 상태 초기화: 카테고리 기억용 메모리 생성]
         if "selected_cat" not in st.session_state:
             st.session_state.selected_cat = None
-        # 2. 상단 필터 버튼
+
+        # 2. 상단 필터 버튼 (메모리에 카테고리 저장하도록 구조 변경)
         col1, col2, col3, col4, col5 = st.columns(5)
-        selected_cat = None
-        if col1.button("전체 보기"): selected_cat = "전체"
-        if col2.button("전착툴"): selected_cat = "전착"
-        if col3.button("레진툴"): selected_cat = "레진"
-        if col4.button("메탈툴"): selected_cat = "메탈"
-        if col5.button("코어툴"): selected_cat = "코어"
+        if col1.button("전체 보기"): st.session_state.selected_cat = "전체"
+        if col2.button("전착툴"): st.session_state.selected_cat = "전착"
+        if col3.button("레진툴"): st.session_state.selected_cat = "레진"
+        if col4.button("메탈툴"): st.session_state.selected_cat = "메탈"
+        if col5.button("코어툴"): st.session_state.selected_cat = "코어"
 
         # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
@@ -1734,13 +1735,13 @@ else:
                     })
             return pd.DataFrame(refined_list)
 
-        # 4. 결과 출력 및 인쇄 버튼
-        if selected_cat:
-            df = get_tool_data(selected_cat)
+        # 4. 결과 출력 및 인쇄 버튼 (기억된 메모리를 기준으로 작동)
+        if st.session_state.selected_cat:
+            df = get_tool_data(st.session_state.selected_cat)
             
             # 인쇄용 서브 타이틀 (인쇄물에 포함됨)
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{st.session_state.selected_cat} 리스트</h3>", unsafe_allow_html=True)
             st.write("<br>", unsafe_allow_html=True)
             
             # 1) 표의 제목 헤더 영역 생성 (5개 칸 분할 및 정중앙 정렬)
@@ -1762,7 +1763,7 @@ else:
                 
             st.write("<br>", unsafe_allow_html=True)
 
-            # 브라우저 기본 인쇄 기능 연동 버튼
+            # [🔥 해결 완료] 인쇄 버튼을 눌러 새로고침이 일어나도 세션에 값이 있어 표를 유지하고 인쇄창을 실행합니다.
             if st.button("🖨️ 프린터로 인쇄하기"):
                 st.components.v1.html("""
                     <script>
@@ -1771,4 +1772,6 @@ else:
                 """, height=0)
 
             if st.button("⬅️ 돌아가기"):
+                # 돌아갈 때는 메모리를 비워 초기 상태로 만듭니다.
+                st.session_state.selected_cat = None
                 st.rerun()
