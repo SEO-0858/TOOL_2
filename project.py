@@ -1672,6 +1672,8 @@ else:
 
         # 3. 데이터 조회 및 파싱 함수
         def get_tool_data(category):
+            mongo_uri = st.secrets["database"]["MONGO_URI"]
+            client = MongoClient(mongo_uri)
             db = client["dashboard_db"]
             master_data = list(db.tool_specs_master.find({}))
             
