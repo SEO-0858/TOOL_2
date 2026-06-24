@@ -1647,42 +1647,38 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        # CSS: 인쇄 시 불필요한 요소 숨기기
+    # 1. 강력한 인쇄 전용 CSS (표와 제목 외 전부 숨김)
         st.markdown("""
             <style>
             @media print {
-                .print-hide { display: none !important; }
-                [data-testid="stSidebar"] { display: none !important; }
-                #MainMenu { visibility: hidden; }
-                footer { visibility: hidden; }
+                /* 사이드바, 버튼, 서브헤더, 안내문구 등 모든 요소 숨김 */
+                [data-testid="stSidebar"], .stButton, .stsubheader, .stInfo, header, footer {
+                    display: none !important;
+                }
+                /* 오직 인쇄할 내용만 강조 */
+                body { visibility: visible; }
+                .printable { display: block !important; }
             }
             table { width: 100% !important; border-collapse: collapse !important; }
             th, td { border: 1px solid black !important; padding: 8px !important; text-align: center !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 헤더 영역 (인쇄 시 숨김)
-        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+        # 2. 버튼 및 안내 문구 영역 (인쇄 시 숨김 처리됨)
         st.subheader("🔍 툴 재고 검색 및 인쇄")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # 1. 상태 초기화
+        
         if 'target_cat' not in st.session_state:
             st.session_state['target_cat'] = None
 
-        # 2. 버튼 영역 (인쇄 시 숨김)
-        st.markdown('<div class="print-hide">', unsafe_allow_html=True)
         cols = st.columns(5)
         categories = ["전체", "전착", "레진", "메탈", "코어"]
         for i, cat in enumerate(categories):
             btn_name = cat if cat == "전체" else f"{cat}툴"
             if cols[i].button(btn_name):
                 st.session_state['target_cat'] = cat
-        st.markdown('</div>', unsafe_allow_html=True)
 
-        # 3. 데이터 로직 및 출력
+        # 3. 데이터 출력 영역
         if st.session_state['target_cat'] is not None:
-            # 데이터 파싱 함수
             def get_tool_data(category):
                 mongo_uri = st.secrets["database"]["MONGO_URI"]
                 client = MongoClient(mongo_uri)
@@ -1691,12 +1687,10 @@ else:
                 refined_list = []
                 for item in master_data:
                     inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
-                    
-                    # 규격/메쉬 분리 (# 기준)
                     full_spec = item.get("spec_detail", "-")
                     pure_spec = full_spec.split("#")[0] if "#" in full_spec else full_spec
                     mesh_val = "#" + full_spec.split("#")[1] if "#" in full_spec else "-"
-
+                    
                     main_code_str = str(inv.get("main_code", "")) if inv else ""
                     cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
                     cat_name = cat_map.get(main_code_str[:1], "기타")
@@ -1710,17 +1704,12 @@ else:
                 if not df.empty: df.index = range(1, len(df) + 1)
                 return df
 
-            # 데이터 출력
             df = get_tool_data(st.session_state['target_cat'])
             
-            # 인쇄 영역 (헤더 + 표)
-            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            # 제목과 표 (인쇄 시 보일 영역)
+            st.markdown(f"<div class='printable'><h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h3>", unsafe_allow_html=True)
             st.table(df)
+            st.markdown("</div>", unsafe_allow_html=True)
             
-            # 인쇄 안내 (인쇄 시 숨김)
-            st.markdown('<div class="print-hide">', unsafe_allow_html=True)
-            st.info("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요.")
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.write("👉 위의 분류 버튼을 선택하면 해당 리스트가 나타납니다.")
+            st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
