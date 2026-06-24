@@ -1678,7 +1678,9 @@ else:
             
             # 데이터 처리 함수
             def get_tool_data(category):
-                global db
+                mongo_uri = st.secrets["database"]["MONGO_URI"]
+                client = MongoClient(mongo_uri)
+                db = client["dashboard_db"]
                 master_data = list(db.tool_specs_master.find({}))
                 refined_list = []
                 for item in master_data:
