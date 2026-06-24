@@ -87,7 +87,7 @@ def waste_dialog(serial, data):
                 
                 # ... 그 다음 update_inventory_count 실행 ...
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
-                time.sleep(3)
+                time.sleep(2)
                 st.session_state['show_waste_dialog'] = False # 다이얼로그 닫기
                 st.session_state['show_success_msg'] = True  # 성공 메시지 예약
                 st.rerun()
@@ -981,13 +981,18 @@ if qr_scanned_serial:
         st.session_state['last_known_status'] = prev_status
 
     # 팝업 호출부  
-    # 980라인을 다시 원래대로 돌려주세요 (이게 있어야 창이 뜹니다)
+  
     if st.session_state.get('show_waste_dialog', False):
         waste_dialog(
-            st.session_state.get('temp_serial'),
-            st.session_state.get('temp_data') or {}
+            st.session_state.get('temp_serial'), 
+            st.session_state.get('temp_data', {})
         )
-   
+
+    # [여기 추가!] 팝업이 닫히고 나서 성공 메시지를 띄워주는 로직입니다.
+    if st.session_state.get('show_success_msg', False):
+        st.success("✅ 폐기 정보가 저장되었습니다.")
+        st.session_state['show_success_msg'] = False # 메시지를 딱 한 번만 보여주고 끕니다.
+           
     st.divider()
     
     st.markdown("### 📝 기본 정보")
