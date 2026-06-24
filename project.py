@@ -1646,74 +1646,74 @@ else:
 
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-    st.subheader("🔍 툴 재고 검색 및 인쇄")
+        st.subheader("🔍 툴 재고 검색 및 인쇄")
 
-    # 1. 디자인 (녹색 버튼, 굵은 글씨)
-    st.markdown("""
-        <style>
-        div.stButton > button:first-child {
-            background-color: #2E8B57;
-            color: black;
-            font-weight: bold;
-            width: 100%;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+        # 1. 디자인 (녹색 버튼, 굵은 글씨)
+        st.markdown("""
+            <style>
+            div.stButton > button:first-child {
+                background-color: #2E8B57;
+                color: black;
+                font-weight: bold;
+                width: 100%;
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
-    # 2. 상단 필터 버튼
-    col1, col2, col3, col4, col5 = st.columns(5)
-    selected_cat = None
-    if col1.button("전체 보기"): selected_cat = "전체"
-    if col2.button("전착툴"): selected_cat = "전착"
-    if col3.button("레진툴"): selected_cat = "레진"
-    if col4.button("메탈툴"): selected_cat = "메탈"
-    if col5.button("코어툴"): selected_cat = "코어"
+        # 2. 상단 필터 버튼
+        col1, col2, col3, col4, col5 = st.columns(5)
+        selected_cat = None
+        if col1.button("전체 보기"): selected_cat = "전체"
+        if col2.button("전착툴"): selected_cat = "전착"
+        if col3.button("레진툴"): selected_cat = "레진"
+        if col4.button("메탈툴"): selected_cat = "메탈"
+        if col5.button("코어툴"): selected_cat = "코어"
 
-    # 3. 데이터 로직 (조회 및 파싱)
-    def get_tool_data(category):
-        # 3.1 Master 데이터 가져오기
-        master_data = list(db.tool_specs_master.find({}))
-        
-        refined_list = []
-        for item in master_data:
-            # 3.2 Inventory에서 main_code 찾기 (제조사/스펙 일치 기준)
-            inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+        # 3. 데이터 로직 (조회 및 파싱)
+        def get_tool_data(category):
+            # 3.1 Master 데이터 가져오기
+            master_data = list(db.tool_specs_master.find({}))
             
-            # 파싱: main_code의 첫 번째 글자를 번호로 활용
-            main_code_str = str(inv.get("main_code", "")) if inv else ""
-            code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
-            
-            cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
-            cat_name = cat_map.get(code_num, "기타")
-            
-            # 3.3 필터링 적용
-            if category == "전체" or category == cat_name:
-                refined_list.append({
-                    "대분류": cat_name,
-                    "메쉬": item.get("mesh", "-"),
-                    "규격": item.get("spec_detail", "-"),
-                    "현재 재고": item.get("new_tool_count", 0),
-                    "중고 재고": item.get("used_tool_count", 0)
-                })
-        return pd.DataFrame(refined_list)
+            refined_list = []
+            for item in master_data:
+                # 3.2 Inventory에서 main_code 찾기 (제조사/스펙 일치 기준)
+                inv = db.tool_inventory.find_one({"make": item.get("make"), "spec_detail": item.get("spec_detail")})
+                
+                # 파싱: main_code의 첫 번째 글자를 번호로 활용
+                main_code_str = str(inv.get("main_code", "")) if inv else ""
+                code_num = main_code_str[0] if len(main_code_str) > 0 else "기타"
+                
+                cat_map = {"1": "전착", "2": "레진", "3": "메탈", "4": "코어"}
+                cat_name = cat_map.get(code_num, "기타")
+                
+                # 3.3 필터링 적용
+                if category == "전체" or category == cat_name:
+                    refined_list.append({
+                        "대분류": cat_name,
+                        "메쉬": item.get("mesh", "-"),
+                        "규격": item.get("spec_detail", "-"),
+                        "현재 재고": item.get("new_tool_count", 0),
+                        "중고 재고": item.get("used_tool_count", 0)
+                    })
+            return pd.DataFrame(refined_list)
 
-    # 4. 결과 출력 및 인쇄 버튼
-    if selected_cat:
-        df = get_tool_data(selected_cat)
-        
-        # 인쇄를 위한 제목 출력 (프린터 출력 시 보이도록)
-        st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
-        st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
-        
-        st.dataframe(df, use_container_width=True)
-        
-        # 인쇄 버튼 (클릭 시 브라우저 인쇄창 호출)
-        if st.button("🖨 프린터로 인쇄하기"):
-            st.markdown("""
-                <script>
-                window.print();
-                </script>
-            """, unsafe_allow_html=True)
+        # 4. 결과 출력 및 인쇄 버튼
+        if selected_cat:
+            df = get_tool_data(selected_cat)
             
-        if st.button("⬅️ 돌아가기"):
-            st.rerun()
+            # 인쇄를 위한 제목 출력 (프린터 출력 시 보이도록)
+            st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
+            
+            st.dataframe(df, use_container_width=True)
+            
+            # 인쇄 버튼 (클릭 시 브라우저 인쇄창 호출)
+            if st.button("🖨 프린터로 인쇄하기"):
+                st.markdown("""
+                    <script>
+                    window.print();
+                    </script>
+                """, unsafe_allow_html=True)
+                
+            if st.button("⬅️ 돌아가기"):
+                st.rerun()
