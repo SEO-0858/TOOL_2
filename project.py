@@ -19,6 +19,9 @@ st.cache_data.clear()
 
 @st.dialog("⚠️ 툴 폐기 처리")
 def waste_dialog(serial, data):
+    if serial is None:
+        serial = st.session_state.get('temp_serial')
+    
     st.write(f"시리얼 번호: **{serial}**")
     
     # 1. 입력 UI 정의
