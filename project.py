@@ -1711,26 +1711,25 @@ else:
                 df.index = range(1, len(df) + 1) # 인덱스를 1부터 시작
             return df
 
+        # 4. 결과 출력 및 인쇄 버튼
         if selected_cat:
-            df = get_tool_data(selected_cat)
+            # 데이터를 세션에 저장하여 새로고침 시에도 유지
+            st.session_state['current_data'] = get_tool_data(selected_cat)
+            df = st.session_state['current_data']
             
             st.markdown(f"<h1 style='text-align: center; color: black;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center; color: black;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            # st.dataframe 대신 st.table 사용 (선이 더 진함)
             st.table(df)
             
-            st.markdown("""
-            <button onclick="window.print()" style="
-                background-color: #2E8B57;
-                color: white;
-                padding: 10px 20px;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                cursor: pointer;
-            ">🖨 프린터로 인쇄하기</button>
-        """, unsafe_allow_html=True)
+            # 인쇄 버튼
+            if st.button("🖨 프린터로 인쇄하기"):
+                # 인쇄 전용 자바스크립트 실행 (화면 갱신 방지용)
+                st.markdown("""
+                    <script>
+                        window.print();
+                    </script>
+                """, unsafe_allow_html=True)
                 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
