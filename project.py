@@ -1687,6 +1687,9 @@ else:
         st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
         st.write("<br>", unsafe_allow_html=True)
 
+
+        if "selected_cat" not in st.session_state:
+            st.session_state.selected_cat = None
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
         selected_cat = None
