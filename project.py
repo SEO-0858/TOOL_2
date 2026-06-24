@@ -1716,7 +1716,7 @@ else:
             st.markdown(f"<h1 style='text-align: center;'>공구 - LIST</h1>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>{selected_cat} 리스트</h3>", unsafe_allow_html=True)
             
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, use_container_width=True, hide_index=True)
             
             # 인쇄 버튼 (JS 사용)
             if st.button("🖨 프린터로 인쇄하기"):
