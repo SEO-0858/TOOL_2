@@ -1647,34 +1647,36 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        # 1. 인쇄 시 사이드바 및 불필요 요소 숨기기 (CSS 설정)
-        st.markdown("""
-            <style>
-            @media print {
-                [data-testid="stSidebar"] { display: none !important; }
-                .stButton { display: none !important; }
-                div.stMarkdown { margin-top: 0 !important; }
-            }
-            table { border: 2px solid black !important; width: 100% !important; border-collapse: collapse; }
-            th, td { border: 1px solid black !important; padding: 8px !important; }
-            </style>
-        """, unsafe_allow_html=True)
+    st.subheader("🔍 툴 재고 검색 및 인쇄")
+    
+    # CSS: 인쇄 시 사이드바/버튼 숨기기
+    st.markdown("""
+        <style>
+        @media print {
+            [data-testid="stSidebar"] { display: none !important; }
+            button { display: none !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-        st.subheader("🔍 툴 재고 검색 및 인쇄")
+    # 1. 상태 초기화
+    if 'target_cat' not in st.session_state:
+        st.session_state['target_cat'] = None
 
-        # 2. 데이터 유지용 세션 상태
-        if 'selected_category' not in st.session_state:
-            st.session_state['selected_category'] = "전체"
+    # 2. 버튼 영역
+    cols = st.columns(5)
+    categories = ["전체", "전착", "레진", "메탈", "코어"]
+    for i, cat in enumerate(categories):
+        btn_name = cat if cat == "전체" else f"{cat}툴"
+        if cols[i].button(btn_name):
+            st.session_state['target_cat'] = cat
+            # 여기서 st.rerun()을 하지 않고 상태값만 바꿉니다. 
+            # (깜빡임을 최소화하기 위해)
 
-        # 3. 버튼 클릭 시 데이터 즉시 반영 (rerun 사용)
-        cols = st.columns(5)
-        categories = ["전체", "전착", "레진", "메탈", "코어"]
-        for i, cat in enumerate(categories):
-            if cols[i].button(cat if cat == "전체" else f"{cat}툴"):
-                st.session_state['selected_category'] = cat
-                st.rerun()
-
-        # 4. 데이터 조회 함수
+    # 3. 데이터 출력 영역 (버튼이 눌린 경우에만 실행)
+    if st.session_state['target_cat'] is not None:
+        
+        # 데이터 처리 함수
         def get_tool_data(category):
             mongo_uri = st.secrets["database"]["MONGO_URI"]
             client = MongoClient(mongo_uri)
@@ -1697,15 +1699,17 @@ else:
                         "대분류": cat_name, "규격": pure_spec, "메쉬": mesh_val,
                         "현재 재고": item.get("new_tool_count", 0), "중고 재고": item.get("used_tool_count", 0)
                     })
-            return pd.DataFrame(refined_list)
+            df = pd.DataFrame(refined_list)
+            if not df.empty: df.index = range(1, len(df) + 1)
+            return df
 
-        # 5. 데이터 결과 출력
-        target_cat = st.session_state['selected_category']
-        df = get_tool_data(target_cat)
+        # 데이터 출력
+        df = get_tool_data(st.session_state['target_cat'])
         
-        st.markdown(f"<h1 style='text-align: center; color: black;'>공구 - LIST</h1>", unsafe_allow_html=True)
-        st.markdown(f"<h3 style='text-align: center; color: black;'>{target_cat} 리스트</h3>", unsafe_allow_html=True)
-        
-        st.table(df) # table 사용 (데이터 프레임보다 훨씬 안정적)
-        
-        st.info("💡 이제 [Ctrl] + [P]를 눌러 인쇄하세요. (좌측 메뉴는 자동으로 사라집니다.)")
+        st.divider() # 버튼과 데이터 구분선
+        st.markdown(f"<h2 style='text-align: center;'>{st.session_state['target_cat']} 리스트</h2>", unsafe_allow_html=True)
+        st.table(df)
+        st.info("💡 [Ctrl] + [P]를 눌러 인쇄하세요.")
+    else:
+        # 데이터가 선택되기 전 초기화면
+        st.write("👉 위의 분류 버튼을 선택하면 해당 리스트가 나타납니다.")
