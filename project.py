@@ -95,9 +95,20 @@ def waste_dialog(serial, data):
             except Exception as e:  
                 st.error(f"오류 발생: {e}") 
 
+    
     if col2.button("❌ 취소", key="cancel_btn"):
+        # 1. 창을 닫습니다.
         st.session_state['show_waste_dialog'] = False
-        st.session_state['show_success_msg'] = True
+        
+        # 2. [핵심] 성공 메시지 신호는 확실히 끕니다!
+        st.session_state['show_success_msg'] = False 
+        
+        # 3. 데이터 복구 로직 (기존에 작성하신 복구 코드 유지)
+        if 'last_valid_status' in st.session_state:
+            st.session_state['u_status'] = st.session_state['last_valid_status']
+        else:
+            st.session_state['u_status'] = data.get('status', '사용전')
+            
         st.rerun()
         
 
