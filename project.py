@@ -73,7 +73,8 @@ def waste_dialog(serial, data):
                 update_inventory_count(data.get('spec_detail', ''), data.get('make', ''), data.get('status', ''), '폐기')
                 
                 st.success("✅ 폐기 정보가 저장되었습니다.")
-                st.session_state['show_waste_dialog'] = False
+                if st.session_state.get('show_waste_dialog', False):
+                    waste_dialog(st.session_state.get('temp_serial'), st.session_state.get('temp_data'))
                 st.rerun()
             except Exception as e:
                 st.error(f"오류 발생: {e}")
@@ -1020,6 +1021,7 @@ if qr_scanned_serial:
     # [추가된 부분] 팝업 호출 트리거
     if st.session_state.get('show_confirm_dialog'):
         confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
+
     if st.button("🏠 메인으로 돌아가기"):
         st.query_params.clear(); st.rerun()
 
