@@ -1735,31 +1735,52 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        st.markdown("""
+        # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
+        st.markdown(
+            """
             <style>
                 @media print {
-                    /* 1. 사이드바를 화면 밖으로 던져버림 */
+                    /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
                     [data-testid="stSidebar"] {
-                        position: absolute !important;
-                        left: -10000px !important;
+                    display: none !important;
+                    width: 0px !important;
+                    visibility: hidden !important;
+                    }
+                    /* 사이드바 영역 전체 숨김 */
+                    [data-testid="stSidebar"], section[data-testid="stSidebar"] {
                         display: none !important;
                     }
-                    
-                    /* 2. 메인 화면을 강제로 왼쪽 정렬 */
-                    .main, [data-testid="stAppViewContainer"] {
-                        margin-left: 0 !important;
-                        padding-left: 0 !important;
-                        width: 100% !important;
-                        max-width: 100% !important;
-                    }
-                    
-                    /* 3. 인쇄 시 불필요한 모든 요소 제거 */
-                    header, footer, .stButton, button, [data-testid="stHeader"] {
+                    /* 상단 헤더 및 여백 숨김 */
+                    header, [data-testid="stHeader"] {
                         display: none !important;
+                    }
+                    /* 하단 버튼 및 기타 불필요 요소 숨김 */
+                    .stButton, div.stButton, iframe, footer {
+                        display: none !important;
+                    }    
+                    /* 하단 조작 버튼 및 안내 메시지 영역 숨김 */
+                    .stButton, div.stButton, iframe, footer, .stAlert {
+                        display: none !important;
+                    }    
+        
+                    /* 인쇄 용지 여백 제로화 */
+                    [data-testid="stAppViewContainer"] {
+                        padding: 0px !important;
+                        background: white !important;
+                    }
+                    .main .block-container {
+                        padding-top: 10px !important;
+                        padding-bottom: 10px !important;
                     }
                 }
             </style>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True
+        )
+
+        # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
+        st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
+        st.write("<br>", unsafe_allow_html=True)
 
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
