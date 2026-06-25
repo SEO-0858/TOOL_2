@@ -1741,8 +1741,10 @@ else:
             <style>
                 @media print {
                     /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
-                    .no-print, [data-testid="stMarkdown"] :has(.no-print) {
-                        display: none !important;
+                    [data-testid="stSidebar"] {
+                    display: none !important;
+                    width: 0px !important;
+                    visibility: hidden !important;
                     }
                     /* 사이드바 영역 전체 숨김 */
                     [data-testid="stSidebar"], section[data-testid="stSidebar"] {
