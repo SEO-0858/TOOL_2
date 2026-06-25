@@ -1708,24 +1708,23 @@ else:
         
             
             # 3. 리스트 조회 (안전한 렌더링)
+      
         st.write("---")
-        st.subheader("📋 등록된 스펙 마스터 목록")
+        st.subheader("📋 [NEW] 등록된 스펙 마스터 목록")
         
         specs = list(db.find({}))
         
         if specs:
             for s in specs:
-                # 특수문자나 긴 문자열로 인한 렌더링 오류 방지
                 m_type = str(s.get('main_type', '기타'))
                 s_detail = str(s.get('spec_detail', '상세없음'))
                 
-                # expander 제목을 짧고 명확하게 고정
-                with st.expander(f"스펙: {m_type}"):
-                    st.write(f"상세: {s_detail}")
+                # 여기서 [NEW]라고 붙여서, 내가 짠 코드가 반영되는지 확인합니다.
+                with st.expander(f"[NEW] {m_type} | {s_detail}"):
                     st.write(f"제조사: {s.get('make', '정보없음')}")
+                    st.write(f"상세스펙: {s_detail}")
                     
-                    # 삭제 버튼
-                    if st.button("삭제", key=f"del_{str(s.get('_id'))}"):
+                    if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
