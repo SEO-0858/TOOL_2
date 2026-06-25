@@ -1473,7 +1473,16 @@ else:
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
         target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
-
+        if st.button("🛒 장바구니에 담기"):
+            if target_serial and len(target_serial) == 12: # 12자리 확인
+                if target_serial not in st.session_state['qr_cart']: # 중복 방지
+                    st.session_state['qr_cart'].append(target_serial)
+                    st.success(f"{target_serial} 번호가 추가되었습니다.")
+                    st.rerun() # 추가 후 화면 갱신
+                else:
+                    st.warning("이미 목록에 있는 번호입니다.")
+            else:
+                st.error("올바른 12자리 시리얼 번호를 먼저 입력하세요.")
 
         if 'qr_cart' not in st.session_state:
             st.session_state['qr_cart'] = []
@@ -1486,7 +1495,7 @@ else:
 
 
 
-        
+
         
         if target_serial:
             if len(target_serial) != 12:
