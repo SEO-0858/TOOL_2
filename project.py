@@ -499,6 +499,24 @@ def render_tool_ui(item, color_hex, status_label, db_status):
     tool_type = get_tool_type_name(item.get('serial_no', ''))
     worker_name = item.get('worker', '-')
     # db_status는 인자로 전달받은 값을 그대로 활용
+
+    # 4. 장착 누적 시간 계산 (상태가 사용중/재사용일 때만)
+    duration_text = ""
+    if item.get('status') in ["사용중", "재사용"] and item.get('start_time'):
+        try:
+            # DB의 문자열을 시간 형식으로 변환
+            start_dt = datetime.strptime(item.get('start_time'), "%Y-%m-%d %H:%M:%S")
+            now = datetime.now() # 현재 시간
+            delta = now - start_dt
+            
+            # 시간과 분 계산
+            hours = delta.seconds // 3600
+            minutes = (delta.seconds % 3600) // 60
+            duration_text = f"⏳ 장착 누적 시간: {hours}시간 {minutes}분"
+        except:
+            duration_text = "⏳ 시간 계산 오류"
+
+
     
     # 4. HTML 기반 UI 출력
     # (주의: 인자로 전달된 color_hex 대신, 위에서 계산된 color 변수를 사용해야 시간이 일치합니다.)
@@ -520,6 +538,12 @@ def render_tool_ui(item, color_hex, status_label, db_status):
         <hr style="margin: 5px 0;">
         <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
             ⏳ {time_text}
+        </div>
+        <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
+            {time_text}
+        </div>
+        <div style="font-size: 12px; font-weight: bold; color: #333; text-align: center; margin-top: 5px;">
+            {duration_text}
         </div>
     </div>
     """, unsafe_allow_html=True)
