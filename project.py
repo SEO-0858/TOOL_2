@@ -1552,8 +1552,9 @@ else:
 
             
             # 인쇄 스크립트 결합 부분 (수정본)
+        if st.button("🖨️ 대기 목록 모두 인쇄하기"):
             print_script = f"""
-            <button onclick="
+            <script>
                 var printWindow = window.open('', '_blank');
                 var style = `<style>
                     @page {{ size: 29mm 90mm; margin: 0; }}
@@ -1564,29 +1565,25 @@ else:
                     span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
                 </style>`;
                 printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
-                setTimeout(function() {{
-                    var container = document.createElement('div');
-                    container.innerHTML = `{html_content}`;
-                    var items = container.getElementsByClassName('qr-item');
-                    for (var i = 0; i < items.length; i += 3) {{
-                        var pageDiv = document.createElement('div');
-                        pageDiv.className = 'label-page';
-                        for (var j = i; j < i + 3 && j < items.length; j++) {{
-                            pageDiv.appendChild(items[j].cloneNode(true));
-                        }}
-                        printWindow.document.body.appendChild(pageDiv);
+                
+                var container = document.createElement('div');
+                container.innerHTML = `{html_content}`;
+                var items = container.getElementsByClassName('qr-item');
+                
+                for (var i = 0; i < items.length; i += 3) {{
+                    var pageDiv = document.createElement('div');
+                    pageDiv.className = 'label-page';
+                    for (var j = i; j < i + 3 && j < items.length; j++) {{
+                        pageDiv.appendChild(items[j].cloneNode(true));
                     }}
-                    printWindow.document.close();
-                    printWindow.print();
-                    
-                    // [추가] 인쇄창이 닫히면 자동으로 목록을 비우기 위해 페이지를 새로고침합니다.
-                    // (스트림릿은 페이지가 새로고침되면 세션 상태를 활용해 목록 초기화 로직을 태울 수 있습니다)
-                }}, 500);
-            " style="padding: 15px; font-size: 16px; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                🖨️ 대기 목록 모두 인쇄하기
-            </button>
+                    printWindow.document.body.appendChild(pageDiv);
+                }}
+                printWindow.document.close();
+                printWindow.print();
+            </script>
             """
-            st.components.v1.html(print_script, height=70)
+            st.components.v1.html(print_script, height=0) # 화면에는 안 보이지만 스크립트 실행
+            st.rerun() # 실행 후 화면 갱신
 
             if st.button("✅ 인쇄 완료 - 목록 비우기"):
                 st.session_state['qr_cart'] = []
