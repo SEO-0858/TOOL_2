@@ -258,7 +258,7 @@ def show_machine_dashboard():
                 st.markdown(f"**{m_no}호기**")
                 if m_no in machine_tool_map:
                     for item in machine_tool_map[m_no]:
-                        #color, label, text = get_status_info(item, now_kst)
+                        color, label, text = get_status_info(item, now_kst)
                         db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
                         render_tool_ui(item, "none", "none", db_status)
                         if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
@@ -421,22 +421,22 @@ def get_status_info(item, current_now):
         if not target_time_str or target_time_str == "-":
             return "#808080", "상태 정보 없음", "-"
             
-    #     # 시간 문자열을 datetime 객체로 변환
-    #     target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
+        # 시간 문자열을 datetime 객체로 변환
+        target_dt = datetime.datetime.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
         
-    #     # 시간 차이 계산
-    #     time_diff = target_dt - current_now
-    #     total_seconds = time_diff.total_seconds()
+        # 시간 차이 계산
+        time_diff = target_dt - current_now
+        total_seconds = time_diff.total_seconds()
 
-    #     # 상태 판단 로직
-    #     if total_seconds < 0:
-    #         return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"🚧 현재 구현 중"
-    #     elif total_seconds <= 3600:
-    #         return "#FFAA00", "※ 주의(임박) ※", f"🚧 현재 구현 중"
-    #     else:
-    #         hours = int(total_seconds // 3600)
-    #         mins = int((total_seconds % 3600) // 60)
-    #         return "#008850", "※ 정상 가동 중 ※", f"⏱️ {hours}시간 {mins}분 남음"
+        # 상태 판단 로직
+        if total_seconds < 0:
+            return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"🚧 현재 구현 중"
+        elif total_seconds <= 3600:
+            return "#FFAA00", "※ 주의(임박) ※", f"🚧 현재 구현 중"
+        else:
+            hours = int(total_seconds // 3600)
+            mins = int((total_seconds % 3600) // 60)
+            return "#008850", "※ 정상 가동 중 ※", f"⏱️ {hours}시간 {mins}분 남음"
     except Exception as e:
         return "#808080", "형식 오류", "-"
 
