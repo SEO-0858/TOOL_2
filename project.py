@@ -1159,8 +1159,8 @@ else:
                     "dressing_mins": 0,
                     "start_time": "-",
                     "target_time": "-",
-                    "use_limit": "ESP32 MODULE set up ready",
-                    "current_use": "ESP32 MODULE set up ready",
+                    "use_limit": 100,
+                    "current_use": 0,
                     "waste_date": "-",
                     "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
