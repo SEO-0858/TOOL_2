@@ -361,11 +361,11 @@ def show_live_dashboard():
             if total_seconds <= 0:
                 status_label = "🚧 현재 구현 중"
                 color_hex = "#FF4B4B"
-                time_text = f"🚧 현재 구현 중 "
+                time_text = f"🚧 현재 구현 중"
             elif total_seconds <= 3600:
                 status_label = "🚧 현재 구현 중"
                 color_hex = "#FFAA00"
-                time_text = f"🚧 현재 구현 중"
+                time_text = f""
             else:
                 status_label = "🟢 정상 가동 중"
                 color_hex = "#00B050"
@@ -430,13 +430,13 @@ def get_status_info(item, current_now):
 
         # 상태 판단 로직
         if total_seconds < 0:
-            return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"⚠️ {int(abs(total_seconds)//3600)}시간 지남"
+            return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"🚧 현재 구현 중"
         elif total_seconds <= 3600:
-            return "#FFAA00", "※ 주의(임박) ※", f"⏳ 약 {int(total_seconds // 60)}분 남음"
+            return "#FFAA00", "※ 주의(임박) ※", f"🚧 현재 구현 중"
         else:
             hours = int(total_seconds // 3600)
             mins = int((total_seconds % 3600) // 60)
-            return "#008850", "※ 정상 가동 중 ※", f"⏱️ {hours}시간 {mins}분 남음"
+            return "#008850", "※ 정상 가동 중 ※", f"🚧 현재 구현 중"
     except Exception as e:
         return "#808080", "형식 오류", "-"
 
