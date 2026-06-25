@@ -1554,26 +1554,26 @@ else:
             # 인쇄 스크립트 결합 부분 (수정본)
         if st.button("🖨️ 대기 목록 모두 인쇄하기"):
             # 인쇄를 위한 HTML 구조 생성
+            # 인쇄 버튼 및 스크립트 (print-area ID 유지)
             full_html = f"""
             <html>
                 <head>
                     <style>
                         @page {{ size: 29mm 90mm; margin: 0; }}
                         body {{ margin: 0; padding: 0; }}
-                        .label-page {{ width: 29mm; height: 80mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
+                        .label-page {{ width: 29mm; height: 85mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
                         .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
                         img {{ width: 28mm !important; height: 28mm !important; display: block; }}
                         span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
                     </style>
                 </head>
                 <body>
-                    <div id="print-container">
+                    <div id="print-area">
                         {''.join([f'<div class="qr-item"><img src="data:image/png;base64,{base64.b64encode(generate_app_qr_bytes(s_no)).decode("utf-8")}"/><span>{s_no}</span></div>' for s_no in st.session_state['qr_cart']])}
                     </div>
                     <script>
-                        // 자동 인쇄 스크립트
                         window.onload = function() {{
-                            var container = document.getElementById('print-container');
+                            var container = document.getElementById('print-area');
                             var items = container.getElementsByClassName('qr-item');
                             for (var i = 0; i < items.length; i += 3) {{
                                 var pageDiv = document.createElement('div');
@@ -1591,14 +1591,13 @@ else:
             </html>
             """
             
-            # [수정] st.download_button을 사용하여 HTML 파일을 다운로드합니다.
             st.download_button(
-                label="🖨️ 클릭하여 인쇄용 파일 다운로드 및 자동 인쇄",
+                label="🖨️ 대기 목록 모두 인쇄하기 (파일 다운로드)",
                 data=full_html,
                 file_name="print_qr.html",
                 mime="text/html"
             )
- 
+    
 
             if st.button("✅ 인쇄 완료 - 목록 비우기"):
                 st.session_state['qr_cart'] = []
