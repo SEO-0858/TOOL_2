@@ -1702,10 +1702,7 @@ else:
             else:
                 st.warning("제조사 약자를 입력해주세요.")
 
-       
-        
-    
-        
+             
             
             # 3. 리스트 조회 (안전한 렌더링)
       
@@ -1716,19 +1713,22 @@ else:
         
         if specs:
             for s in specs:
-                m_type = str(s.get('main_type', '기타'))
-                s_detail = str(s.get('spec_detail', '상세없음'))
+                label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '상세없음')}"
                 
-                # 여기서 [NEW]라고 붙여서, 내가 짠 코드가 반영되는지 확인합니다.
-                with st.expander(f"[NEW] {m_type} | {s_detail}"):
-                    st.write(f"제조사: {s.get('make', '정보없음')}")
-                    st.write(f"상세스펙: {s_detail}")
+                # with문을 확실히 걸고, 내부 내용을 아주 명확하게 출력합니다.
+                with st.expander(label, expanded=False): # expanded=False로 강제 고정
+                    st.markdown(f"**제조사:** `{s.get('make', '정보없음')}`")
+                    st.markdown(f"**상세 스펙:** `{s.get('spec_detail', '상세없음')}`")
                     
-                    if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
+                    # 삭제 버튼 추가
+                    if st.button("삭제", key=f"del_{str(s.get('_id'))}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
-            st.write("등록된 스펙이 없습니다.")
+            st.write("데이터가 없습니다.")
+
+
+
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
