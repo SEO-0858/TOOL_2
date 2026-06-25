@@ -1702,22 +1702,30 @@ else:
             else:
                 st.warning("제조사 약자를 입력해주세요.")
 
-        # 3. 리스트 조회       
+        # 3. 리스트 조회 (expander 사용으로 수정)
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
+        
+        # DB에서 전체 스펙 불러오기
         specs = list(db.find({}))
         
-        for s in specs:
-            # expander 라벨에 정보 표시
-            label = f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"
-            with st.expander(label):
-                st.write(f"**제조사:** {s.get('make', 'N/A')}")
-                st.write(f"**상세 스펙:** {s.get('spec_detail', 'N/A')}")
+        # 데이터가 있을 때만 루프 실행
+        if specs:
+            for s in specs:
+                # expander 라벨 설정 (제목 부분)
+                label = f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"
                 
-                # 삭제 버튼 (고유 key 유지)
-                if st.button("🗑️ 삭제", key=f"del_{s['_id']}"):
-                    db.delete_one({"_id": s['_id']})
-                    st.rerun()
+                # 슬라이더(화살표)가 포함된 expander 생성
+                with st.expander(label):
+                    st.write(f"**제조사:** {s.get('make', 'N/A')}")
+                    st.write(f"**상세 스펙:** {s.get('spec_detail', 'N/A')}")
+                    
+                    # 삭제 버튼 (고유 key값 필수)
+                    if st.button("🗑️ 삭제", key=f"del_{s['_id']}"):
+                        db.delete_one({"_id": s['_id']})
+                        st.rerun()
+        else:
+            st.info("등록된 스펙 마스터가 없습니다.")
 
 #####################################################################################################################################
 
