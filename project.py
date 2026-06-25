@@ -501,21 +501,27 @@ def render_tool_ui(item, color_hex, status_label, db_status):
     # db_status는 인자로 전달받은 값을 그대로 활용
 
     # 4. 장착 누적 시간 계산 (상태가 사용중/재사용일 때만)
+
     duration_text = ""
     if item.get('status') in ["사용중", "재사용"] and item.get('start_time'):
         try:
-            # DB의 문자열을 시간 형식으로 변환
+            # 1. DB 시간을 datetime 객체로 변환
             start_dt = datetime.strptime(item.get('start_time'), "%Y-%m-%d %H:%M:%S")
-            now = datetime.now() # 현재 시간
-            delta = now - start_dt
             
-            # 시간과 분 계산
-            hours = delta.seconds // 3600
-            minutes = (delta.seconds % 3600) // 60
-            duration_text = f"⏳ 장착 누적 시간: {hours}시간 {minutes}분"
-        except:
-            duration_text = "⏳ 시간 계산 오류"
-
+            # 2. 현재 시간도 동일한 형식으로 변환 (KST 기준)
+            now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            now_dt = datetime.strptime(now_str, "%Y-%m-%d %H:%M:%S")
+            
+            # 3. 차이 계산
+            delta = now_dt - start_dt
+            
+            # 4. 시간과 분 계산
+            hours = delta.total_seconds() // 3600
+            minutes = (delta.total_seconds() % 3600) // 60
+            
+            duration_text = f"⏳ 장착 누적 시간: {int(hours)}시간 {int(minutes)}분"
+        except Exception as e:
+            duration_text = f"⏳ 데이터 확인 중"
 
     
     # 4. HTML 기반 UI 출력
