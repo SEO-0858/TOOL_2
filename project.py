@@ -1706,30 +1706,25 @@ else:
         
     
         
-        # 3. 리스트 조회 (완전 강제 고정 방식)
+            # 3. 리스트 조회 (이 부분을 아래 코드로 싹 교체하세요)
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
-
-        # DB에서 전체 데이터 호출
+        
+        # DB 조회
         specs = list(db.find({}))
-
+        
         if specs:
-            # 렌더링 컨테이너 설정
-            list_container = st.container()
-            with list_container:
-                for s in specs:
-                    # 제목 라벨 생성
-                    label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '내용없음')}"
+            for s in specs:
+                label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '상세없음')}"
+                
+                # 여기서 중요한 점: expander를 생성
+                with st.expander(label):
+                    st.write(f"**제조사:** {s.get('make', '정보없음')}")
+                    st.write(f"**상세 스펙:** {s.get('spec_detail', '내용없음')}")
                     
-                    # 화살표(슬라이더)가 포함된 표준 expander 사용
-                    with st.expander(label):
-                        st.write(f"**제조사:** {s.get('make', '정보없음')}")
-                        st.write(f"**상세 스펙:** {s.get('spec_detail', '내용없음')}")
-                        
-                        # 삭제 버튼 (고유 key 값 필수)
-                        if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
-                            db.delete_one({"_id": s['_id']})
-                            st.rerun() # 삭제 후 즉시 화면 갱신
+                    if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
+                        db.delete_one({"_id": s['_id']})
+                        st.rerun()
         else:
             st.info("현재 등록된 스펙 마스터가 없습니다.")
 
