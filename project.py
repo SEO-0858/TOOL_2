@@ -359,13 +359,13 @@ def show_live_dashboard():
             total_seconds = time_diff.total_seconds()
             
             if total_seconds <= 0:
-                status_label = "🚨 드레싱/교체 필요 (시간초과)"
+                status_label = "🚧 현재 구현 중"
                 color_hex = "#FF4B4B"
-                time_text = f"⚠️ 마감 시간이 {str(abs(time_diff)).split('.')[0]} 지났습니다."
+                time_text = f"🚧 현재 구현 중 "
             elif total_seconds <= 3600:
-                status_label = "🟡 주의 (1시간 이내 임박)"
+                status_label = "🚧 현재 구현 중"
                 color_hex = "#FFAA00"
-                time_text = f"⏳ 약 {int(total_seconds // 60)}분 남음"
+                time_text = f"🚧 현재 구현 중"
             else:
                 status_label = "🟢 정상 가동 중"
                 color_hex = "#00B050"
