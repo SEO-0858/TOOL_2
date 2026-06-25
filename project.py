@@ -1473,6 +1473,12 @@ else:
         
         st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
         target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
+        st.write("---")
+        st.subheader("🛒 QR 발행 대기 목록")
+        if st.button("목록 비우기"):
+            st.session_state['qr_cart'] = []
+            st.rerun()
+        st.write(st.session_state['qr_cart'])
         
         if target_serial:
             if len(target_serial) != 12:
