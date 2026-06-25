@@ -430,7 +430,7 @@ def get_status_info(item, current_now):
 
         # 상태 판단 로직
         if total_seconds < 0:
-            return "#FF4B4B", "※ 드레싱/교체 필요 ※", f"🚧 현재 구현 중"
+            return "#FF4B4B", "※정상 가동중 ※", f"🚧 현재 구현 중"
         elif total_seconds <= 3600:
             return "#FFAA00", "※ 주의(임박) ※", f"🚧 현재 구현 중"
         else:
