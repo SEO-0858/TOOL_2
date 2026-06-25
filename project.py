@@ -521,7 +521,7 @@ def render_tool_ui(item, color_hex, status_label, db_status):
             
             duration_text = f"⏳ 장착 누적 시간: {int(hours)}시간 {int(minutes)}분"
         except Exception as e:
-            duration_text = f"⏳ 데이터 확인 중"
+            duration_text = f"⏳ 시간 계산 오류: {str(e)}"
 
     
     # 4. HTML 기반 UI 출력
