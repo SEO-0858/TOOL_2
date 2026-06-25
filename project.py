@@ -506,11 +506,11 @@ def render_tool_ui(item, color_hex, status_label, db_status):
     if item.get('status') in ["사용중", "재사용"] and item.get('start_time'):
         try:
             # 1. DB 시간을 datetime 객체로 변환
-            start_dt = datetime.strptime(item.get('start_time'), "%Y-%m-%d %H:%M:%S")
+            start_dt = dt.strptime(item.get('start_time'), "%Y-%m-%d %H:%M:%S") 
             
             # 2. 현재 시간도 동일한 형식으로 변환 (KST 기준)
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
-            now_dt = datetime.strptime(now_str, "%Y-%m-%d %H:%M:%S")
+            now_dt = dt.strptime(now_str, "%Y-%m-%d %H:%M:%S")
             
             # 3. 차이 계산
             delta = now_dt - start_dt
@@ -521,7 +521,7 @@ def render_tool_ui(item, color_hex, status_label, db_status):
             
             duration_text = f"⏳ 장착 누적 시간: {int(hours)}시간 {int(minutes)}분"
         except Exception as e:
-            duration_text = f"⏳ 시간 계산 오류: {str(e)}"
+            duration_text = f"⏳ 오류: {str(e)}"
 
     
     # 4. HTML 기반 UI 출력
