@@ -1702,43 +1702,35 @@ else:
             else:
                 st.warning("제조사 약자를 입력해주세요.")
 
-        # 3. 리스트 조회 (expander 사용으로 수정)
+       
         
+        # 3. 리스트 조회 (안정적인 렌더링 구조)
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
         
-        # DB 조회 결과 확인
-        specs = list(db.find({}))
-        st.write(f"디버그: DB에서 {len(specs)}개의 데이터를 찾았습니다.")
-        
-        if len(specs) > 0:
-            for s in specs:
-                label = f"{s.get('main_type', '제목없음')}"
-                with st.expander(label):
-                    st.write("내용이 보입니다.")
-        else:
-            st.error("데이터가 한 개도 없습니다. DB 컬렉션을 확인하세요.")
-            
-        # DB에서 전체 스펙 불러오기
+        # DB 조회 (전체)
         specs = list(db.find({}))
         
-        # 데이터가 있을 때만 루프 실행
         if specs:
+            # 데이터가 43개나 되므로, 가독성을 위해 expander로 각각 출력
             for s in specs:
-                # expander 라벨 설정 (제목 부분)
-                label = f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"
+                # 제목 문자열 생성 (안전하게 str 변환)
+                main_type = str(s.get('main_type', '기타'))
+                spec_detail = str(s.get('spec_detail', '내용없음'))
+                title = f"{main_type} | {spec_detail}"
                 
-                # 슬라이더(화살표)가 포함된 expander 생성
-                with st.expander(label):
-                    st.write(f"**제조사:** {s.get('make', 'N/A')}")
-                    st.write(f"**상세 스펙:** {s.get('spec_detail', 'N/A')}")
+                # with문을 사용하여 expander 생성
+                with st.expander(title):
+                    st.write(f"**제조사:** {s.get('make', '정보없음')}")
+                    st.write(f"**상세 스펙:** {spec_detail}")
                     
-                    # 삭제 버튼 (고유 key값 필수)
-                    if st.button("🗑️ 삭제", key=f"del_{s['_id']}"):
+                    # 삭제 버튼에 고유 키 부여 (필수)
+                    # s['_id']는 ObjectId이므로 str로 변환하여 키로 사용
+                    if st.button("🗑️ 삭제", key=f"del_{str(s['_id'])}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
-            st.info("등록된 스펙 마스터가 없습니다.")
+            st.write("현재 등록된 스펙 마스터가 없습니다.")
 
 #####################################################################################################################################
 
