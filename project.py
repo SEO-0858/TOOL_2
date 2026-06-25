@@ -541,13 +541,6 @@ def render_tool_ui(item, color_hex, status_label, db_status):
         <div style="font-size: 12px; color: #666; margin-top: 2px;">
             🛠 {item.get('spec_detail', '-')}
         </div>
-        <hr style="margin: 5px 0;">
-        <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
-            ⏳ {time_text}
-        </div>
-        <div style="font-size: 13px; font-weight: bold; color: #d9534f; text-align: center;">
-            {time_text}
-        </div>
         <div style="font-size: 12px; font-weight: bold; color: #333; text-align: center; margin-top: 5px;">
             {duration_text}
         </div>
