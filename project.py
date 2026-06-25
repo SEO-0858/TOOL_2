@@ -258,7 +258,7 @@ def show_machine_dashboard():
                 st.markdown(f"**{m_no}호기**")
                 if m_no in machine_tool_map:
                     for item in machine_tool_map[m_no]:
-                        color, label, text = get_status_info(item, now_kst)
+                        #color, label, text = get_status_info(item, now_kst)
                         db_status = item.get('status', '사용중') # DB에 있는 진짜 상태값을 가져옴
                         render_tool_ui(item, "none", "none", db_status)
                         if st.button("📝 상세/수정", key=f"btn_edit_{item['serial_no']}"):
