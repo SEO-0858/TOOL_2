@@ -1736,43 +1736,31 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
-        # 툴 재고 검색 및 인쇄 섹션 전체
-    # 1. 인쇄 숨김 CSS 설정 (기존 스타일 유지 + 사이드바 강제 제거 추가)
+            # 1단계: 인쇄 숨김 및 제목 설정 (완벽 통합형)
         st.markdown("""
             <style>
                 @media print {
-                    /* 사이드바 및 헤더 숨김 */
-                    [data-testid="stSidebar"], section[data-testid="stSidebar"],
-                    header, [data-testid="stHeader"] {
-                        display: none !important;
+                    /* 사이드바, 헤더, 버튼 등 모든 방해 요소 제거 */
+                    [data-testid="stSidebar"], 
+                    section[data-testid="stSidebar"], 
+                    header, 
+                    [data-testid="stHeader"], 
+                    .stButton, 
+                    button { 
+                        display: none !important; 
                     }
                     
-                    /* 버튼 및 기타 불필요 요소 숨김 */
-                    .stButton, div.stButton, footer, .stAlert, button {
-                        display: none !important;
-                    }
-                    
-                    /* 페이지 여백 및 레이아웃 최적화 */
-                    [data-testid="stAppViewContainer"], .main .block-container {
-                        padding: 0px !important;
-                        margin: 0px !important;
-                        background: white !important;
-                        max-width: 100% !important;
+                    /* 레이아웃 최적화 */
+                    [data-testid="stAppViewContainer"], .main .block-container { 
+                        padding: 0px !important; margin: 0px !important; max-width: 100% !important; 
                     }
                 }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. 대제목 부분 (기존 코드 누락 없이 복원)
-        st.markdown("<h2 class='no-print'>공구 - LIST</h2>", unsafe_allow_html=True)
-        st.markdown("<h3 class='no-print'>전체 리스트</h3>", unsafe_allow_html=True)
-
-        # 3. 그 외 기존에 작성하신 나머지 로직들 (여기에 기존 코드 그대로 유지)
-        # 예: 리스트를 출력하는 코드, 데이터 조회 등...
-
-        # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
-        st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
-        st.write("<br>", unsafe_allow_html=True)
+        # 2단계: 대제목 (CSS 충돌 방지를 위해 클래스 제거)
+        st.markdown("<h2>공구 - LIST</h2>", unsafe_allow_html=True)
+        st.markdown("<h3>전체 리스트</h3>", unsafe_allow_html=True)
 
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
