@@ -361,7 +361,7 @@ def show_live_dashboard():
             if total_seconds <= 0:
                 status_label = "🚧 현재 구현 중"
                 color_hex = "#FF4B4B"
-                time_text = f"🚧 현재 구현 중"
+                time_text = f"🚧 ESP 32 모듈 카운터 구현 중"
             elif total_seconds <= 3600:
                 status_label = "🚧 현재 구현 중"
                 color_hex = "#FFAA00"
