@@ -385,7 +385,7 @@ def show_live_dashboard():
                         <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
                         <p style="margin: 5px 0; font-size: 15px;">
                             <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
-                            <b>📅 최초 장착 시간 (KST):</b> {item['start_time']} | <b>🎯 드레싱 마감 목표 (KST):</b> {target_time_str} <br>
+                            <b>📅 최초 장착 시간 (KST):</b> {item['start_time']}
                             <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
                         </p>
                     </div>
@@ -393,7 +393,7 @@ def show_live_dashboard():
                     unsafe_allow_html=True
                 )
                 
-                if st.button(f"🔄 시리얼 [{item['serial_no']}] 드레싱 완료 (시간 초기화 리셋)", key=f"reset_{item['serial_no']}"):
+                if st.button(f"🔄 시리얼 [{item['serial_no']}] (장착시간 리셋)", key=f"reset_{item['serial_no']}"):
                     t_hours = int(item.get('dressing_hours', 4))
                     t_mins = int(item.get('dressing_mins', 0))
                     new_total_mins = (t_hours * 60) + t_mins
