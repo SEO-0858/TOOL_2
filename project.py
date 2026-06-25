@@ -1706,7 +1706,7 @@ else:
       
         # 3. 리스트 조회 (다른 모든 코드 무시하고 이것만 실행)
         st.write("---")
-        st.subheader("📋 최종 등록된 스펙 마스터 목록")
+        st.subheader("📋 스펙 마스터 목록")
         
         # 1. DB에서 데이터 가져오기
         specs = list(db.find({}))
@@ -1736,45 +1736,39 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
-        st.markdown(
-            """
+        # 툴 재고 검색 및 인쇄 섹션 전체
+    # 1. 인쇄 숨김 CSS 설정 (기존 스타일 유지 + 사이드바 강제 제거 추가)
+        st.markdown("""
             <style>
                 @media print {
-                    /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
-                    .no-print, [data-testid="stMarkdown"] :has(.no-print) {
-                        display: none !important;
-                    }
-                    /* 사이드바 영역 전체 숨김 */
-                    [data-testid="stSidebar"], section[data-testid="stSidebar"] {
-                        display: none !important;
-                    }
-                    /* 상단 헤더 및 여백 숨김 */
+                    /* 사이드바 및 헤더 숨김 */
+                    [data-testid="stSidebar"], section[data-testid="stSidebar"],
                     header, [data-testid="stHeader"] {
                         display: none !important;
                     }
-                    /* 하단 버튼 및 기타 불필요 요소 숨김 */
-                    .stButton, div.stButton, iframe, footer {
+                    
+                    /* 버튼 및 기타 불필요 요소 숨김 */
+                    .stButton, div.stButton, footer, .stAlert, button {
                         display: none !important;
-                    }    
-                    /* 하단 조작 버튼 및 안내 메시지 영역 숨김 */
-                    .stButton, div.stButton, iframe, footer, .stAlert {
-                        display: none !important;
-                    }    
-        
-                    /* 인쇄 용지 여백 제로화 */
-                    [data-testid="stAppViewContainer"] {
-                        padding: 0px !important;
-                        background: white !important;
                     }
-                    .main .block-container {
-                        padding-top: 10px !important;
-                        padding-bottom: 10px !important;
+                    
+                    /* 페이지 여백 및 레이아웃 최적화 */
+                    [data-testid="stAppViewContainer"], .main .block-container {
+                        padding: 0px !important;
+                        margin: 0px !important;
+                        background: white !important;
+                        max-width: 100% !important;
                     }
                 }
             </style>
-            """,
-            unsafe_allow_html=True
-        )
+        """, unsafe_allow_html=True)
+
+        # 2. 대제목 부분 (기존 코드 누락 없이 복원)
+        st.markdown("<h2 class='no-print'>공구 - LIST</h2>", unsafe_allow_html=True)
+        st.markdown("<h3 class='no-print'>전체 리스트</h3>", unsafe_allow_html=True)
+
+        # 3. 그 외 기존에 작성하신 나머지 로직들 (여기에 기존 코드 그대로 유지)
+        # 예: 리스트를 출력하는 코드, 데이터 조회 등...
 
         # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
         st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
