@@ -25,7 +25,7 @@ def waste_dialog(serial, data):
     st.write(f"시리얼 번호: **{serial}**")
     
     # 1. 입력 UI 정의
-    reason_options = ["1. 다이아팀 전면 2mm 이하", "2. 튐 현상변화", "3. 튐 진원도 불량", "4. 지정 외세 수량", "5. 파손", "6. 기타사유(직접기입)"]
+    reason_options = ["1. 다이아팁 전면 2mm 이하", "2. 툴 현상변화", "3. 툴파이 진원도 불량", "4. 지정 수량 초과", "5. 파손(툴찍힘)", "6. 기타사유(직접기입)"]
     selected_reason = st.selectbox("폐기 사유 선택:", reason_options)
     
     detail_reason = ""
