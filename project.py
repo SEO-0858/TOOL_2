@@ -1703,9 +1703,22 @@ else:
                 st.warning("제조사 약자를 입력해주세요.")
 
         # 3. 리스트 조회 (expander 사용으로 수정)
+        
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
         
+        # DB 조회 결과 확인
+        specs = list(db.find({}))
+        st.write(f"디버그: DB에서 {len(specs)}개의 데이터를 찾았습니다.")
+        
+        if len(specs) > 0:
+            for s in specs:
+                label = f"{s.get('main_type', '제목없음')}"
+                with st.expander(label):
+                    st.write("내용이 보입니다.")
+        else:
+            st.error("데이터가 한 개도 없습니다. DB 컬렉션을 확인하세요.")
+            
         # DB에서 전체 스펙 불러오기
         specs = list(db.find({}))
         
