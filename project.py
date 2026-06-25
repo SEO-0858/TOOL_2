@@ -1468,24 +1468,31 @@ else:
 
     # 4) 데이터 수정 / 삭제 / QR 재발행 창
     elif tool_menu == "⚙️ 데이터 수정 / 삭제 / QR 재발행":
-        st.title("⚙️ 툴 데이터 관리 및 누락 QR코드 재발행")
+    
+
+        st.title("⚙️ 툴 데이터 관리 및 누락 QR 재발행")
         st.write("<br>", unsafe_allow_html=True)
+
+        # 세션 상태 초기화
+        if 'qr_cart' not in st.session_state:
+            st.session_state['qr_cart'] = []
+
+        st.subheader("누락 / 분실 QR코드 타겟 재발행")
+        target_serial = st.text_input("재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
         
-        st.subheader("🖨️ 누락 / 분실 QR코드 타겟 재발행")
-        target_serial = st.text_input("🆔 재발행할 12자리 시리얼 번호를 정확히 입력하세요").strip()
+        # 1. 장바구니 추가 로직
         if st.button("🛒 장바구니에 담기"):
-            if target_serial and len(target_serial) == 12: # 12자리 확인
-                if target_serial not in st.session_state['qr_cart']: # 중복 방지
+            if target_serial and len(target_serial) == 12:
+                if target_serial not in st.session_state['qr_cart']:
                     st.session_state['qr_cart'].append(target_serial)
-                    st.success(f"{target_serial} 번호가 추가되었습니다.")
-                    st.rerun() # 추가 후 화면 갱신
+                    st.success(f"{target_serial} 번호가 장바구니에 추가되었습니다.")
+                    st.rerun()
                 else:
-                    st.warning("이미 목록에 있는 번호입니다.")
+                    st.warning("이미 장바구니에 있는 번호입니다.")
             else:
                 st.error("올바른 12자리 시리얼 번호를 먼저 입력하세요.")
 
-        if 'qr_cart' not in st.session_state:
-            st.session_state['qr_cart'] = []
+        # 2. 장바구니 목록 관리
         st.write("---")
         st.subheader("🛒 QR 발행 대기 목록")
         if st.button("목록 비우기"):
@@ -1493,60 +1500,21 @@ else:
             st.rerun()
         st.write(st.session_state['qr_cart'])
 
-
-
-
-        
+        # 3. 누락 번호 검증 및 개별 생성 (기존 로직 유지)
         if target_serial:
             if len(target_serial) != 12:
                 st.warning("⚠️ 시리얼 넘버는 정확히 12자리 규격이어야 합니다.")
             else:
                 exist_item = db_collection.find_one({"serial_no": target_serial})
-                
                 if exist_item:
-                    st.success(f"🔍 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
-                    
-                    qr_res_bytes = generate_app_qr_bytes(target_serial)
-                    base64_qr = base64.b64encode(qr_res_bytes).decode("utf-8")
-                    
-                    st.image(qr_res_bytes, width=180, caption=f"재발행 넘버: {target_serial}")
-                    
-                    html_content = f"""
-                    <div style="text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;">
-                        <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
-                        <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
-                    </div>
-                    """
-                    
-                    # [최종 수정] 팝업 없는 직접 인쇄 버튼
-                    if st.button("🖨️ 이 QR코드 인쇄하기"):
-                        print_body = f"""
-                        <div id='print-area' style='text-align: center; border: 1px dashed #ccc; padding: 20px; width: 200px;'>
-                            <img src="data:image/png;base64,{base64_qr}" style="width: 150px; height: 150px;" />
-                            <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin-top: 10px;">ID: {target_serial}</div>
-                        </div>
-                        <style>
-                            @media print {{
-                                body * {{ visibility: hidden; }}
-                                #print-area, #print-area * {{ visibility: visible; }}
-                                #print-area {{ position: absolute; left: 0; top: 0; }}
-                            }}  
-                        </style>
-                        """
-                        st.components.v1.html(f"""
-                            {print_body}
-                            <script>
-                                setTimeout(function() {{ window.print(); }}, 500);
-                            </script>
-                        """, height=0)
-
+                    st.success(f"✅ 확인결과: 데이터베이스에 기존 데이터가 존재하는 툴입니다.")
                 else:
-                    st.error(f"❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
-                    if st.button(f"➕ 누락번호 `{target_serial}` 신규 생성 및 QR 발행"):
-                        t_code = target_serial[:3]
+                    st.error("❌ 확인결과: 데이터베이스에 존재하지 않는 완전히 누락된 새로운 번호입니다.")
+                    if st.button(f"➕ 누락번호 {target_serial} 신규 생성 및 QR 발행"):
+                        t_code = target_serial[3]
                         new_blank = {
                             "serial_no": target_serial,
-                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴" if t_code=="2"else "코어툴",
+                            "tool_type": "전착툴" if t_code=="1" else "레진툴" if t_code=="2" else "메탈툴" if t_code=="2" else "코어툴",
                             "status": "사용전",
                             "input_date": str(today),
                             "init_time": get_now_kst().strftime("%H:%M"),
@@ -1559,12 +1527,66 @@ else:
                             "use_limit": 10000,
                             "current_use": 0,
                             "waste_date": "-",
-                            "note": "누락 번호 관리자 강제 재발행 완료"
+                            "note": "누락 번호 관리자 재발행 완료"
                         }
                         db_collection.insert_one(new_blank)
-                        st.success(f"🎉 누락된 번호 `{target_serial}` 가 DB에 생성되었습니다. 다시 입력하여 확인해 주세요.")
+                        st.success(f"✅ 누락된 번호 {target_serial} 가 DB에 생성되었습니다.")
                         st.rerun()
 
+        # 4. 일괄 인쇄 로직 (분석한 인쇄 규격 적용)
+        if st.session_state['qr_cart']:
+            st.write("---")
+            st.subheader("🖨️ 일괄 인쇄 준비")
+            
+            # HTML 컨텐츠 생성
+            html_content = ""
+            for s_no in st.session_state['qr_cart']:
+                qr_bytes = generate_app_qr_bytes(s_no)
+                base64_qr = base64.b64encode(qr_bytes).decode("utf-8")
+                html_content += f"""
+                <div class="qr-item">
+                    <img src="data:image/png;base64,{base64_qr}">
+                    <span>{s_no}</span>
+                </div>
+                """
+
+            # 인쇄 스크립트 결합
+            print_script = f"""
+            <button onclick="
+                var printWindow = window.open('', '_blank');
+                var style = `<style>
+                    @page {{ size: 29mm 90mm; margin: 0; }}
+                    body {{ margin: 0; padding: 0; }}
+                    .label-page {{ width: 29mm; height: 85mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
+                    .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
+                    img {{ width: 28mm !important; height: 28mm !important; display: block; }}
+                    span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
+                </style>`;
+                printWindow.document.write('<html><head>' + style + '</head><body></body></html>');
+                setTimeout(function() {{
+                    var container = document.createElement('div');
+                    container.innerHTML = `{html_content}`;
+                    var items = container.getElementsByClassName('qr-item');
+                    for (var i = 0; i < items.length; i += 3) {{
+                        var pageDiv = document.createElement('div');
+                        pageDiv.className = 'label-page';
+                        for (var j = i; j < i + 3 && j < items.length; j++) {{
+                            pageDiv.appendChild(items[j].cloneNode(true));
+                        }}
+                        printWindow.document.body.appendChild(pageDiv);
+                    }}
+                    printWindow.document.close();
+                    printWindow.print();
+                }}, 500);
+            " style="padding: 15px; font-size: 16px; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                🖨️ 대기 목록 모두 인쇄하기
+            </button>
+            """
+            st.components.v1.html(print_script, height=70)
+
+            if st.button("✅ 인쇄 완료 - 목록 비우기"):
+                st.session_state['qr_cart'] = []
+                st.rerun()
 
 
 
