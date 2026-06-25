@@ -1012,6 +1012,7 @@ if qr_scanned_serial:
     
     orig_mach = existing_data.get('machine_no', '')
     default_mach = int(''.join(filter(str.isdigit, orig_mach))) if any(c.isdigit() for c in orig_mach) else 0
+
     u_machine = st.number_input("⚙️ 기계 가공 호기", value=default_mach)
     current_spec = existing_data.get('spec_detail', '스펙없음')
     u_spec = current_spec 
@@ -1038,7 +1039,7 @@ if qr_scanned_serial:
             'status': u_status,
             'prev_status': prev_status,
             'worker': u_worker,
-            'machine_no': f'{u_machine}호기', 
+            'machine_no': f'{int(u_machine):02d}호기', 
             'spec_detail': u_spec,
             'dressing_hours': u_h, 'dressing_mins': u_m, 
             'note': u_note,
