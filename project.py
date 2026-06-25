@@ -1706,28 +1706,30 @@ else:
         
     
         
-            # 3. 리스트 조회 (이 부분을 아래 코드로 싹 교체하세요)
+            
+            # 3. 리스트 조회 (안전한 렌더링)
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
         
-        # DB 조회
         specs = list(db.find({}))
         
         if specs:
             for s in specs:
-                label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '상세없음')}"
+                # 특수문자나 긴 문자열로 인한 렌더링 오류 방지
+                m_type = str(s.get('main_type', '기타'))
+                s_detail = str(s.get('spec_detail', '상세없음'))
                 
-                # 여기서 중요한 점: expander를 생성
-                with st.expander(label):
-                    st.write(f"**제조사:** {s.get('make', '정보없음')}")
-                    st.write(f"**상세 스펙:** {s.get('spec_detail', '내용없음')}")
+                # expander 제목을 짧고 명확하게 고정
+                with st.expander(f"스펙: {m_type}"):
+                    st.write(f"상세: {s_detail}")
+                    st.write(f"제조사: {s.get('make', '정보없음')}")
                     
-                    if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
+                    # 삭제 버튼
+                    if st.button("삭제", key=f"del_{str(s.get('_id'))}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
-            st.info("현재 등록된 스펙 마스터가 없습니다.")
-
+            st.write("등록된 스펙이 없습니다.")
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
