@@ -1736,51 +1736,23 @@ else:
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
         # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
-        st.markdown(
-            """
-            <style>
-                @media print {
-                    /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
-                    [data-testid="stSidebar"] {
-                    display: none !important;
-                    width: 0px !important;
-                    visibility: hidden !important;
-                    }
-                    /* 사이드바 영역 전체 숨김 */
-                    [data-testid="stSidebar"], section[data-testid="stSidebar"] {
-                        display: none !important;
-                    }
-                    /* 상단 헤더 및 여백 숨김 */
-                    header, [data-testid="stHeader"] {
-                        display: none !important;
-                    }
-                    /* 하단 버튼 및 기타 불필요 요소 숨김 */
-                    .stButton, div.stButton, iframe, footer {
-                        display: none !important;
-                    }    
-                    /* 하단 조작 버튼 및 안내 메시지 영역 숨김 */
-                    .stButton, div.stButton, iframe, footer, .stAlert {
-                        display: none !important;
-                    }    
-        
-                    /* 인쇄 용지 여백 제로화 */
-                    [data-testid="stAppViewContainer"] {
-                        padding: 0px !important;
-                        background: white !important;
-                    }
-                    .main .block-container {
-                        padding-top: 10px !important;
-                        padding-bottom: 10px !important;
-                    }
-                }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # [🔥 2단계 방안: 대제목에 'no-print' 클래스 이름표를 붙여 일반 텍스트로 출력]
-        st.markdown("<h2 class='no-print'>🔍 툴 재고 검색 및 인쇄</h2>", unsafe_allow_html=True)
-        st.write("<br>", unsafe_allow_html=True)
+        # 2. 인쇄 버튼 (기존 st.button을 이것으로 교체하세요)
+    # 버튼을 누르면 사이드바가 없는 새 창이 열리고 인쇄 다이얼로그가 뜹니다.
+    
+    if st.button("🖨️ 인쇄하기"):
+        # 사이드바 없는 깨끗한 HTML을 생성하는 자바스크립트
+        html_code = """
+        <script>
+            var printWindow = window.open('', '_blank', 'width=800,height=600');
+            // 사이드바 코드 제외하고 본문(main)만 복사
+            var content = document.querySelector('.main').innerHTML;
+            printWindow.document.write('<html><body>' + content + '</body></html>');
+            printWindow.document.close();
+            // 인쇄 실행
+            printWindow.print();
+        </script>
+        """
+        st.components.v1.html(html_code, height=0)
 
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
