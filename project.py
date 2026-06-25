@@ -1560,7 +1560,7 @@ else:
                     <style>
                         @page {{ size: 29mm 90mm; margin: 0; }}
                         body {{ margin: 0; padding: 0; }}
-                        .label-page {{ width: 29mm; height: 85mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
+                        .label-page {{ width: 29mm; height: 80mm; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; page-break-after: always; }}
                         .qr-item {{ display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }}
                         img {{ width: 28mm !important; height: 28mm !important; display: block; }}
                         span {{ font-size: 8px; font-family: monospace; margin-top: 1px; }}
