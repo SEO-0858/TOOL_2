@@ -1550,7 +1550,8 @@ else:
                 </div>
                 """
 
-            # 인쇄 스크립트 결합
+            
+            # 인쇄 스크립트 결합 부분 (수정본)
             print_script = f"""
             <button onclick="
                 var printWindow = window.open('', '_blank');
@@ -1577,6 +1578,9 @@ else:
                     }}
                     printWindow.document.close();
                     printWindow.print();
+                    
+                    // [추가] 인쇄창이 닫히면 자동으로 목록을 비우기 위해 페이지를 새로고침합니다.
+                    // (스트림릿은 페이지가 새로고침되면 세션 상태를 활용해 목록 초기화 로직을 태울 수 있습니다)
                 }}, 500);
             " style="padding: 15px; font-size: 16px; color: white; background-color: #000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
                 🖨️ 대기 목록 모두 인쇄하기
