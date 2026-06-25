@@ -1702,13 +1702,20 @@ else:
             else:
                 st.warning("제조사 약자를 입력해주세요.")
 
-        # 3. 리스트 조회
+        # 3. 리스트 조회       
         st.write("---")
         st.subheader("📋 등록된 스펙 마스터 목록")
         specs = list(db.find({}))
+        
         for s in specs:
-            with st.expander(f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"):
-                if st.button("삭제", key=f"del_{s['_id']}"):
+            # expander 라벨에 정보 표시
+            label = f"{s.get('main_type', 'N/A')} | {s.get('spec_detail', 'N/A')}"
+            with st.expander(label):
+                st.write(f"**제조사:** {s.get('make', 'N/A')}")
+                st.write(f"**상세 스펙:** {s.get('spec_detail', 'N/A')}")
+                
+                # 삭제 버튼 (고유 key 유지)
+                if st.button("🗑️ 삭제", key=f"del_{s['_id']}"):
                     db.delete_one({"_id": s['_id']})
                     st.rerun()
 
