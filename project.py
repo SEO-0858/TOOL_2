@@ -296,7 +296,7 @@ def show_machine_dashboard():
                     old_worker = target_tool.get('worker', '')
                     
                     # 로그 기록
-                    timestamp = dt.now().strftime('%Y-%m-%d %H:%M')
+                    timestamp = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
                     log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker} / 주기:{new_hours}h {new_mins}m 변경(타이머 리셋)".format(timestamp)
                     updated_note = (target_tool.get('note', '') + log_msg).strip()
                     
