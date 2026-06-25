@@ -1678,7 +1678,7 @@ else:
             parts.append(free_input)
         
         # 입자도와 제조사는 항상 추가
-        parts.append(f"#{grit_val}")
+        parts.append(f"#{grit_val}")툴 상세스펙
         parts.append(make_val.upper())
 
         # 리스트에 담긴 것들만 언더바로 연결
@@ -1704,10 +1704,14 @@ else:
 
              
             
-            # 3. 리스트 조회 (안전한 렌더링)
+           
       
+        # 3. 리스트 조회 (캐시 잔류 제거를 위한 빈 컨테이너 삽입)
         st.write("---")
-        st.subheader("📋 [NEW] 등록된 스펙 마스터 목록")
+        st.subheader("📋 [CLEAN] 등록된 스펙 마스터 목록")
+        
+        # 이전 레이아웃 잔상을 지우기 위해 빈 공간을 강제 생성
+        st.empty() 
         
         specs = list(db.find({}))
         
@@ -1715,17 +1719,16 @@ else:
             for s in specs:
                 label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '상세없음')}"
                 
-                # with문을 확실히 걸고, 내부 내용을 아주 명확하게 출력합니다.
-                with st.expander(label, expanded=False): # expanded=False로 강제 고정
-                    st.markdown(f"**제조사:** `{s.get('make', '정보없음')}`")
-                    st.markdown(f"**상세 스펙:** `{s.get('spec_detail', '상세없음')}`")
+                # 여기서 중요한 점: expander를 생성
+                with st.expander(label):
+                    st.write(f"**제조사:** {s.get('make', '정보없음')}")
+                    st.write(f"**상세 스펙:** {s.get('spec_detail', '내용없음')}")
                     
-                    # 삭제 버튼 추가
                     if st.button("삭제", key=f"del_{str(s.get('_id'))}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
-            st.write("데이터가 없습니다.")
+            st.info("등록된 스펙이 없습니다.")
 
 
 
