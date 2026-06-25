@@ -1703,32 +1703,32 @@ else:
                 st.warning("제조사 약자를 입력해주세요.")
 
              
-            
-            # 3. 리스트 조회 (안전한 렌더링)
       
-        # 3. 리스트 조회 (캐시 잔류 제거를 위한 빈 컨테이너 삽입)
+        # 3. 리스트 조회 (다른 모든 코드 무시하고 이것만 실행)
         st.write("---")
-        st.subheader("📋 [CLEAN] 등록된 스펙 마스터 목록")
+        st.subheader("📋 최종 등록된 스펙 마스터 목록")
         
-        # 이전 레이아웃 잔상을 지우기 위해 빈 공간을 강제 생성
-        st.empty() 
-        
+        # 1. DB에서 데이터 가져오기
         specs = list(db.find({}))
         
+        # 2. 이전에 렌더링된 요소들을 강제로 삭제 (레이아웃 잔상 제거)
+        placeholder = st.empty()
+        
+        # 3. 데이터 출력
         if specs:
             for s in specs:
                 label = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '상세없음')}"
                 
-                # 여기서 중요한 점: expander를 생성
+                # 여기서 st.expander를 사용하면 화살표가 무조건 나옵니다.
                 with st.expander(label):
-                    st.write(f"**제조사:** {s.get('make', '정보없음')}")
-                    st.write(f"**상세 스펙:** {s.get('spec_detail', '내용없음')}")
+                    st.write(f"제조사: {s.get('make', '정보없음')}")
+                    st.write(f"상세스펙: {s.get('spec_detail', '내용없음')}")
                     
-                    if st.button("삭제", key=f"del_{str(s.get('_id'))}"):
+                    if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
                         db.delete_one({"_id": s['_id']})
                         st.rerun()
         else:
-            st.info("등록된 스펙이 없습니다.")
+            st.write("등록된 스펙이 없습니다.")
 
 
 
