@@ -1678,7 +1678,7 @@ else:
             parts.append(free_input)
         
         # 입자도와 제조사는 항상 추가
-        parts.append(f"#{grit_val}")툴 상세스펙
+        parts.append(f"#{grit_val}")
         parts.append(make_val.upper())
 
         # 리스트에 담긴 것들만 언더바로 연결
@@ -1704,7 +1704,7 @@ else:
 
              
             
-           
+            # 3. 리스트 조회 (안전한 렌더링)
       
         # 3. 리스트 조회 (캐시 잔류 제거를 위한 빈 컨테이너 삽입)
         st.write("---")
