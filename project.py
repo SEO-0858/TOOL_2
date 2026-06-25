@@ -1735,24 +1735,31 @@ else:
 #####################################################################################################################################
 
     elif tool_menu == "🔍 툴 재고 검색 및 인쇄":
-        # [🔥 1단계 방안: 인쇄 숨김 CSS 제어 코드를 최상단으로 전면 배치]
-        # 2. 인쇄 버튼 (기존 st.button을 이것으로 교체하세요)
-    # 버튼을 누르면 사이드바가 없는 새 창이 열리고 인쇄 다이얼로그가 뜹니다.
-    
-        if st.button("🖨️ 인쇄하기"):
-            # 사이드바 없는 깨끗한 HTML을 생성하는 자바스크립트
-            html_code = """
-            <script>
-                var printWindow = window.open('', '_blank', 'width=800,height=600');
-                // 사이드바 코드 제외하고 본문(main)만 복사
-                var content = document.querySelector('.main').innerHTML;
-                printWindow.document.write('<html><body>' + content + '</body></html>');
-                printWindow.document.close();
-                // 인쇄 실행
-                printWindow.print();
-            </script>
-            """
-            st.components.v1.html(html_code, height=0)
+        st.markdown("""
+            <style>
+                @media print {
+                    /* 1. 사이드바를 화면 밖으로 던져버림 */
+                    [data-testid="stSidebar"] {
+                        position: absolute !important;
+                        left: -10000px !important;
+                        display: none !important;
+                    }
+                    
+                    /* 2. 메인 화면을 강제로 왼쪽 정렬 */
+                    .main, [data-testid="stAppViewContainer"] {
+                        margin-left: 0 !important;
+                        padding-left: 0 !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                    }
+                    
+                    /* 3. 인쇄 시 불필요한 모든 요소 제거 */
+                    header, footer, .stButton, button, [data-testid="stHeader"] {
+                        display: none !important;
+                    }
+                }
+            </style>
+        """, unsafe_allow_html=True)
 
         # 2. 상단 필터 버튼
         col1, col2, col3, col4, col5 = st.columns(5)
