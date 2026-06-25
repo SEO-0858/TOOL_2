@@ -70,7 +70,7 @@ def waste_dialog(serial, data):
                 
                 # DB 업데이트
                 combined_reason = f"{selected_reason}: {detail_reason}" if selected_reason == "6. 기타사유(직접기입)" else selected_reason
-                new_log = f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')} 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}], 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
+                new_log = f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
                 db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}})
                 
 
