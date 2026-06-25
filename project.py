@@ -1705,44 +1705,31 @@ else:
        
         
     
-            # 3. 리스트 조회 (안정적인 레이아웃 구조)
-        st.write("---")
-        st.subheader("📋 등록된 스펙 마스터 목록")
         
-        # DB 데이터 가져오기
-        specs = list(db.find({}))
-        
-        # 1. 만약 데이터가 없으면 안내 문구만 출력
-        if not specs:
-            st.info("현재 등록된 스펙 마스터가 없습니다.")
+            # 3. 리스트 조회 (완전 강제 고정 방식)
+            st.write("---")
+            st.subheader("📋 등록된 스펙 마스터 목록")
             
-        # 2. 데이터가 있으면 렌더링
-        else:
-            # 데이터가 렌더링될 공간을 명확히 지정
-            list_container = st.container()
+            # DB 데이터 가져오기
+            specs = list(db.find({}))
             
-            with list_container:
+            if specs:
                 for s in specs:
-                    # 43개의 데이터를 안정적으로 보여주기 위한 고유 라벨 생성
-                    try:
-                        m_type = str(s.get('main_type', '기타'))
-                        s_detail = str(s.get('spec_detail', '내용없음'))
-                        label = f"{m_type} | {s_detail}"
+                    # 1. 제목 설정 (스트림릿 expander는 여기서 화살표를 자동 생성합니다)
+                    title = f"{s.get('main_type', '기타')} | {s.get('spec_detail', '내용없음')}"
+                    
+                    # 2. 강제 렌더링 (이 'with'문이 핵심입니다)
+                    with st.expander(title):
+                        # 3. 내부 내용
+                        st.write(f"제조사: {s.get('make', '정보없음')}")
+                        st.write(f"상세스펙: {s.get('spec_detail', '내용없음')}")
                         
-                        # 각 항목별로 expander 생성
-                        with st.expander(label):
-                            st.write(f"**제조사:** {s.get('make', '정보없음')}")
-                            st.write(f"**상세 스펙:** {s_detail}")
-                            
-                            # 삭제 버튼
-                            # ObjectId를 str로 변환하여 고유 키 유지
-                            btn_key = f"del_{str(s.get('_id'))}"
-                            if st.button("🗑️ 삭제", key=btn_key):
-                                db.delete_one({"_id": s['_id']})
-                                st.rerun() # 삭제 후 즉시 화면 갱신
-                                
-                    except Exception as e:
-                        st.error(f"항목 표시 오류: {e}")
+                        # 4. 삭제 버튼
+                        if st.button("🗑️ 삭제", key=f"del_{str(s.get('_id'))}"):
+                            db.delete_one({"_id": s['_id']})
+                            st.rerun()
+            else:
+                st.info("등록된 스펙이 없습니다.")
 
 #####################################################################################################################################
 
