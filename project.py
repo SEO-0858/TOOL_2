@@ -1706,7 +1706,7 @@ else:
       
         # 3. 리스트 조회 (다른 모든 코드 무시하고 이것만 실행)
         st.write("---")
-        st.subheader("📋 스펙 마스터 목록")
+        st.subheader("📋스펙 마스터 목록")
         
         # 1. DB에서 데이터 가져오기
         specs = list(db.find({}))
@@ -1741,10 +1741,8 @@ else:
             <style>
                 @media print {
                     /* 🔍 대제목(no-print 클래스)을 인쇄 시 강제 숨김 */
-                    [data-testid="stSidebar"] {
-                    display: none !important;
-                    width: 0px !important;
-                    visibility: hidden !important;
+                    .no-print, [data-testid="stMarkdown"] :has(.no-print) {
+                        display: none !important;
                     }
                     /* 사이드바 영역 전체 숨김 */
                     [data-testid="stSidebar"], section[data-testid="stSidebar"] {
