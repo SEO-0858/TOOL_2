@@ -1277,6 +1277,7 @@ else:
                                 current_db = db_collection.database
         
                                 serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
+                                st.write(f"🔍 검색된 시리얼 리스트: {serials_to_delete}")
                                 if not serials_to_delete:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                 else:    
