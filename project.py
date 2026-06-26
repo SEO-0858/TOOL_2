@@ -1098,7 +1098,7 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
         
@@ -1873,3 +1873,47 @@ else:
 
             if st.button("⬅️ 돌아가기"):
                 st.rerun()
+
+
+
+
+    elif tool_menu == "📅 날짜별 툴 현황":
+        st.title("📅 날짜별 툴 상태 현황")
+        
+        # 1. 입력 필드 구성
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            search_date = st.date_input("날짜 선택", value=datetime.now())
+        with col2:
+            status_option = st.selectbox("상태 선택", ["전체", "사용전", "사용중", "재사용", "재사용대기", "폐기"])
+        with col3:
+            # 시리얼 번호 부분 입력창 추가
+            serial_input = st.text_input("시리얼 번호 (일부 가능)")
+        
+        if st.button("검색 실행"):
+            date_str = search_date.strftime('%Y-%m-%d')
+            
+            # 2. 검색 쿼리 구성
+            # 기본 쿼리: 날짜 필수 포함
+            query = {"note": {"$regex": f"{date_str}"}}
+            
+            # 상태 조건 추가
+            if status_option != "전체":
+                query["note"]["$regex"] += f".*{status_option}"
+                
+            # 시리얼 번호 조건 추가 (시리얼 번호가 입력된 경우)
+            if serial_input:
+                query["serial_no"] = {"$regex": serial_input}
+            
+            # 3. DB 조회
+            results = list(db['tools_management'].find(query))
+            
+            # 4. 결과 출력
+            if results:
+                st.success(f"총 {len(results)}건의 데이터를 찾았습니다.")
+                import pandas as pd
+                df = pd.DataFrame(results)
+                # 깔끔하게 표로 출력
+                st.dataframe(df[['serial_no', 'tool_type', 'note']])
+            else:
+                st.warning("해당 조건에 맞는 데이터가 없습니다.")           
