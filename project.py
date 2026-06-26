@@ -1279,8 +1279,8 @@ else:
                                 # [삭제 및 초기화 폼 시작]
                                 with st.form("reset_form", clear_on_submit=True):
                                     # 1. 체크박스
-                                    understand_risk = st.checkbox("선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
                                     
+                                    understand_risk = st.checkbox("선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="unique_reset_risk_group")
                                     # 2. 실행 버튼
                                     submitted = st.form_submit_button("선택한 대상 데이터 초기화 실행")
                                     
