@@ -1883,7 +1883,7 @@ else:
         # 1. 입력 필드 구성
         col1, col2, col3 = st.columns(3)
         with col1:
-            search_date = st.date_input("날짜 선택", value=datetime.now())
+            search_date = st.date_input("날짜 선택", value=dt.now())
         with col2:
             status_option = st.selectbox("상태 선택", ["전체", "사용전", "사용중", "재사용", "재사용대기", "폐기"])
         with col3:
