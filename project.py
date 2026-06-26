@@ -1279,25 +1279,19 @@ else:
                                 if not serials_to_delete:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                 else:
-                                    # 기존 삭제 로직 실행
                                     for item in serials_to_delete:
-                                        # ... (기존의 재고 복구 및 데이터 삭제 로직 그대로 유지)
+                                        # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
                                         make_val = item.get("make")
-                                       
-                    
-                                for item in serials_to_delete:
-                                    # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
-                                    make_val = item.get("make")
-                                    detail_val = item.get("spec_detail")
-                                    if make_val and detail_val:
-                                        target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
-                                        
-                                        if target:
-                                            current_db['tool_specs_master'].update_one(
-                                                {"_id": target["_id"]}, 
-                                                {"$inc": {"new_tool_count": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
-                                                            # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
-                                            )
+                                        detail_val = item.get("spec_detail")
+                                        if make_val and detail_val:
+                                            target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
+                                            
+                                            if target:
+                                                current_db['tool_specs_master'].update_one(
+                                                    {"_id": target["_id"]}, 
+                                                    {"$inc": {"new_tool_count": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
+                                                                # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
+                                                )
                    
 
                                 db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
