@@ -1299,10 +1299,10 @@ else:
 
  
                             
-                            st.session_state.show_qr_grid = False
-                            st.session_state.current_view_serials = []
-                            st.session_state.reset_success = True
-                            st.rerun()
+                                st.session_state.show_qr_grid = False
+                                st.session_state.current_view_serials = []
+                                st.session_state.reset_success = True
+                                st.rerun()
                         else:
                             st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
                             
