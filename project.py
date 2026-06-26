@@ -1268,16 +1268,12 @@ else:
                             else:
                                 from datetime import datetime, timedelta, timezone
                                 KST = timezone(timedelta(hours=9))
-                                today_str = datetime.now(KST).strftime('%Y%m%d')
-                                
+                                today_str = datetime.now(KST).strftime('%Y%m%d')                       
                                 code_prefix = target_reset_code.split(" ")[0]
-                             
                                 search_pattern = f"^{code_prefix}{today_str}"
-                                st.write(f"🔍 삭제를 위해 검색 중인 패턴: `{search_pattern}`")
                                 current_db = db_collection.database
-        
                                 serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
-                                st.write(f"🔍 검색된 시리얼 리스트: {serials_to_delete}")
+                               
                                 if not serials_to_delete:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                 else:    
