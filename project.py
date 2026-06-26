@@ -1270,6 +1270,7 @@ else:
                                 today_str = datetime.now().strftime('%Y%m%d')
                                 code_prefix = target_reset_code.split(" ")[0]
                                 search_pattern = f"^{code_prefix}{today_str}"
+                                st.write(f"🔍 삭제를 위해 검색 중인 패턴: `{search_pattern}`")
                                 current_db = db_collection.database
         
                                 serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
