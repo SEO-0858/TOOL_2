@@ -1294,15 +1294,15 @@ else:
                                                 )
                    
 
-                                db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
-                                st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
+                                    db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                                    st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
 
- 
-                            
-                                st.session_state.show_qr_grid = False
-                                st.session_state.current_view_serials = []
-                                st.session_state.reset_success = True
-                                st.rerun()
+    
+                                
+                                    st.session_state.show_qr_grid = False
+                                    st.session_state.current_view_serials = []
+                                    st.session_state.reset_success = True
+                                    st.rerun()
                         else:
                             st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
                             
