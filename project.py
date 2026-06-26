@@ -1266,9 +1266,12 @@ else:
                                 #db_collection.delete_many({})
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
-                                from datetime import datetime
-                                today_str = datetime.now().strftime('%Y%m%d')
+                                from datetime import datetime, timedelta, timezone
+                                KST = timezone(timedelta(hours=9))
+                                today_str = datetime.now(KST).strftime('%Y%m%d')
+                                
                                 code_prefix = target_reset_code.split(" ")[0]
+                             
                                 search_pattern = f"^{code_prefix}{today_str}"
                                 st.write(f"🔍 삭제를 위해 검색 중인 패턴: `{search_pattern}`")
                                 current_db = db_collection.database
