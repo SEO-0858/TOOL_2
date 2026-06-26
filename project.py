@@ -1279,9 +1279,9 @@ else:
                                 if not serials_to_delete:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                     if st.button("확인 (창 닫기)"):
-                                        st.session_state.reset_success = False # 상태 리셋
                                         time.sleep(1.0)
-                                        st.rerun() #
+                                        st.session_state.reset_success = False  
+                                        st.rerun() 
                                 else:
                                     for item in serials_to_delete:
                                         # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
