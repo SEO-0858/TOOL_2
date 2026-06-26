@@ -1266,10 +1266,25 @@ else:
                                 db_collection.delete_many({})
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
+                                from datetime import datetime
+                                today_str = datetime.now().strftime('%Y%m%d') 
                                 code_prefix = target_reset_code.split(" ")[0]
+
+                                # 시리얼 번호가 "분류코드" + "날짜"로 시작한다고 가정할 때:
+                                # 예: 1(분류) + 260626(날짜) -> '1260626'으로 시작하는 모든 데이터 검색
+                                search_pattern = f"^{code_prefix}{today_str}"
                                 current_db = db_collection.database
         
-                                serials_to_delete = list(db_collection.find({"serial_no": {"$regex": f"^{code_prefix}"}}))
+                                serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
+                                if not serials_to_delete:
+                                    st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
+                                else:
+                                    # 기존 삭제 로직 실행
+                                    for item in serials_to_delete:
+                                        # ... (기존의 재고 복구 및 데이터 삭제 로직 그대로 유지)
+                                        make_val = item.get("make")
+                                       
+                    
                                 for item in serials_to_delete:
                                     # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
                                     make_val = item.get("make")
