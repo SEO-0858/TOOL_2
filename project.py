@@ -1906,7 +1906,8 @@ else:
                 query["serial_no"] = {"$regex": serial_input}
             
             # 3. DB 조회
-            results = list(db['tools_management'].find(query))
+            db = db_collection.database['tools_management']
+            results = list(db.find(query))
             
             # 4. 결과 출력
             if results:
