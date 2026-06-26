@@ -1263,8 +1263,10 @@ else:
                     if st.button("🚨 선택한 대상 데이터 초기화 실행", key="btn_group_del"):
                         if understand_risk:
                             if target_reset_code == "⚠️ 전체 모든 데이터 싹 다 삭제":
-                                db_collection.delete_many({})
-                                st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
+                                st.error("⚠️ 정말 전체 데이터를 삭제하시겠습니까? (이 버튼은 위험합니다)")
+                                if st.button("진짜 삭제 실행"):
+                                    db_collection.delete_many({})
+                                    st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
                                 from datetime import datetime
                                 today_str = datetime.now().strftime('%Y%m%d')
