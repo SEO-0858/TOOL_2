@@ -1267,57 +1267,41 @@ else:
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
                                 from datetime import datetime
-                                today_str = datetime.now().strftime('%Y%m%d') 
+                                today_str = datetime.now().strftime('%Y%m%d')
                                 code_prefix = target_reset_code.split(" ")[0]
-
- 
                                 search_pattern = f"^{code_prefix}{today_str}"
                                 current_db = db_collection.database
         
                                 serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
-                                # [삭제 및 초기화 폼 시작]
-                            with st.form("reset_form", clear_on_submit=True):
-                                # 1. 체크박스
-                                understand_risk = st.checkbox("선택한 대상 데이터를 초기화하고 처음부터 연사를 시작하는 것에 동의합니다.", key="risk_group")
-                                
-                                # 2. 실행 버튼
-                                submitted = st.form_submit_button("선택한 대상 데이터 초기화 실행")
-                                
-                                if submitted:
-                                    if not understand_risk:
-                                        st.error("동의 체크박스를 확인해주세요.")
-                                    else:
-                                        # 데이터 조회
-                                        serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
-                                        
-                                        if not serials_to_delete:
-                                            st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
-                                        else:
-                                            # 재고 복구 및 삭제 로직
-                                            for item in serials_to_delete:
-                                                make_val = item.get("make")
-                                                detail_val = item.get("spec_detail")
-                                                
-                                                target = current_db['tool_specs_master'].find_one({'make': make_val, 'spec_detail': detail_val})
-                                                if target:
-                                                    current_db['tool_specs_master'].update_one(
-                                                        {'_id': target['_id']},
-                                                        {'$inc': {'new_tool_count': -1}}
-                                                    )
+                                if not serials_to_delete:
+                                    st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
+                                else:    
+                                    for item in serials_to_delete:
+                                        # tools_management 데이터에서 제조사(make)와 상세스펙(spec_detail)을 가져옵니다.
+                                        make_val = item.get("make")
+                                        detail_val = item.get("spec_detail")
+                                        if make_val and detail_val:
+                                            target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
                                             
-                                            # 실제 데이터 삭제
-                                            db_collection.delete_many({"serial_no": {"$regex": search_pattern}})
-                                            
-                                            # 결과 알림 및 초기화
-                                            st.success(f"{target_reset_code} 데이터 삭제 및 상세 재고 차감 완료!")
-                                            st.session_state.show_qr_grid = False
-                                            st.session_state.current_view_serials = []
-                                            st.session_state.reset_success = True
-                                            # rerun은 폼 외부에서 호출하는 것이 좋습니다
+                                            if target:
+                                                current_db['tool_specs_master'].update_one(
+                                                    {"_id": target["_id"]}, 
+                                                    {"$inc": {"new_tool_count": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
+                                                                # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
+                                                )
+                    
+
+                                    db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                                    st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
+
+ 
                             
-                            # 폼 제출 후 상태 처리
-                            if st.session_state.get("reset_success"):
-                                st.rerun()
+                            st.session_state.show_qr_grid = False
+                            st.session_state.current_view_serials = []
+                            st.session_state.reset_success = True
+                            st.rerun()
+                        else:
+                            st.error("⚠️ 상단 '동의합니다' 체크박스를 반드시 체크해야 초기화가 수행됩니다.")
                             
                 else:
                     target_single_serial = st.text_input("🆔 삭제 처리할 12자리 시리얼 번호를 정확히 기입하세요 (예: 001060200001)").strip()
