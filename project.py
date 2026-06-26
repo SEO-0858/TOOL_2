@@ -1280,7 +1280,8 @@ else:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                     if st.button("확인 (창 닫기)"):
                                         time.sleep(1.0)
-                                        st.session_state.reset_success = False  
+                                        st.session_state.reset_success = False
+                                        st.session_state.selected_reset_target = None  
                                         st.rerun() 
                                 else:
                                     for item in serials_to_delete:
