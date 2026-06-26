@@ -1914,6 +1914,8 @@ else:
                 st.success(f"총 {len(results)}건의 데이터를 찾았습니다.")
                 import pandas as pd
                 df = pd.DataFrame(results)
+                df = df.sort_values(by='serial_no', ascending=True)
+                df.index = range(1, len(df) + 1)
                 # 깔끔하게 표로 출력
                 st.dataframe(df[['serial_no', 'tool_type', 'note']])
             else:
