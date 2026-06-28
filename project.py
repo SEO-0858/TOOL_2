@@ -1879,12 +1879,13 @@ else:
 
     elif tool_menu == "📅 날짜별 툴 현황":
         st.title("📅 날짜별 툴 상태 현황")
+        from datetime import datetime
         
         # 1. 입력 필드 구성
         col1, col2, col3 = st.columns(3)
         with col1:
             #search_date = st.date_input("날짜 선택", value=dt.now())
-            search_date = st.date_input("날짜 선택", value=datetime.today())
+            search_date = st.date_input("날짜 선택", value=datetime.now())
         with col2:
             status_option = st.selectbox("상태 선택", ["전체", "사용전", "사용중", "재사용", "재사용대기", "폐기"])
         with col3:
