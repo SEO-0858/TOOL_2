@@ -1266,14 +1266,13 @@ else:
                                 #db_collection.delete_many({})
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
-                                from datetime import datetime, timedelta, timezone
-                                KST = timezone(timedelta(hours=9))
-                                today_str = datetime.now(KST).strftime('%Y%m%d')                       
+                                from datetime import datetime
+                                today_str = datetime.now().strftime('%Y%m%d')
                                 code_prefix = target_reset_code.split(" ")[0]
                                 search_pattern = f"^{code_prefix}{today_str}"
                                 current_db = db_collection.database
+        
                                 serials_to_delete = list(db_collection.find({"serial_no": {"$regex": search_pattern}}))
-                               
                                 if not serials_to_delete:
                                     st.warning("오늘 발행된 해당 대분류 툴 데이터가 없습니다.")
                                 else:    
@@ -1292,13 +1291,11 @@ else:
                                                 )
                     
 
-                                    st.write(f"🚨 삭제 대상 개수: {len(serials_to_delete)}개")
-                                    time.sleep(2)
-                                    db_collection.delete_many({"serial_no": {"$regex": search_pattern}})
+                                    db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
                                     st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
 
  
-
+                            
                             st.session_state.show_qr_grid = False
                             st.session_state.current_view_serials = []
                             st.session_state.reset_success = True
@@ -1886,7 +1883,8 @@ else:
         # 1. 입력 필드 구성
         col1, col2, col3 = st.columns(3)
         with col1:
-            search_date = st.date_input("날짜 선택", value=dt.now())
+            #search_date = st.date_input("날짜 선택", value=dt.now())
+            search_date = st.date_input("날짜 선택", value=datetime.today())
         with col2:
             status_option = st.selectbox("상태 선택", ["전체", "사용전", "사용중", "재사용", "재사용대기", "폐기"])
         with col3:
@@ -1917,8 +1915,6 @@ else:
                 st.success(f"총 {len(results)}건의 데이터를 찾았습니다.")
                 import pandas as pd
                 df = pd.DataFrame(results)
-                df = df.sort_values(by='serial_no', ascending=True)
-                df.index = range(1, len(df) + 1)
                 # 깔끔하게 표로 출력
                 st.dataframe(df[['serial_no', 'tool_type', 'note']])
             else:
