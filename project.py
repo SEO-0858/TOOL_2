@@ -1293,7 +1293,7 @@ else:
                     
                                     st.write(f"🚨 삭제 대상 시리얼 패턴: {search_pattern}") 
                                     st.write(f"🚨 삭제 대상 개수: {len(serials_to_delete)}개")
-                                    time.sleep(5)
+                                    time.sleep(10)
                                     db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
                                     st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
 
