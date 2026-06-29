@@ -447,6 +447,35 @@ def get_status_info(item, current_now):
 
 
 
+
+def get_remaining_time(target_time_str):
+    # 1. 값이 없으면 바로 탈출
+    if not target_time_str:
+        return "-"
+    
+    try:
+        # 2. 데이터 형식 강제 변환 (시간대 정보가 있다면 제거)
+        target_str = str(target_time_str).strip()
+        target_dt = datetime.datetime.strptime(target_str, "%Y-%m-%d %H:%M:%S")
+        
+        # 3. 시간대 정보가 없는 순수 시간과 비교 (오프셋 에러 방지)
+        now = datetime.datetime.now().replace(tzinfo=None)
+        
+        delta = target_dt - now
+        
+        # 4. 시간 계산
+        if delta.total_seconds() <= 0:
+            return "시간 초과"
+        
+        total_seconds = int(delta.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        
+        return f"{hours}시간 {minutes}분 {seconds}초 남음"
+    except Exception as e:
+        # 에러가 나도 죽지 않게 함
+        return "형식 확인 필요"
     
 
 def get_tool_type_name(serial_no):
@@ -519,8 +548,68 @@ def render_tool_ui(item, color_hex, status_label, db_status):
     """, unsafe_allow_html=True)
 
 
+def get_spec_master_collection():
+    mongo_uri = st.secrets["database"]["MONGO_URI"]
+    try:
+        client = MongoClient(mongo_uri)
+        return client["dashboard_db"]["tool_specs_master"] # <- 여기서 정확히 지정 중!
+    except:
+        return None
     
-         
+def parse_serial_new(s):
+    # s는 12자리 문자열
+    t_type = s[0]      # 종류 (1자리)
+    date_part = s[1:9] # 날짜 (8자리)
+    seq = s[9:12]      # 순번 (3자리)
+    return t_type, date_part, seq
+if 'sidebar_errors' not in st.session_state:
+    st.session_state.sidebar_errors = []
+
+
+def get_elapsed_time_str(start_time_val):
+    try:
+        if not start_time_val or start_time_val == "-":
+            return ""
+        
+        start_dt = dt_class.strptime(str(start_time_val), "%Y-%m-%d %H:%M:%S")
+        
+        # [핵심 수정] 여기서 직접 계산하지 말고 위에서 정의한 함수를 호출하세요!
+        now_kst = get_now_kst() 
+        diff = now_kst - start_dt
+        
+        # ... 이하 동일 ...
+        
+        hours = int(diff.total_seconds() // 3600)
+        minutes = int((diff.total_seconds() % 3600) // 60)
+        
+        return f'<br><span style="color:red; font-size:9px;">({hours}시간 {minutes}분 경과)</span>'
+    except:
+        return "" # 어떤 에러가 나도 조용히 빈 값 반환
+
+def add_error(msg):
+    st.session_state.sidebar_errors.append(msg)
+# 🌟 1. 페이지 기본 설정 및 URL 파라미터 추적
+st.set_page_config(page_title="KKQ 4파트 다이아몬드 툴관리", layout="wide")
+# [2단계: 사이드바 오류 표시 영역]
+with st.sidebar:
+    st.subheader("⚠️ 시스템 통합 알림")
+    
+    # 1. 오류 표시 공간(Placeholder) 만들기
+    error_area = st.empty()
+    
+    # 2. 리스트에 오류가 있을 때만 화면에 표시
+    if st.session_state.sidebar_errors:
+        with error_area.container():
+            for err in st.session_state.sidebar_errors:
+                st.error(err)
+    
+    # 3. 버튼 로직
+    if st.button("🚫 모든 오류 확인 및 초기화"):
+        # 리스트 비우기
+        st.session_state.sidebar_errors = []
+        # 즉시 화면의 알람 영역을 비워버림 (rerun 불필요!)
+        error_area.empty()
+            
 
 @st.cache_resource
 def get_database():
