@@ -1423,8 +1423,10 @@ else:
                             
                             # [버튼 1] 현장 작업 내용만 리셋
                             if st.button(f"🔄 현장 작업 내용만 리셋", key=f"reset_work_{s_no}"):
+                                current_item = db['tools_management'].find_one({"serial_no": s_no})
+                                saved_note = current_item.get("note", "")
                                 db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
-                                    "status": "사용전", "worker": "", "machine_no": "", "note": "작업 내용 리셋"
+                                    "status": "사용전", "worker": "", "machine_no": "", "note": saved_note
                                 }})
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
                                 st.rerun()
