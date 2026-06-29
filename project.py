@@ -1426,8 +1426,14 @@ else:
                                 current_item = db['tools_management'].find_one({"serial_no": s_no})
                                 saved_note = current_item.get("note", "")
                                 db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
+                                    "status": "사용전", "worker": "", "machine_no": "", "note": ""
+                                }})
+
+                                db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
                                     "status": "사용전", "worker": "", "machine_no": "", "note": saved_note
                                 }})
+
+
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
                                 time.sleep(1.5)
                                 st.rerun()
