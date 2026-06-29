@@ -1446,51 +1446,62 @@ else:
                                 all_specs = [s["spec_detail"] for s in db["tool_specs_master"].find()]
                                
 
-
                                 # [확인 창]
                                 if st.session_state.get(f"confirm_spec_{s_no}", False):
                                     st.warning(f"⚠️ [{current_spec}] 스펙 오류를 삭제하고 빈 시리얼로 되돌리시겠습니까?")
-                                    
+
+                                    # 1. 컬럼 분리
                                     col_a, col_b = st.columns(2)
-                                    # 확인 버튼: 재고 -1 하고, 데이터를 초기화(None)
-                                   
-                                    if col_a.button(f"✅ 확인 (삭제 및 원복)", key=f"confirm_del_{s_no}", type="primary"):
-                                        st.session_state[f"backup_{s_no}"] = db["tools_management"].find_one({"serial_no": s_no})
-                                        # 1. 재고 -1 차감 (마스터 DB)
-                                        db["tool_specs_master"].update_one(
-                                            {"spec_detail": current_spec},
-                                            {"$inc": {"new_tool_count": -1}}
-                                        )
+
+                                    # 2. 작업이 아직 완료되지 않았을 때 (확인/닫기 버튼 표시)
+                                    if not st.session_state.get(f"work_done_{s_no}", False):
                                         
-                                        # 2. 데이터 리셋 (현장 DB)
-                                        # $unset을 사용하여 spec_detail 필드만 삭제하고, 
-                                        # 나머지 데이터(입고일, 최초 발행 시간 등)는 그대로 보존합니다.
-                                        db["tools_management"].update_one(
-                                            {"serial_no": s_no},
-                                            {
-                                                "$unset": {"spec_detail": "", "make": ""}, # 스펙과 제조사 정보만 삭제
-                                                "$set": {
-                                                    "status": "사용전",
-                                                    "worker": "",
-                                                    "machine_no": "",
-                                                    "note": f"[{get_now_kst().strftime('%Y-%m-%d %H:%M')} 발행] 현장 입고일 완료 (현장 기입 대기) - 이전 스펙('{current_spec}') 오류 삭제 완료"
-                                                }
-                                            }
-                                        )
-                                        if st.session_state.get(f"work_done_{s_no}", False):
-                                            st.success("작업이 완료되었습니다.")
+                                        # 확인 버튼
+                                        if col_a.button(f"✅ 확인 (삭제 및 원복)", key=f"confirm_del_{s_no}", type="primary"):
+                                            # A. 백업 저장
+                                            st.session_state[f"backup_{s_no}"] = db["tools_management"].find_one({"serial_no": s_no})
                                             
-                                            # 닫기(실행 취소) 버튼
-                                            if st.button("❌ 닫기 (실행 취소)", key=f"undo_{s_no}"):
-                                                # [실행 취소 로직]: 백업해둔 데이터를 DB에 다시 덮어씀
-                                                old_data = st.session_state[f"backup_{s_no}"]
+                                            # B. 1. 재고 -1 차감 (마스터 DB)
+                                            db["tool_specs_master"].update_one(
+                                                {"spec_detail": current_spec},
+                                                {"$inc": {"new_tool_count": -1}}
+                                            )
+
+                                            # C. 2. 데이터 리셋 (현장 DB)
+                                            db["tools_management"].update_one(
+                                                {"serial_no": s_no},
+                                                {
+                                                    "$unset": {"spec_detail": "", "make": ""},
+                                                    "$set": {
+                                                        "status": "사용전",
+                                                        "worker": "",
+                                                        "machine_no": "",
+                                                        "note": f"[{get_now_kst().strftime('%Y-%m-%d %H:%M')}] 발행 입고일 완료 (현장 기입 대기) - 이전 스펙('{current_spec}') 오류 삭제 완료"
+                                                    }
+                                                }
+                                            )
+                                            # D. 작업 완료 표시
+                                            st.session_state[f"work_done_{s_no}"] = True
+                                            st.rerun()
+
+                                        # 닫기 버튼 (작업 안 하고 그냥 닫기)
+                                        if col_b.button("❌ 닫기", key=f"close_del_{s_no}"):
+                                            st.session_state[f"confirm_spec_{s_no}"] = False
+                                            st.rerun()
+
+                                    # 3. 작업이 완료된 후 (실행 취소 버튼 표시)
+                                    else:
+                                        st.success("작업이 완료되었습니다.")
+                                        if st.button("❌ 닫기 (실행 취소)", key=f"undo_{s_no}"):
+                                            # A. 실행 취소 로직: 백업해둔 데이터를 DB에 다시 덮어씀
+                                            old_data = st.session_state.get(f"backup_{s_no}")
+                                            if old_data:
                                                 db["tools_management"].replace_one({"serial_no": s_no}, old_data)
-                                                
-                                                # 상태 초기화
-                                                st.session_state[f"work_done_{s_no}"] = False
-                                                st.rerun()
-
-
+                                            
+                                            # B. 상태 초기화
+                                            st.session_state[f"work_done_{s_no}"] = False
+                                            st.session_state[f"confirm_spec_{s_no}"] = False
+                                            st.rerun()
 
 
         except Exception as e:
