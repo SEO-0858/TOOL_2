@@ -1455,6 +1455,7 @@ else:
                                     # 확인 버튼: 재고 -1 하고, 데이터를 초기화(None)
                                    
                                     if col_a.button(f"✅ 확인 (삭제 및 원복)", key=f"confirm_del_{s_no}", type="primary"):
+                                        st.session_state[f"backup_{s_no}"] = db["tools_management"].find_one({"serial_no": s_no})
                                         # 1. 재고 -1 차감 (마스터 DB)
                                         db["tool_specs_master"].update_one(
                                             {"spec_detail": current_spec},
@@ -1476,9 +1477,18 @@ else:
                                                 }
                                             }
                                         )
-                                        st.session_state[f"confirm_spec_{s_no}"] = False
-                                        st.success("✨ 발행 정보는 유지하고 스펙만 초기화되었습니다.")
-                                        st.rerun()
+                                        if st.session_state.get(f"work_done_{s_no}", False):
+                                            st.success("작업이 완료되었습니다.")
+                                            
+                                            # 닫기(실행 취소) 버튼
+                                            if st.button("❌ 닫기 (실행 취소)", key=f"undo_{s_no}"):
+                                                # [실행 취소 로직]: 백업해둔 데이터를 DB에 다시 덮어씀
+                                                old_data = st.session_state[f"backup_{s_no}"]
+                                                db["tools_management"].replace_one({"serial_no": s_no}, old_data)
+                                                
+                                                # 상태 초기화
+                                                st.session_state[f"work_done_{s_no}"] = False
+                                                st.rerun()
 
 
 
