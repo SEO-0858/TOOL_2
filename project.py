@@ -1164,9 +1164,17 @@ else:
                     "waste_date": "-",
                     "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
-                    
+                saved_note_1=[]
+                saved_note_2=[]
+                saved_note_1=blank_records.copy()
+                saved_note_2=saved_note_1["note"]
+                st.write("saved_note_2")
+                time.sleep(10)
+
+
             try:
                 db_collection.insert_many(blank_records)
+
                 st.session_state.current_view_serials = generated_serials
                 st.session_state.show_qr_grid = True
                 st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다!")
@@ -1423,8 +1431,8 @@ else:
                             
                             # [버튼 1] 현장 작업 내용만 리셋
                             if st.button(f"🔄 현장 작업 내용만 리셋", key=f"reset_work_{s_no}"):
-                                current_item = db['tools_management'].find_one({"serial_no": s_no})
-                                saved_note = current_item.get("note", "")
+                                
+                                
                                 db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
                                     "status": "사용전", "worker": "", "machine_no": "", "note": ""
                                 }})
