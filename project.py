@@ -1164,12 +1164,6 @@ else:
                     "waste_date": "-",
                     "note": f"[{display_yyyymmdd_hhmm} 발행] 현장 입고일 완료 (현장 기입 대기)"
                 })
-                saved_note_1=[]
-                saved_note_2=[]
-                saved_note_1=blank_records.copy()
-                saved_note_2=saved_note_1["note"]
-                st.write("saved_note_2")
-                time.sleep(10)
 
 
             try:
@@ -1180,6 +1174,8 @@ else:
                 st.success(f"🎉 {quantity}개의 순번 빈데이터가 안전하게 DB에 등록되었습니다!")
             except Exception as e:
                 st.error(f"오류 발생: {e}")
+            st.session_state.initial_blank_record = blank_records
+
 
         if st.session_state.show_qr_grid and st.session_state.current_view_serials:
             st.write("<br>", unsafe_allow_html=True)
@@ -1431,16 +1427,15 @@ else:
                             
                             # [버튼 1] 현장 작업 내용만 리셋
                             if st.button(f"🔄 현장 작업 내용만 리셋", key=f"reset_work_{s_no}"):
+                                blank_record = st.session_state.get("initial_blank_record", {})
+                                initial_note = blank_record.get("note", "")
+                                st.write(f"🔍 [검증] 가져온 초기 노트 내용: **{initial_note}**")
+                                time.sleep(30)
                                 
                                 
                                 db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
                                     "status": "사용전", "worker": "", "machine_no": "", "note": ""
                                 }})
-
-                                db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
-                                    "status": "사용전", "worker": "", "machine_no": "", "note": saved_note
-                                }})
-
 
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
                                 time.sleep(1.5)
