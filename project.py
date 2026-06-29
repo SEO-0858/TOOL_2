@@ -1425,25 +1425,10 @@ else:
                             st.divider()
                             st.subheader("🛠 데이터 관리")
                             
-                            # [버튼 1] 현장 작업 내용만 리셋
-                            if st.button(f"🔄 현장 작업 내용만 리셋", key=f"reset_work_{s_no}"):
-                                blank_record = st.session_state.get("initial_blank_record", {})
-                                initial_note = blank_record.get("note", "")
-                                st.write(f"🔍 [검증] 가져온 초기 노트 내용: **{initial_note}**")
-                                time.sleep(30)
-                                
-                                
-                                db["tools_management"].update_one({"serial_no": s_no}, {"$set": {
-                                    "status": "사용전", "worker": "", "machine_no": "", "note": ""
-                                }})
 
-                                st.success("✅ 작업 이력이 초기화되었습니다.")
-                                time.sleep(1.5)
-                                st.rerun()
                                 
-
                           
-                            # [버튼 2: 스펙 오류 삭제 및 재고 보정]
+                            # [스펙 오류 삭제 및 재고 보정]
                             if st.button(f"🗑 [스펙 오류 삭제 및 재고 보정]", key=f"reset_spec_{s_no}", type="primary"):
                                 # 1. 유효성 검사 (기존 로직 유지)
                                 if not current_spec or not spec_info:
