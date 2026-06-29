@@ -1429,6 +1429,7 @@ else:
                                     "status": "사용전", "worker": "", "machine_no": "", "note": saved_note
                                 }})
                                 st.success("✅ 작업 이력이 초기화되었습니다.")
+                                time.sleep(1.5)
                                 st.rerun()
                                 
 
