@@ -1293,12 +1293,14 @@ else:
                                             elif item.get("status") == "재사용대기":
                                                 field_to_decrement = "used_tool_count"
 
-                                            if target:
+                                            if target and field_to_decrement: # 👈 field_to_decrement가 None이 아닐 때만 실행!
                                                 current_db['tool_specs_master'].update_one(
                                                     {"_id": target["_id"]}, 
-                                                    {"$inc": {field_to_decrement: -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
-                                                                # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
+                                                    {"$inc": {field_to_decrement: -1}}
                                                 )
+                                            else:
+                                                # 만약 차감할 필드가 없다면(status가 사용중 등) 건너뜁니다.
+                                                print(f"재고 차감 대상 아님: {item.get('status')}")
                     
 
                                     db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
