@@ -1287,10 +1287,16 @@ else:
                                         if make_val and detail_val:
                                             target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
                                             
+                                            field_to_decrement = None
+                                            if item.get("status") == "사용전":
+                                                field_to_decrement = "new_tool_count"
+                                            elif item.get("status") == "재사용대기":
+                                                field_to_decrement = "used_tool_count"
+
                                             if target:
                                                 current_db['tool_specs_master'].update_one(
                                                     {"_id": target["_id"]}, 
-                                                    {"$inc": {"new_tool_count": -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
+                                                    {"$inc": {field_to_decrement: -1}}# 2. 스펙 마스터에서 [제조사(make)와 상세스펙(spec_detail)]이 모두 일치하는 항목을 찾아 차감
                                                                 # 이제 대분류(tool_type) 대신 제조사(make)를 기준으로 찾습니다.
                                                 )
                     
