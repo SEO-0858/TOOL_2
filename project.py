@@ -1476,7 +1476,7 @@ else:
                                                         "status": "사용전",
                                                         "worker": "",
                                                         "machine_no": "",
-                                                        "note": f"[{get_now_kst().strftime('%Y-%m-%d %H:%M')}] 발행 입고일 완료 (현장 기입 대기) - 이전 스펙('{current_spec}') 오류 삭제 완료"
+                                                        "note": f"[{get_now_kst().strftime('%Y-%m-%d %H:%M')}] 발행 입고일 완료 (현장 기입 대기) - 이전 스펙('{current_spec}') 오기입 상세스펙 삭제 완료"
                                                     }
                                                 }
                                             )
@@ -1492,13 +1492,7 @@ else:
                                     # 3. 작업이 완료된 후 (실행 취소 버튼 표시)
                                     else:
                                         st.success("작업이 완료되었습니다.")
-                                        if st.button("❌ 닫기 (실행 취소)", key=f"undo_{s_no}"):
-                                            # A. 실행 취소 로직: 백업해둔 데이터를 DB에 다시 덮어씀
-                                            old_data = st.session_state.get(f"backup_{s_no}")
-                                            if old_data:
-                                                db["tools_management"].replace_one({"serial_no": s_no}, old_data)
-                                            
-                                            # B. 상태 초기화
+                                        if st.button("❌ 닫기 (메인 돌아가기)", key=f"close_after_done_{s_no}"):      
                                             st.session_state[f"work_done_{s_no}"] = False
                                             st.session_state[f"confirm_spec_{s_no}"] = False
                                             st.rerun()
