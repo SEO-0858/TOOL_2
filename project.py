@@ -38,6 +38,7 @@ def waste_dialog(serial, data):
     machine_final = f"{int(numbers[0]):02d}호기" if numbers else machine_val
 
     waste_qty = st.number_input("(!!가공수량이 없으면 0을 넣으세요!!) (개)", min_value=0, value=0, step=1)
+    waste_qty_confirmed = st.checkbox(f"가공수량 {waste_qty}개 맞습니다.", key=f"confirm_waste_qty_{serial}")
     current_worker = data.get('worker', '')
     worker_input = st.text_input("작업자 이름:", value=current_worker)
 
@@ -48,6 +49,8 @@ def waste_dialog(serial, data):
             st.error("사유를 선택해주세요.")
         elif not worker_input:
             st.error("작업자 이름을 입력해주세요.")
+        elif not waste_qty_confirmed:
+            st.error(f"가공수량 {waste_qty}개가 맞는지 확인 체크를 해주세요.")
         else:
             try:
                 # 기존 로직 (로그 생성 및 DB 업데이트)
@@ -677,8 +680,13 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         
     pop_mach_num = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val if def_m_val > 0 else 1, key=f"pop_mach_pending_{s_no}")
     pop_count = st.number_input("📊 이번 공정에서의 가공 갯수 (개)", min_value=0, max_value=999999, value=100, step=10, key=f"pop_count_pending_{s_no}")
+    pop_count_confirmed = st.checkbox(f"가공수량 {pop_count}개 맞습니다.", key=f"confirm_pending_count_{s_no}")
     
     if st.button("🚀 실적 기록 및 재사용대기 저장"):
+        if not pop_count_confirmed:
+            st.error(f"가공수량 {pop_count}개가 맞는지 확인 체크를 해주세요.")
+            st.stop()
+
         log_now = get_now_kst()
         log_time_str = log_now.strftime("%Y-%m-%d %H:%M:%S")
         pop_mach_name = f"{pop_mach_num}호기"
@@ -746,6 +754,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     # 작업자 이름과 사용 갯수를 여기서 입력받습니다.
     pop_worker_name = st.text_input("👤 폐기 처리 작업자 성명", value=ed_worker, key=f"pop_worker_{s_no}")
     pop_use_count = st.number_input("🔢 폐기 시점까지의 사용 갯수", min_value=0, value=0, key=f"pop_use_count_{s_no}")
+    pop_use_count_confirmed = st.checkbox(f"가공수량 {pop_use_count}개 맞습니다.", key=f"confirm_waste_count_{s_no}")
 
 
     waste_options = [
@@ -764,6 +773,9 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     if st.button("💾 실적 기록 및 폐기 저장", type="primary"):
         if chosen_reason == "5. 기타 (직접기입)" and not detail_reason:
             add_error("⚠️ '5. 기타 (직접기입)'를 선택한 경우, 상세 사유 내용을 반드시 입력하셔야 저장이 가능합니다!")
+            st.stop()
+        if not pop_use_count_confirmed:
+            add_error(f"⚠️ 가공수량 {pop_use_count}개가 맞는지 확인 체크를 해주세요.")
             st.stop()
 
         spec = db_collection.find_one({"serial_no": s_no}).get('spec_detail', '스펙없음')    
@@ -829,8 +841,10 @@ def confirm_and_save(serial, data):
         st.write(f"- **폐기 사유:** {reason}")
     
     qty = 0
+    qty_confirmed = True
     if data['status'] in ["폐기", "재사용대기"]:
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
+        qty_confirmed = st.checkbox(f"최종 가공수량 {qty}개 맞습니다.", key=f"confirm_final_qty_{serial}")
 
     # 상태가 '폐기'로 변경될 때만 로그 남기기
         if data['status'] == "폐기":           
@@ -845,6 +859,9 @@ def confirm_and_save(serial, data):
                 st.session_state['reset_u_status_to'] = data['prev_status']
                 st.session_state['show_confirm_dialog'] = False
                 st.stop()
+        if not qty_confirmed:
+            st.error(f"최종 가공수량 {qty}개가 맞는지 확인 체크를 해주세요.")
+            st.stop()
 
         final_note = data['note']
         if data['status'] != data['prev_status']:
@@ -1283,8 +1300,7 @@ else:
                                 #db_collection.delete_many({})
                                 st.session_state.reset_message = "💥 전체 데이터베이스 항목 초기화 처리가 완벽하게 끝났습니다! 전체 리셋이 완료되었습니다."
                             else:
-                                from datetime import datetime
-                                today_str = datetime.now().strftime('%Y%m%d')
+                                today_str = get_now_kst().strftime('%Y%m%d')
                                 code_prefix = target_reset_code.split(" ")[0]
                                 search_pattern = f"^{code_prefix}{today_str}"
                                 current_db = db_collection.database
@@ -1300,15 +1316,15 @@ else:
                                         if make_val and detail_val:
                                             target = current_db['tool_specs_master'].find_one({"make": make_val, "spec_detail": detail_val})
                                             
-                                            field_to_decrement = None
-                                            if item.get("status") == "사용전":
-                                                field_to_decrement = "new_tool_count"
-                                            elif item.get("status") == "재사용대기":
-                                                field_to_decrement = "used_tool_count"
+                                            field_to_decrement = {
+                                                "사용전": "new_tool_count",
+                                                "재사용대기": "used_tool_count",
+                                                "폐기": "disposed_tool_count",
+                                            }.get(item.get("status"))
 
                                             if target and field_to_decrement: # 👈 field_to_decrement가 None이 아닐 때만 실행!
                                                 current_db['tool_specs_master'].update_one(
-                                                    {"_id": target["_id"]}, 
+                                                    {"_id": target["_id"], field_to_decrement: {"$gt": 0}}, 
                                                     {"$inc": {field_to_decrement: -1}}
                                                 )
                                             else:
@@ -1316,8 +1332,8 @@ else:
                                                 print(f"재고 차감 대상 아님: {item.get('status')}")
                     
 
-                                    db_collection.delete_many({"serial_no": {"$regex": search_pattern}})
-                                    st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
+                                    delete_result = db_collection.delete_many({"serial_no": {"$regex": search_pattern}})
+                                    st.session_state.reset_message = f"{target_reset_code} 오늘자 데이터 {delete_result.deleted_count}개 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
 
  
                             
