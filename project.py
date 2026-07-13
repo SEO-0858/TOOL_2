@@ -9,13 +9,9 @@ import base64
 from io import BytesIO
 import qrcode
 dt_class = dt
-import datetime  # 이렇게 불러와야 datetime.datetime 으로 접근 가능합니다.
-from datetime import timedelta
 import pytz
 
 
-
-st.cache_data.clear()
 
 @st.dialog("⚠️ 툴 폐기 처리")
 def waste_dialog(serial, data):
@@ -55,7 +51,6 @@ def waste_dialog(serial, data):
         else:
             try:
                 # 기존 로직 (로그 생성 및 DB 업데이트)
-                db = db_collection.database['disposal_logs']
                 latest_doc = db_collection.database['tools_management'].find_one({"serial_no": serial})
                 current_note = latest_doc.get('note', '') if latest_doc else ""
                 quantities = re.findall(r'(?:수량|가공갯수):\s*(\d+)개', current_note)
@@ -247,9 +242,10 @@ def show_machine_dashboard():
     machine_tool_map = {}
     for t in active_tools:
         m_no_match = re.findall(r'\d+', str(t.get('machine_no', '')))
-        if m_no_match:
-            m_no = int(m_no_match[0])
-            # 해당 기계 번호 키가 없으면 리스트를 만들고, 있으면 기존 리스트에 툴을 추가(append)
+        if not m_no_match:
+            continue
+        m_no = int(m_no_match[0])
+        # 해당 기계 번호 키가 없으면 리스트를 만들고, 있으면 기존 리스트에 툴을 추가(append)
         if m_no not in machine_tool_map:
             machine_tool_map[m_no] = []
         machine_tool_map[m_no].append(t)
@@ -624,17 +620,15 @@ def get_database():
         return None
 
 db_collection = get_database()
+if db_collection is None:
+    st.stop()
 db_inventory = db_collection.database["tool_inventory"]
 
 # --- [공정 흐름 제어 검문소] ---
 def validate_process(current_status, next_status):
-    # 예외 허용: 사용전 상태라도 다음이 폐기이고, 나중에 사유가 들어올 것이라면 일단 통과
-    if current_status == "사용전" and next_status == "폐기":
-        return True, ""
-        
     allowed = {
-        "사용전": ["사용중"],
-        "사용중": ["사용중","재사용대기", "폐기"],
+        "사용전": ["사용중", "폐기"],
+        "사용중": ["재사용대기", "폐기"],
         "재사용대기": ["재사용", "폐기"],
         "재사용": ["재사용대기", "폐기"],
         "폐기": []
@@ -845,6 +839,14 @@ def confirm_and_save(serial, data):
 
 
     if st.button("✅ 최종 확정 및 저장"):
+        if data['status'] != data['prev_status']:
+            ok, msg = validate_process(data['prev_status'], data['status'])
+            if not ok:
+                st.error(msg)
+                st.session_state['u_status'] = data['prev_status']
+                st.session_state['show_confirm_dialog'] = False
+                st.stop()
+
         final_note = data['note']
         if data['status'] != data['prev_status']:
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -1062,6 +1064,13 @@ if qr_scanned_serial:
 
 
     if st.button("데이터 확인 및 저장", key="main_save_button"):
+        if u_status != prev_status:
+            ok, msg = validate_process(prev_status, u_status)
+            if not ok:
+                st.error(msg)
+                st.session_state['u_status'] = prev_status
+                st.stop()
+
         st.session_state['last_confirmed_status'] = u_status
         st.session_state['confirm_data'] = {
             'status': u_status,
@@ -1303,7 +1312,7 @@ else:
                                                 print(f"재고 차감 대상 아님: {item.get('status')}")
                     
 
-                                    db_collection.delete_many({"serial_no": {"$regex": f"^{code_prefix}"}})
+                                    db_collection.delete_many({"serial_no": {"$regex": search_pattern}})
                                     st.session_state.reset_message = f"{target_reset_code} 데이터 삭제 및 상세 재고(제조사/스펙 기준) 차감 완료!"
 
  
