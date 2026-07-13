@@ -1350,12 +1350,23 @@ else:
                                 if item_to_delete:
                                     make_val = item_to_delete.get("make")
                                     detail_val = item_to_delete.get("spec_detail")
+                                    status_val = item_to_delete.get("status")
                                     if make_val and detail_val:
-                                        # 데이터베이스 접근을 확실하게 하기 위해 db_collection.database 사용
-                                        db_collection.database['tool_specs_master'].update_one(
-                                            {"make": make_val, "spec_detail": detail_val}, 
-                                            {"$inc": {"new_tool_count": -1}}
-                                        )
+                                        delete_count_field = {
+                                            "사용전": "new_tool_count",
+                                            "재사용대기": "used_tool_count",
+                                            "폐기": "disposed_tool_count",
+                                        }.get(status_val)
+
+                                        if delete_count_field:
+                                            db_collection.database['tool_specs_master'].update_one(
+                                                {
+                                                    "make": make_val,
+                                                    "spec_detail": detail_val,
+                                                    delete_count_field: {"$gt": 0},
+                                                },
+                                                {"$inc": {delete_count_field: -1}}
+                                            )
 
                                 db_collection.delete_one({"serial_no": target_single_serial})
                                 st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
@@ -1482,11 +1493,21 @@ else:
                                             # A. 백업 저장
                                             st.session_state[f"backup_{s_no}"] = db["tools_management"].find_one({"serial_no": s_no})
                                             
-                                            # B. 1. 재고 -1 차감 (마스터 DB)
-                                            db["tool_specs_master"].update_one(
-                                                {"spec_detail": current_spec},
-                                                {"$inc": {"new_tool_count": -1}}
-                                            )
+                                            # B. 현재 상태가 실제 재고 수량에 잡혀 있는 경우만 차감
+                                            spec_reset_count_field = {
+                                                "사용전": "new_tool_count",
+                                                "재사용대기": "used_tool_count",
+                                                "폐기": "disposed_tool_count",
+                                            }.get(item.get("status"))
+
+                                            if spec_reset_count_field:
+                                                db["tool_specs_master"].update_one(
+                                                    {
+                                                        "spec_detail": current_spec,
+                                                        spec_reset_count_field: {"$gt": 0},
+                                                    },
+                                                    {"$inc": {spec_reset_count_field: -1}}
+                                                )
 
                                             # C. 2. 데이터 리셋 (현장 DB)
                                             db["tools_management"].update_one(
