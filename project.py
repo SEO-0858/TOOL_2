@@ -100,9 +100,9 @@ def waste_dialog(serial, data):
         
         # 3. 데이터 복구 로직 (기존에 작성하신 복구 코드 유지)
         if 'last_valid_status' in st.session_state:
-            st.session_state['u_status'] = st.session_state['last_valid_status']
+            st.session_state['reset_u_status_to'] = st.session_state['last_valid_status']
         else:
-            st.session_state['u_status'] = data.get('status', '사용전')
+            st.session_state['reset_u_status_to'] = data.get('status', '사용전')
             
         st.rerun()
         
@@ -806,7 +806,6 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 @st.dialog("💾 데이터 최종 확인")
 def confirm_and_save(serial, data):
     if not st.session_state.get('show_confirm_dialog', False):
-        st.session_state['u_status'] = data.get('prev_status')
         return
     # 1. 상태 대조 및 강조 로직
     if data['status'] != data['prev_status']:
@@ -843,7 +842,7 @@ def confirm_and_save(serial, data):
             ok, msg = validate_process(data['prev_status'], data['status'])
             if not ok:
                 st.error(msg)
-                st.session_state['u_status'] = data['prev_status']
+                st.session_state['reset_u_status_to'] = data['prev_status']
                 st.session_state['show_confirm_dialog'] = False
                 st.stop()
 
@@ -886,7 +885,7 @@ def confirm_and_save(serial, data):
 
     if st.button("❌ 취소하고 전 상태로 돌아가기"):
         st.session_state['show_confirm_dialog'] = False
-        st.session_state['u_status'] = data['prev_status']
+        st.session_state['reset_u_status_to'] = data['prev_status']
         st.rerun()    
 
 
@@ -1010,6 +1009,11 @@ if qr_scanned_serial:
     st.markdown("### 🛠 툴 현재 상태")
     status_options = ["사용전", "사용중", "재사용", "재사용대기", "폐기"]
     idx = status_options.index(prev_status) if prev_status in status_options else 0
+    reset_status = st.session_state.pop('reset_u_status_to', None)
+    if reset_status in status_options:
+        st.session_state['u_status'] = reset_status
+    elif st.session_state.get('u_status') not in status_options:
+        st.session_state['u_status'] = prev_status
 
     u_status = st.radio(
         "상태를 선택하세요", status_options, index=idx, key="u_status",
@@ -1068,7 +1072,7 @@ if qr_scanned_serial:
             ok, msg = validate_process(prev_status, u_status)
             if not ok:
                 st.error(msg)
-                st.session_state['u_status'] = prev_status
+                st.session_state['reset_u_status_to'] = prev_status
                 st.stop()
 
         st.session_state['last_confirmed_status'] = u_status
