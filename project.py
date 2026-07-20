@@ -609,6 +609,33 @@ def get_lot_api_config():
     }
 
 
+def render_lot_api_debug(context_key):
+    api = get_lot_api_config()
+    url = api.get("url", "")
+    key = api.get("key", "")
+    masked_key_tail = f"**{key[-2:]}" if len(key) >= 2 else "(empty)"
+    with st.expander("LOT API 설정 확인", expanded=False):
+        st.caption("실제 key 값은 보안 때문에 표시하지 않습니다.")
+        st.write(f"URL 설정됨: {'예' if url else '아니오'}")
+        st.write(f"URL 값: {url or '(비어 있음)'}")
+        st.write(f"KEY 설정됨: {'예' if key else '아니오'}")
+        st.write(f"KEY 글자 수: {len(key)}")
+        st.write(f"KEY 끝 2자리: {masked_key_tail}")
+
+
+def lot_api_debug_text():
+    api = get_lot_api_config()
+    url = api.get("url", "")
+    key = api.get("key", "")
+    masked_key_tail = f"**{key[-2:]}" if len(key) >= 2 else "(empty)"
+    return (
+        f" LOT API 확인: URL={'있음' if url else '없음'}"
+        f", KEY={'있음' if key else '없음'}"
+        f", KEY글자수={len(key)}"
+        f", KEY끝2자리={masked_key_tail}"
+    )
+
+
 def build_ksi_work_order_no(tail_or_full, prefix=None):
     value = str(tail_or_full or "").strip().upper()
     if not value:
@@ -673,6 +700,7 @@ def lookup_ksi_lot_info(work_order_no):
             return info, ""
     except urlerror.HTTPError as exc:
         if exc.code == 403:
+            return None, "LOT 조회 인증 실패(HTTP 403): Streamlit Secrets의 ksi_lot_api.key 값을 중계 PC api_key와 똑같이 맞춰주세요." + lot_api_debug_text()
             return None, "LOT 조회 인증 실패(HTTP 403): Streamlit Secrets의 ksi_lot_api.key 값을 중계 PC api_key와 똑같이 맞춰주세요."
         return None, f"LOT 조회 서버 응답 오류: HTTP {exc.code}"
     except Exception as exc:
