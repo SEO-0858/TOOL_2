@@ -444,29 +444,18 @@ def render_tool_ui(item, color_hex, status_label, db_status):
         except Exception as e:
             duration_text = f"⏳ 오류: {str(e)}"
 
-    
-    # 4. HTML 기반 UI 출력
-    # (주의: 인자로 전달된 color_hex 대신, 위에서 계산된 color 변수를 사용해야 시간이 일치합니다.)
-    st.markdown(f"""
-    <div style="padding: 10px; border-radius: 8px; border-left: 6px solid {color}; background-color: #f9f9f9; margin-bottom: 5px;">
-        <h4 style="margin: 0; font-size: 15px;">🆔 {item.get('serial_no')}</h4>
-        <div style="font-size: 14px; font-weight: bold; color: #222; margin: 5px 0;">
-            [{db_status}] | <span style="color: {color};">{status_label}</span>
-        </div>
-        <div style="font-size: 13px; font-weight: bold; color: #444;">
-            [{tool_type}툴]
-        </div>
-        <div style="font-size: 13px; color: #333; margin-top: 2px;">
-            👤 <b>작업자:</b> {worker_name}
-        </div>
-        <div style="font-size: 12px; color: #666; margin-top: 2px;">
-            🛠 {item.get('spec_detail', '-')}
-        </div>
-        <div style="font-size: 12px; font-weight: bold; color: #333; text-align: center; margin-top: 5px;">
-            {duration_text}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    status_icon = "🟢" if color == "green" else "🟠" if color == "orange" else "🔴" if color == "red" else "⚪"
+    card_lines = [
+        f"**🆔 {item.get('serial_no')}**",
+        f"**[{db_status}]** {status_icon} {status_label}",
+        f"**[{tool_type}툴]**",
+        f"👤 작업자: {worker_name}",
+        f"🛠 {item.get('spec_detail', '-')}",
+    ]
+    if duration_text:
+        card_lines.append(duration_text)
+
+    st.markdown("\n\n".join(card_lines))
 
 
 def get_spec_master_collection():
@@ -581,6 +570,34 @@ def requires_waste_dialog(prev_status, next_status):
     return requires_qty_input(prev_status, next_status) and next_status == "폐기"
 
 
+def normalize_lot_api_key(raw_key):
+    key = str(raw_key or "").strip()
+    if not key:
+        return ""
+
+    if "key=" in key or "?" in key:
+        parsed = urlparse.urlparse(key)
+        query_text = parsed.query if parsed.query else key.lstrip("?")
+        query_values = urlparse.parse_qs(query_text)
+        key_values = query_values.get("key")
+        if key_values:
+            return str(key_values[0]).strip()
+        if key.lower().startswith("key="):
+            return key.split("=", 1)[1].strip()
+
+    return key
+
+
+def add_query_param(raw_url, name, value):
+    if not value:
+        return raw_url
+
+    parsed = urlparse.urlparse(raw_url)
+    query_values = urlparse.parse_qsl(parsed.query, keep_blank_values=True)
+    query_values.append((name, value))
+    return urlparse.urlunparse(parsed._replace(query=urlparse.urlencode(query_values)))
+
+
 def get_lot_api_config():
     try:
         config = st.secrets.get("ksi_lot_api", {})
@@ -588,7 +605,7 @@ def get_lot_api_config():
         config = {}
     return {
         "url": str(config.get("url", "")).strip(),
-        "key": str(config.get("key", "")).strip(),
+        "key": normalize_lot_api_key(config.get("key", "")),
     }
 
 
@@ -641,6 +658,7 @@ def lookup_ksi_lot_info(work_order_no):
     headers = {"Accept": "application/json"}
     if api["key"]:
         headers["X-API-Key"] = api["key"]
+        lookup_url = add_query_param(lookup_url, "key", api["key"])
 
     req = urlrequest.Request(lookup_url, headers=headers, method="GET")
     try:
@@ -654,6 +672,8 @@ def lookup_ksi_lot_info(work_order_no):
                 return None, "LOT 조회는 되었지만 ERP 규격(spec) 값이 없습니다."
             return info, ""
     except urlerror.HTTPError as exc:
+        if exc.code == 403:
+            return None, "LOT 조회 인증 실패(HTTP 403): Streamlit Secrets의 ksi_lot_api.key 값을 중계 PC api_key와 똑같이 맞춰주세요."
         return None, f"LOT 조회 서버 응답 오류: HTTP {exc.code}"
     except Exception as exc:
         return None, f"LOT 조회 실패: {exc}"
