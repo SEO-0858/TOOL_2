@@ -66,13 +66,22 @@ def waste_dialog(serial, data):
                 quantities = re.findall(r'(?:수량|가공갯수):\s*(\d+)개', current_note)
                 total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty
                 
+                valid_lot_items = lot_valid_items(lot_info)
+                lot_list = [item["lot_no"] for item in valid_lot_items if item.get("lot_no")]
+                spec_list = [item["spec"] for item in valid_lot_items if item.get("spec")]
+                first_lot_item = valid_lot_items[0] if valid_lot_items else {}
+
                 log_data = {
                     "serial_no": serial, "machine_no": machine_final, "disposal_reason": selected_reason,
                     "detail_reason": detail_reason, "worker": worker_input, "waste_qty": total_accumulated_qty,
                     "spec_detail": data.get('spec_detail', ''), "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
-                    "erp_items": lot_valid_items(lot_info),
-                    "erp_lot_no": lot_info.get("work_order_no", ""),
-                    "erp_spec": lot_info.get("spec", "")
+                    "erp_items": valid_lot_items,
+                    "erp_lot_no": first_lot_item.get("lot_no", ""),
+                    "erp_spec": first_lot_item.get("spec", ""),
+                    "erp_lot_list": lot_list,
+                    "erp_spec_list": spec_list,
+                    "erp_lot_text": " / ".join(lot_list),
+                    "erp_spec_text": " / ".join(spec_list),
                 }
                 db_collection.database['disposal_logs'].insert_one(log_data)
                 
@@ -1004,10 +1013,16 @@ def lot_db_fields(lot_info):
     if not valid_items:
         return {}
     first = valid_items[0]
+    lot_list = [item["lot_no"] for item in valid_items if item.get("lot_no")]
+    spec_list = [item["spec"] for item in valid_items if item.get("spec")]
     return {
         "last_erp_lot_no": first["lot_no"],
         "last_erp_spec": first["spec"],
         "last_erp_items": valid_items,
+        "last_erp_lot_list": lot_list,
+        "last_erp_spec_list": spec_list,
+        "last_erp_lot_text": " / ".join(lot_list),
+        "last_erp_spec_text": " / ".join(spec_list),
     }
 
 
@@ -1023,6 +1038,10 @@ def lot_db_unset_fields(lot_info=None):
         fields["last_erp_lot_no"] = ""
         fields["last_erp_spec"] = ""
         fields["last_erp_items"] = ""
+        fields["last_erp_lot_list"] = ""
+        fields["last_erp_spec_list"] = ""
+        fields["last_erp_lot_text"] = ""
+        fields["last_erp_spec_text"] = ""
     return fields
 
 
@@ -1184,10 +1203,16 @@ def lot_db_fields(lot_info):
     if not valid_items:
         return {}
     first = valid_items[0]
+    lot_list = [item["lot_no"] for item in valid_items if item.get("lot_no")]
+    spec_list = [item["spec"] for item in valid_items if item.get("spec")]
     return {
         "last_erp_lot_no": first["lot_no"],
         "last_erp_spec": first["spec"],
         "last_erp_items": valid_items,
+        "last_erp_lot_list": lot_list,
+        "last_erp_spec_list": spec_list,
+        "last_erp_lot_text": " / ".join(lot_list),
+        "last_erp_spec_text": " / ".join(spec_list),
     }
 
 
@@ -1203,6 +1228,10 @@ def lot_db_unset_fields(lot_info=None):
         fields["last_erp_lot_no"] = ""
         fields["last_erp_spec"] = ""
         fields["last_erp_items"] = ""
+        fields["last_erp_lot_list"] = ""
+        fields["last_erp_spec_list"] = ""
+        fields["last_erp_lot_text"] = ""
+        fields["last_erp_spec_text"] = ""
     return fields
 
 
