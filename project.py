@@ -6,7 +6,11 @@ import pandas as pd
 import re
 import time
 import base64
+import json
 from io import BytesIO
+from urllib import error as urlerror
+from urllib import parse as urlparse
+from urllib import request as urlrequest
 import qrcode
 dt_class = dt
 import pytz
@@ -39,6 +43,7 @@ def waste_dialog(serial, data):
 
     waste_qty = st.number_input("(!!가공수량이 없으면 0을 넣으세요!!) (개)", min_value=0, value=0, step=1)
     waste_qty_confirmed = st.checkbox(f"가공수량 {waste_qty}개 맞습니다.", key=f"confirm_waste_qty_{serial}")
+    lot_info = render_lot_lookup_box(f"waste_{serial}")
     current_worker = data.get('worker', '')
     worker_input = st.text_input("작업자 이름:", value=current_worker)
 
@@ -51,6 +56,8 @@ def waste_dialog(serial, data):
             st.error("작업자 이름을 입력해주세요.")
         elif not waste_qty_confirmed:
             st.error(f"가공수량 {waste_qty}개가 맞는지 확인 체크를 해주세요.")
+        elif not ensure_lot_lookup_ready(lot_info):
+            st.stop()
         else:
             try:
                 # 기존 로직 (로그 생성 및 DB 업데이트)
@@ -62,20 +69,23 @@ def waste_dialog(serial, data):
                 log_data = {
                     "serial_no": serial, "machine_no": machine_final, "disposal_reason": selected_reason,
                     "detail_reason": detail_reason, "worker": worker_input, "waste_qty": total_accumulated_qty,
-                    "spec_detail": data.get('spec_detail', ''), "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
+                    "spec_detail": data.get('spec_detail', ''), "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
+                    "erp_items": lot_valid_items(lot_info),
+                    "erp_lot_no": lot_info.get("work_order_no", ""),
+                    "erp_spec": lot_info.get("spec", "")
                 }
                 db_collection.database['disposal_logs'].insert_one(log_data)
                 
                 # DB 업데이트
                 combined_reason = f"{selected_reason}: {detail_reason}" if selected_reason == "6. 기타사유(직접기입)" else selected_reason
-                new_log = f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개"
-                db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}})
+                new_log = f"\n[{get_now_kst().strftime('%Y-%m-%d %H:%M:%S')}] 상태:폐기, 스펙:{data.get('spec_detail', '스펙없음')}, 사유:{combined_reason}, 작업자:{worker_input}, 기계:{machine_final}, 최종수량:{total_accumulated_qty}개{format_lot_log(lot_info)}"
+                db_collection.database['tools_management'].update_one({"serial_no": serial}, {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final, **lot_db_fields(lot_info)}, "$unset": lot_db_unset_fields(lot_info)})
                 
 
                 # 72라인 근처 수정
                 result = db_collection.database['tools_management'].update_one(
                     {"serial_no": serial}, 
-                    {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final}}
+                    {"$set": {"status": "폐기", "disposal_reason": selected_reason, "detail_reason": combined_reason, "note": current_note + new_log, "worker": worker_input, "machine_no": machine_final, **lot_db_fields(lot_info)}, "$unset": lot_db_unset_fields(lot_info)}
                 )
                 
                 # 업데이트된 개수를 확인하는 디버깅 코드 추가
@@ -290,38 +300,24 @@ def show_machine_dashboard():
                 new_machine = col1.text_input("기계 번호", value=target_tool.get('machine_no', ''))
                 new_worker = col2.text_input("담당 작업자", value=target_tool.get('worker', ''))
                 
-                # [수정] 드레싱 주기 입력창
-                col_h, col_m = st.columns(2)
-                new_hours = col_h.number_input("드레싱 시간(Hour)", min_value=0, value=int(target_tool.get('dressing_hours', 0)))
-                new_mins = col_m.number_input("드레싱 분(Minute)", min_value=0, max_value=59, value=int(target_tool.get('dressing_mins', 0)))
-                
                 if st.form_submit_button("💾 기본 정보 저장"):
                     old_machine = target_tool.get('machine_no', '')
                     old_worker = target_tool.get('worker', '')
                     
                     # 로그 기록
                     timestamp = get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-                    log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker} / 주기:{new_hours}h {new_mins}m 변경(타이머 리셋)".format(timestamp)
+                    log_msg = f"\n[{timestamp}] 기계:{old_machine}→{new_machine} / 작업자:{old_worker}→{new_worker}"
                     updated_note = (target_tool.get('note', '') + log_msg).strip()
-                    
-                    # [핵심] 현재 시간 기준으로 마감 시간(target_time) 재계산
-                    click_now = get_now_kst()
-                    new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
-                    new_target = (click_now + timedelta(hours=int(new_hours), minutes=int(new_mins))).strftime("%Y-%m-%d %H:%M:%S")
-                    
+
                     db_collection.update_one(
                         {"serial_no": ctx_key},
                         {"$set": {
                             "machine_no": new_machine, 
                             "worker": new_worker, 
-                            "dressing_hours": new_hours, 
-                            "dressing_mins": new_mins,
-                            "start_time": new_start,   # 시작 시간도 변경 시점으로 갱신
-                            "target_time": new_target, # 마감 시간 재계산 반영
                             "note": updated_note
                         }}
                     )
-                    st.success("정보가 저장되었으며, 타이머가 현재 시간 기준으로 리셋되었습니다!")
+                    st.success("기본 정보가 저장되었습니다!")
                     st.rerun()
 
             # 연혁 데이터 편집
@@ -337,81 +333,6 @@ def show_machine_dashboard():
                 )
                 st.success("연혁이 업데이트되었습니다!")
                 st.rerun()
-
-
-
-
-
-# 실시간 툴드레싱 알림판 show_live_dashboard() 호출부---------------------------------------------------------
-@st.fragment(run_every="60s")
-def show_live_dashboard():
-    """60초마다 자동 새로고침되는 실시간 알림판 대시보드"""
-    active_tools = list(db_collection.find({"status": {"$in": ["사용중", "재사용"]}, "target_time": {"$ne": "-"}}))
-    
-    if not active_tools:
-        st.info("🟢 현재 실시간 드레싱 타이머가 작동 중인 활성 툴이 없습니다.")
-        return
-
-    st.markdown("### 📊 실시간 가동 현황 목록")
-    current_now = get_now_kst()
-    
-    for item in active_tools:
-        target_time_str = item.get("target_time")
-        try:
-            target_dt = dt_class.strptime(target_time_str, "%Y-%m-%d %H:%M:%S")
-            time_diff = target_dt - current_now
-            total_seconds = time_diff.total_seconds()
-            
-            if total_seconds <= 0:
-                status_label = "🚧 현재 구현 중"
-                color_hex = "#FF4B4B"
-                time_text = f"🚧 ESP 32 모듈 카운터 구현 중"
-            elif total_seconds <= 3600:
-                status_label = "🚧 현재 구현 중"
-                color_hex = "#FFAA00"
-                time_text = f""
-            else:
-                status_label = "🟢 정상 가동 중"
-                color_hex = "#00B050"
-                hours_left = int(total_seconds // 3600)
-                mins_left = int((total_seconds % 3600) // 60)
-                time_text = f"⏱️ {hours_left}시간 {mins_left}분 남음"
-            
-            with st.container():
-                st.markdown(
-                    f"""
-                    <div style="border-left: 8px solid {color_hex}; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; border-radius: 4px;">
-                        <h4 style="margin: 0; color: #333;">🆔 시리얼: <code style="font-size:18px;">{item['serial_no']}</code> ({item['tool_type']}) — <span style="color:blue;">[{item.get('status', '사용중')}]</span></h4>
-                        <p style="margin: 5px 0; font-size: 15px;">
-                            <b>⚙️ 현재 가공 장비:</b> {item['machine_no']} | <b>👷 담당 작업자:</b> {item['worker']} <br>
-                            <b>📅 최초 장착 시간 (KST):</b> {item['start_time']}
-                            <span style="color: {color_hex}; font-weight: bold; font-size: 16px;">▶ 알림 현황: {status_label} — {time_text}</span>
-                        </p>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
-                
-                if st.button(f"🔄 시리얼 [{item['serial_no']}] (장착시간 리셋)", key=f"reset_{item['serial_no']}"):
-                    t_hours = int(item.get('dressing_hours', 4))
-                    t_mins = int(item.get('dressing_mins', 0))
-                    new_total_mins = (t_hours * 60) + t_mins
-                    click_now = get_now_kst()
-                    new_start = click_now.strftime("%Y-%m-%d %H:%M:%S")
-                    new_target = (click_now + timedelta(minutes=new_total_mins)).strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    db_collection.update_one(
-                        {"serial_no": item['serial_no']},
-                        {"$set": {
-                            "start_time": new_start,
-                            "target_time": new_target,
-                            "note": item.get('note', '') + f"\n[{click_now.strftime('%m/%d %H:%M')} 드레싱 주기 완료 및 타이머 리셋]"
-                        }}
-                    )
-                    st.success(f"🎉 타이머가 현재 시간 기준으로 리셋되었습니다!")
-                    st.rerun()
-        except Exception as e:
-            st.error(f"아이템 렌더링 오류: {e}")
 
 
 # thr.py 파일 내부
@@ -640,7 +561,553 @@ def validate_process(current_status, next_status):
         return False, f"⚠️ 공정 오류: {current_status} 상태에서는 {next_status}로 이동할 수 없습니다."
     return True, ""
 
+
+QTY_REQUIRED_TRANSITIONS = {
+    ("사용중", "재사용대기"),
+    ("사용중", "폐기"),
+    ("재사용", "재사용대기"),
+    ("재사용", "폐기"),
+    ("사용전", "폐기"),
+    ("재사용대기", "폐기"),
+}
+
+
+def requires_qty_input(prev_status, next_status):
+    return (prev_status, next_status) in QTY_REQUIRED_TRANSITIONS
+
+
+def requires_waste_dialog(prev_status, next_status):
+    return requires_qty_input(prev_status, next_status) and next_status == "폐기"
+
+
+def get_lot_api_config():
+    try:
+        config = st.secrets.get("ksi_lot_api", {})
+    except Exception:
+        config = {}
+    return {
+        "url": str(config.get("url", "")).strip(),
+        "key": str(config.get("key", "")).strip(),
+    }
+
+
+def build_ksi_work_order_no(tail_or_full, prefix=None):
+    value = str(tail_or_full or "").strip().upper()
+    if not value:
+        return ""
+    if value.startswith("KK"):
+        return value
+
+    digits = re.sub(r"\D", "", value)
+    if not digits:
+        return ""
+
+    if prefix is None:
+        prefix = f"KK{get_now_kst().year}"
+    return f"{prefix}{digits}"
+
+
+def normalize_lot_response(data, requested_work_order_no):
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict):
+        data = {}
+
+    normalized = {
+        "work_order_no": data.get("work_order_no") or data.get("작업지시번호") or requested_work_order_no,
+        "product_name": data.get("product_name") or data.get("품명") or data.get("AssyName") or "",
+        "spec": data.get("spec") or data.get("품목규격") or data.get("AssyItemSpec") or "",
+        "plan_qty": data.get("plan_qty") or data.get("계획수량") or "",
+    }
+    normalized["lookup_ok"] = bool(str(normalized.get("spec", "")).strip())
+    return normalized
+
+
+def lookup_ksi_lot_info(work_order_no):
+    api = get_lot_api_config()
+    if not api["url"]:
+        return None, "K-System LOT 중계 API 주소가 아직 설정되지 않았습니다."
+
+    base_url = api["url"]
+    if "{work_order_no}" in base_url:
+        lookup_url = base_url.replace("{work_order_no}", urlparse.quote(work_order_no))
+    elif "{tail}" in base_url:
+        tail = work_order_no[6:] if work_order_no.startswith("KK") else work_order_no
+        lookup_url = base_url.replace("{tail}", urlparse.quote(tail))
+    else:
+        lookup_url = base_url.rstrip("/") + "/lot/" + urlparse.quote(work_order_no)
+
+    headers = {"Accept": "application/json"}
+    if api["key"]:
+        headers["X-API-Key"] = api["key"]
+
+    req = urlrequest.Request(lookup_url, headers=headers, method="GET")
+    try:
+        with urlrequest.urlopen(req, timeout=5) as response:
+            payload = response.read().decode("utf-8")
+            data = json.loads(payload)
+            if isinstance(data, dict) and data.get("ok") is False:
+                return None, str(data.get("message") or "LOT 조회 결과가 없습니다.")
+            info = normalize_lot_response(data, work_order_no)
+            if not info.get("spec"):
+                return None, "LOT 조회는 되었지만 ERP 규격(spec) 값이 없습니다."
+            return info, ""
+    except urlerror.HTTPError as exc:
+        return None, f"LOT 조회 서버 응답 오류: HTTP {exc.code}"
+    except Exception as exc:
+        return None, f"LOT 조회 실패: {exc}"
+
+
+def render_lot_lookup_box(context_key):
+    st.markdown("#### 🔎 K-System LOT 조회")
+
+    prefix = f"KK{get_now_kst().year}"
+    no_lot_key = f"lot_not_required_{context_key}"
+    if st.checkbox("LOT 없음 / 수리품 등 ERP 품목 없이 저장", key=no_lot_key):
+        st.info("LOT 정보 없이 저장합니다. 기존 ERP LOT/spec 기록은 비워집니다.")
+        return {
+            "items": [],
+            "expected_count": 0,
+            "work_order_no": "",
+            "product_name": "",
+            "spec": "",
+            "plan_qty": "",
+            "lookup_ok": True,
+            "lookup_error": "",
+            "tail_entered": False,
+            "lot_not_required": True,
+        }
+
+    lot_info_key = f"lot_info_{context_key}"
+
+    col_prefix, col_tail, col_btn = st.columns([1.1, 2.0, 0.9])
+    col_prefix.text_input("앞번호", value=prefix, disabled=True, key=f"lot_prefix_{context_key}")
+    tail = col_tail.text_input("뒤 번호만 입력", placeholder="예: 0616031", key=f"lot_tail_{context_key}")
+
+    if col_btn.button("조회", key=f"lot_lookup_btn_{context_key}"):
+        work_order_no = build_ksi_work_order_no(tail, prefix)
+        if not work_order_no:
+            st.warning("LOT 뒤 번호를 입력해 주세요.")
+        else:
+            info, message = lookup_ksi_lot_info(work_order_no)
+            if info:
+                info["lookup_ok"] = True
+                info["lookup_error"] = ""
+                st.session_state[lot_info_key] = info
+                st.success("LOT 정보를 조회했습니다.")
+            else:
+                st.session_state[lot_info_key] = {
+                    "work_order_no": work_order_no,
+                    "product_name": "",
+                    "spec": "",
+                    "plan_qty": "",
+                    "lookup_ok": False,
+                    "lookup_error": message,
+                }
+                st.warning(message)
+
+    lot_info = st.session_state.get(lot_info_key, {})
+    work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
+    tail_entered = bool(str(tail or "").strip())
+
+    spec = st.text_input("ERP 규격(spec)", value=lot_info.get("spec", ""), disabled=True, key=f"lot_spec_{context_key}")
+
+    return {
+        "work_order_no": work_order_no,
+        "product_name": "",
+        "spec": spec.strip(),
+        "plan_qty": "",
+        "lookup_ok": bool(lot_info.get("lookup_ok")),
+        "lookup_error": lot_info.get("lookup_error", ""),
+        "tail_entered": tail_entered,
+    }
+
+
+def ensure_lot_lookup_ready(lot_info):
+    if not lot_info or not lot_info.get("tail_entered"):
+        return True
+    if lot_info.get("lookup_ok") and lot_info.get("spec"):
+        return True
+    st.error("LOT 번호를 입력했다면 ERP 조회가 성공해야 저장할 수 있습니다.")
+    return False
+
+
+def format_lot_log(lot_info):
+    if not lot_info or not lot_info.get("spec"):
+        return ""
+    lot_no = lot_info.get("work_order_no", "")
+    if lot_no:
+        return f", ERP LOT:{lot_no}, ERP규격:{lot_info['spec']}"
+    return f", ERP규격:{lot_info['spec']}"
+
+
+def lot_db_fields(lot_info):
+    if not lot_info or not lot_info.get("spec"):
+        return {}
+    return {
+        "last_erp_lot_no": lot_info.get("work_order_no", ""),
+        "last_erp_spec": lot_info.get("spec", ""),
+    }
+
+
+def lot_db_unset_fields(lot_info=None):
+    fields = {
+        "last_lot_no": "",
+        "last_work_order_no": "",
+        "last_product_name": "",
+        "last_plan_qty": "",
+        "last_product_spec": "",
+    }
+    if not lot_info or not lot_info.get("spec"):
+        fields["last_erp_lot_no"] = ""
+        fields["last_erp_spec"] = ""
+    return fields
+
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
+def render_lot_lookup_box(context_key):
+    st.markdown("#### K-System LOT 조회")
+
+    prefix = f"KK{get_now_kst().year}"
+    count_key = f"lot_count_{context_key}"
+    lot_count = st.number_input(
+        "LOT 품목 수",
+        min_value=1,
+        max_value=10,
+        value=int(st.session_state.get(count_key, 1) or 1),
+        step=1,
+        key=count_key,
+    )
+
+    items = []
+    for idx in range(int(lot_count)):
+        row_no = idx + 1
+        lot_info_key = f"lot_info_{context_key}_{idx}"
+
+        col_prefix, col_tail, col_btn = st.columns([1.1, 2.0, 0.9])
+        col_prefix.text_input("앞번호", value=prefix, disabled=True, key=f"lot_prefix_{context_key}_{idx}")
+        tail = col_tail.text_input(
+            f"LOT 뒷번호 {row_no}",
+            placeholder="예: 0616031",
+            key=f"lot_tail_{context_key}_{idx}",
+        )
+
+        if col_btn.button("조회", key=f"lot_lookup_btn_{context_key}_{idx}"):
+            work_order_no = build_ksi_work_order_no(tail, prefix)
+            if not work_order_no:
+                st.warning("LOT 뒷번호를 입력해 주세요.")
+            else:
+                info, message = lookup_ksi_lot_info(work_order_no)
+                if info:
+                    info["lookup_ok"] = True
+                    info["lookup_error"] = ""
+                    st.session_state[lot_info_key] = info
+                    st.success(f"LOT {row_no} 조회 성공")
+                else:
+                    st.session_state[lot_info_key] = {
+                        "work_order_no": work_order_no,
+                        "product_name": "",
+                        "spec": "",
+                        "plan_qty": "",
+                        "lookup_ok": False,
+                        "lookup_error": message,
+                    }
+                    st.warning(message)
+
+        lot_info = st.session_state.get(lot_info_key, {})
+        work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
+        tail_entered = bool(str(tail or "").strip())
+        spec = st.text_input(
+            f"ERP 규격(spec) {row_no}",
+            value=lot_info.get("spec", ""),
+            disabled=True,
+            key=f"lot_spec_{context_key}_{idx}",
+        )
+
+        items.append({
+            "work_order_no": work_order_no,
+            "product_name": "",
+            "spec": spec.strip(),
+            "plan_qty": "",
+            "lookup_ok": bool(lot_info.get("lookup_ok")),
+            "lookup_error": lot_info.get("lookup_error", ""),
+            "tail_entered": tail_entered,
+        })
+
+    valid_items = [item for item in items if item.get("lookup_ok") and item.get("spec")]
+    first = valid_items[0] if valid_items else (items[0] if items else {})
+    return {
+        "items": items,
+        "expected_count": int(lot_count),
+        "work_order_no": first.get("work_order_no", ""),
+        "product_name": "",
+        "spec": first.get("spec", ""),
+        "plan_qty": "",
+        "lookup_ok": bool(valid_items) and len(valid_items) == int(lot_count),
+        "lookup_error": first.get("lookup_error", ""),
+        "tail_entered": any(item.get("tail_entered") for item in items),
+        "lot_not_required": False,
+    }
+
+
+def lot_valid_items(lot_info):
+    if not lot_info:
+        return []
+    source_items = lot_info.get("items")
+    if source_items is None:
+        source_items = [lot_info]
+    return [
+        {
+            "lot_no": str(item.get("work_order_no", "")).strip(),
+            "spec": str(item.get("spec", "")).strip(),
+        }
+        for item in source_items
+        if item.get("lookup_ok") and str(item.get("spec", "")).strip()
+    ]
+
+
+def ensure_lot_lookup_ready(lot_info):
+    if not lot_info:
+        return True
+    if lot_info.get("lot_not_required"):
+        return True
+    items = lot_info.get("items") or [lot_info]
+    expected_count = int(lot_info.get("expected_count") or len(items) or 1)
+    any_tail_entered = any(item.get("tail_entered") for item in items)
+    if not any_tail_entered and expected_count == 1:
+        return True
+    if len(lot_valid_items(lot_info)) == expected_count:
+        return True
+    if expected_count > 1:
+        st.error("LOT 품목 수를 2개 이상으로 선택했다면 각 LOT를 모두 입력하고 ERP 조회가 성공해야 저장할 수 있습니다.")
+        return False
+    st.error("LOT 번호를 입력했다면 ERP 조회가 성공해야 저장할 수 있습니다.")
+    return False
+
+
+def format_lot_log(lot_info):
+    if lot_info and lot_info.get("lot_not_required"):
+        return ", ERP LOT:없음"
+    valid_items = lot_valid_items(lot_info)
+    if not valid_items:
+        return ""
+    if len(valid_items) == 1:
+        item = valid_items[0]
+        if item["lot_no"]:
+            return f", ERP LOT:{item['lot_no']}, ERP규격:{item['spec']}"
+        return f", ERP규격:{item['spec']}"
+    item_text = " / ".join(
+        f"[{idx}] LOT:{item['lot_no']}, ERP규격:{item['spec']}"
+        for idx, item in enumerate(valid_items, start=1)
+    )
+    return f", ERP LOT 품목:{item_text}"
+
+
+def lot_db_fields(lot_info):
+    valid_items = lot_valid_items(lot_info)
+    if not valid_items:
+        return {}
+    first = valid_items[0]
+    return {
+        "last_erp_lot_no": first["lot_no"],
+        "last_erp_spec": first["spec"],
+        "last_erp_items": valid_items,
+    }
+
+
+def lot_db_unset_fields(lot_info=None):
+    fields = {
+        "last_lot_no": "",
+        "last_work_order_no": "",
+        "last_product_name": "",
+        "last_plan_qty": "",
+        "last_product_spec": "",
+    }
+    if not lot_valid_items(lot_info):
+        fields["last_erp_lot_no"] = ""
+        fields["last_erp_spec"] = ""
+        fields["last_erp_items"] = ""
+    return fields
+
+
+def render_lot_lookup_box(context_key):
+    st.markdown("#### K-System LOT 조회")
+
+    no_lot_key = f"lot_not_required_{context_key}"
+    if st.checkbox("LOT 없음 / 수리품 등 ERP 품목 없이 저장", key=no_lot_key):
+        st.info("LOT 정보 없이 저장합니다. 기존 ERP LOT/spec 기록은 비워집니다.")
+        return {
+            "items": [],
+            "expected_count": 0,
+            "work_order_no": "",
+            "product_name": "",
+            "spec": "",
+            "plan_qty": "",
+            "lookup_ok": True,
+            "lookup_error": "",
+            "tail_entered": False,
+            "lot_not_required": True,
+        }
+
+    prefix = f"KK{get_now_kst().year}"
+    count_key = f"lot_count_{context_key}"
+    lot_count = st.number_input(
+        "LOT 품목 수",
+        min_value=1,
+        max_value=10,
+        value=int(st.session_state.get(count_key, 1) or 1),
+        step=1,
+        key=count_key,
+    )
+
+    items = []
+    for idx in range(int(lot_count)):
+        row_no = idx + 1
+        lot_info_key = f"lot_info_{context_key}_{idx}"
+
+        col_prefix, col_tail, col_btn = st.columns([1.1, 2.0, 0.9])
+        col_prefix.text_input("앞번호", value=prefix, disabled=True, key=f"lot_prefix_{context_key}_{idx}")
+        tail = col_tail.text_input(
+            f"LOT 뒷번호 {row_no}",
+            placeholder="예: 0616031",
+            key=f"lot_tail_{context_key}_{idx}",
+        )
+
+        if col_btn.button("조회", key=f"lot_lookup_btn_{context_key}_{idx}"):
+            work_order_no = build_ksi_work_order_no(tail, prefix)
+            if not work_order_no:
+                st.warning("LOT 뒷번호를 입력해 주세요.")
+            else:
+                info, message = lookup_ksi_lot_info(work_order_no)
+                if info:
+                    info["lookup_ok"] = True
+                    info["lookup_error"] = ""
+                    st.session_state[lot_info_key] = info
+                    st.success(f"LOT {row_no} 조회 성공")
+                else:
+                    st.session_state[lot_info_key] = {
+                        "work_order_no": work_order_no,
+                        "product_name": "",
+                        "spec": "",
+                        "plan_qty": "",
+                        "lookup_ok": False,
+                        "lookup_error": message,
+                    }
+                    st.warning(message)
+
+        lot_info = st.session_state.get(lot_info_key, {})
+        work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
+        tail_entered = bool(str(tail or "").strip())
+        spec = st.text_input(
+            f"ERP 규격(spec) {row_no}",
+            value=lot_info.get("spec", ""),
+            disabled=True,
+            key=f"lot_spec_{context_key}_{idx}",
+        )
+
+        items.append({
+            "work_order_no": work_order_no,
+            "product_name": "",
+            "spec": spec.strip(),
+            "plan_qty": "",
+            "lookup_ok": bool(lot_info.get("lookup_ok")),
+            "lookup_error": lot_info.get("lookup_error", ""),
+            "tail_entered": tail_entered,
+        })
+
+    valid_items = [item for item in items if item.get("lookup_ok") and item.get("spec")]
+    first = valid_items[0] if valid_items else (items[0] if items else {})
+    return {
+        "items": items,
+        "expected_count": int(lot_count),
+        "work_order_no": first.get("work_order_no", ""),
+        "product_name": "",
+        "spec": first.get("spec", ""),
+        "plan_qty": "",
+        "lookup_ok": bool(valid_items) and len(valid_items) == int(lot_count),
+        "lookup_error": first.get("lookup_error", ""),
+        "tail_entered": any(item.get("tail_entered") for item in items),
+        "lot_not_required": False,
+    }
+
+
+def lot_valid_items(lot_info):
+    if not lot_info or lot_info.get("lot_not_required"):
+        return []
+    source_items = lot_info.get("items")
+    if source_items is None:
+        source_items = [lot_info]
+    return [
+        {
+            "lot_no": str(item.get("work_order_no", "")).strip(),
+            "spec": str(item.get("spec", "")).strip(),
+        }
+        for item in source_items
+        if item.get("lookup_ok") and str(item.get("spec", "")).strip()
+    ]
+
+
+def ensure_lot_lookup_ready(lot_info):
+    if not lot_info or lot_info.get("lot_not_required"):
+        return True
+    items = lot_info.get("items") or [lot_info]
+    expected_count = int(lot_info.get("expected_count") or len(items) or 1)
+    any_tail_entered = any(item.get("tail_entered") for item in items)
+    if not any_tail_entered and expected_count == 1:
+        return True
+    if len(lot_valid_items(lot_info)) == expected_count:
+        return True
+    if expected_count > 1:
+        st.error("LOT 품목 수를 2개 이상으로 선택했다면 각 LOT를 모두 입력하고 ERP 조회가 성공해야 저장할 수 있습니다.")
+        return False
+    st.error("LOT 번호를 입력했다면 ERP 조회가 성공해야 저장할 수 있습니다.")
+    return False
+
+
+def format_lot_log(lot_info):
+    if lot_info and lot_info.get("lot_not_required"):
+        return ", ERP LOT:없음"
+    valid_items = lot_valid_items(lot_info)
+    if not valid_items:
+        return ""
+    if len(valid_items) == 1:
+        item = valid_items[0]
+        if item["lot_no"]:
+            return f", ERP LOT:{item['lot_no']}, ERP규격:{item['spec']}"
+        return f", ERP규격:{item['spec']}"
+    item_text = " / ".join(
+        f"[{idx}] LOT:{item['lot_no']}, ERP규격:{item['spec']}"
+        for idx, item in enumerate(valid_items, start=1)
+    )
+    return f", ERP LOT 목록:{item_text}"
+
+
+def lot_db_fields(lot_info):
+    valid_items = lot_valid_items(lot_info)
+    if not valid_items:
+        return {}
+    first = valid_items[0]
+    return {
+        "last_erp_lot_no": first["lot_no"],
+        "last_erp_spec": first["spec"],
+        "last_erp_items": valid_items,
+    }
+
+
+def lot_db_unset_fields(lot_info=None):
+    fields = {
+        "last_lot_no": "",
+        "last_work_order_no": "",
+        "last_product_name": "",
+        "last_plan_qty": "",
+        "last_product_spec": "",
+    }
+    if not lot_valid_items(lot_info):
+        fields["last_erp_lot_no"] = ""
+        fields["last_erp_spec"] = ""
+        fields["last_erp_items"] = ""
+    return fields
+
+
 def get_now_kst():
     
     return datetime.datetime.now(pytz.timezone('Asia/Seoul')).replace(tzinfo=None)
@@ -681,10 +1148,13 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
     pop_mach_num = st.number_input("⚙️ 방금 마친 기계 가공 호기 (숫자만)", min_value=1, max_value=200, value=def_m_val if def_m_val > 0 else 1, key=f"pop_mach_pending_{s_no}")
     pop_count = st.number_input("📊 이번 공정에서의 가공 갯수 (개)", min_value=0, max_value=999999, value=100, step=10, key=f"pop_count_pending_{s_no}")
     pop_count_confirmed = st.checkbox(f"가공수량 {pop_count}개 맞습니다.", key=f"confirm_pending_count_{s_no}")
+    lot_info = render_lot_lookup_box(f"reuse_pending_{s_no}")
     
     if st.button("🚀 실적 기록 및 재사용대기 저장"):
         if not pop_count_confirmed:
             st.error(f"가공수량 {pop_count}개가 맞는지 확인 체크를 해주세요.")
+            st.stop()
+        if not ensure_lot_lookup_ready(lot_info):
             st.stop()
 
         log_now = get_now_kst()
@@ -692,7 +1162,7 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
         pop_mach_name = f"{pop_mach_num}호기"
         
         # [2단계 수정] 작업자 이름 부분에 pop_worker_name 사용
-        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, (스펙: {ed_spec}), 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개"
+        auto_log_msg = f"\n[{log_time_str}] 상태: 재사용대기, (스펙: {ed_spec}), 작업자: {pop_worker_name}, 가공기계: {pop_mach_name}, 가공갯수: {pop_count}개{format_lot_log(lot_info)}"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
@@ -704,8 +1174,6 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
                 "status": "재사용대기",
                 "worker": pop_worker_name,  # [2단계 추가] DB에도 작업자 저장
                 "machine_no": pop_mach_name,
-                "dressing_hours": 0,
-                "dressing_mins": 0,
                 "current_use": pop_count,
                 "start_time": "-",
                 "target_time": "-",
@@ -713,8 +1181,9 @@ def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machi
                 "note": final_note_val,
                 "last_active_machine": pop_mach_name,
                 "last_active_count": pop_count,
-                "last_active_time": log_time_str
-            }, "$push": {"history": history_entry}}
+                "last_active_time": log_time_str,
+                **lot_db_fields(lot_info)
+            }, "$unset": lot_db_unset_fields(lot_info), "$push": {"history": history_entry}}
         )
         st.success("🎉 재사용대기 실적이 성공적으로 누적 저장되었습니다!")
         time.sleep(1)
@@ -755,6 +1224,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
     pop_worker_name = st.text_input("👤 폐기 처리 작업자 성명", value=ed_worker, key=f"pop_worker_{s_no}")
     pop_use_count = st.number_input("🔢 폐기 시점까지의 사용 갯수", min_value=0, value=0, key=f"pop_use_count_{s_no}")
     pop_use_count_confirmed = st.checkbox(f"가공수량 {pop_use_count}개 맞습니다.", key=f"confirm_waste_count_{s_no}")
+    lot_info = render_lot_lookup_box(f"waste_detail_{s_no}")
 
 
     waste_options = [
@@ -777,6 +1247,8 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         if not pop_use_count_confirmed:
             add_error(f"⚠️ 가공수량 {pop_use_count}개가 맞는지 확인 체크를 해주세요.")
             st.stop()
+        if not ensure_lot_lookup_ready(lot_info):
+            st.stop()
 
         spec = db_collection.find_one({"serial_no": s_no}).get('spec_detail', '스펙없음')    
         log_now = get_now_kst()
@@ -784,7 +1256,7 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
         final_reason_text = detail_reason if chosen_reason == "5. 기타 (직접기입)" else chosen_reason
         
         
-        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {pop_worker_name}, 스펙: {spec}, 가공기계: {pop_mach_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}"
+        auto_log_msg = f"\n[{log_time_str}] 상태: 폐기, 작업자: {pop_worker_name}, 스펙: {spec}, 가공기계: {pop_mach_name}, 사용갯수: {pop_use_count}개, 폐기사유: {final_reason_text}{format_lot_log(lot_info)}"
         final_note_val = orig_note.strip() + auto_log_msg
         
         timestamp = log_now.strftime("%m/%d %H:%M")
@@ -798,13 +1270,12 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
                 "machine_no": pop_mach_name,
                 "use_count": pop_use_count,
                 "current_use": pop_use_count,
-                "dressing_hours": 0,
-                "dressing_mins": 0,
                 "start_time": "-",
                 "target_time": "-",
                 "waste_date": log_time_str,
-                "note": final_note_val
-            }, "$push": {"history": history_entry}}
+                "note": final_note_val,
+                **lot_db_fields(lot_info)
+            }, "$unset": lot_db_unset_fields(lot_info), "$push": {"history": history_entry}}
         )
         st.success("💥 툴 폐기 실적 처리가 안전하게 저장되었습니다.")
         time.sleep(1)
@@ -833,7 +1304,6 @@ def confirm_and_save(serial, data):
     st.write(f"- **작업자:** {data.get('worker', '정보 없음')}")
     st.write(f"- **기계 호기:** {data.get('machine_no', '정보 없음')}")
     st.write(f"- **세부 스펙:** {data.get('spec_detail', '스펙 정보 없음')}")
-    st.write(f"- **설정 주기:** {data.get('dressing_hours', 0)}시간 {data.get('dressing_mins', 0)}분")
 
 
     if data['status'] == "폐기":
@@ -842,9 +1312,12 @@ def confirm_and_save(serial, data):
     
     qty = 0
     qty_confirmed = True
-    if data['status'] in ["폐기", "재사용대기"]:
+    qty_required = requires_qty_input(data['prev_status'], data['status'])
+    lot_info = {}
+    if qty_required:
         qty = st.number_input("📦 최종 가공 수량(개)", min_value=0, value=0, step=1)
         qty_confirmed = st.checkbox(f"최종 가공수량 {qty}개 맞습니다.", key=f"confirm_final_qty_{serial}")
+        lot_info = render_lot_lookup_box(f"confirm_{serial}_{data['prev_status']}_{data['status']}")
 
     # 상태가 '폐기'로 변경될 때만 로그 남기기
         if data['status'] == "폐기":           
@@ -862,6 +1335,8 @@ def confirm_and_save(serial, data):
         if not qty_confirmed:
             st.error(f"최종 가공수량 {qty}개가 맞는지 확인 체크를 해주세요.")
             st.stop()
+        if qty_required and not ensure_lot_lookup_ready(lot_info):
+            st.stop()
 
         final_note = data['note']
         if data['status'] != data['prev_status']:
@@ -870,10 +1345,12 @@ def confirm_and_save(serial, data):
                 log = f"\n[{now_str}] 상태:폐기, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
                 if qty > 0:
                     log += f", 최종수량:{qty}개" # 수량 이름을 '최종수량'으로 변경
+                log += format_lot_log(lot_info)
             else:
                 # 폐기가 아닐 때의 기본 로그
                 log = f"\n[{now_str}] 상태:{data['status']}, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
                 if qty > 0: log += f", 수량:{qty}개"
+                log += format_lot_log(lot_info)
             
             final_note += log
 
@@ -886,13 +1363,12 @@ def confirm_and_save(serial, data):
                 "status": data['status'],
                 "worker": "" if data['status'] in ["사용전", "폐기"] else data['worker'],
                 "machine_no": "" if data['status'] in ["사용전", "폐기"] else data['machine_no'],
-                "dressing_hours": data['dressing_hours'],
-                "dressing_mins": data['dressing_mins'],
                 "note": final_note,
                 "spec_detail": data['spec_detail'],
                 "start_time": data['start_time'],
-                "target_time": data['target_time']
-            }},
+                "target_time": data['target_time'],
+                **lot_db_fields(lot_info)
+            }, "$unset": lot_db_unset_fields(lot_info)},
             upsert=True
         )
         st.success("✅ 저장 완료되었습니다!")
@@ -1015,7 +1491,8 @@ if qr_scanned_serial:
     
     # 1008라인 근처
     def trigger_waste():
-        if st.session_state.get("u_status") == "폐기":
+        next_status = st.session_state.get("u_status")
+        if requires_waste_dialog(prev_status, next_status):
             # 여기서 serial과 data를 확실하게 세션에 박아넣습니다.
             st.session_state['temp_serial'] = qr_scanned_serial # 현재 시리얼 변수명으로 변경하세요
             st.session_state['temp_data'] = existing_data     # 현재 데이터 변수명으로 변경하세요
@@ -1076,10 +1553,7 @@ if qr_scanned_serial:
     """, unsafe_allow_html=True)
  
 
-    st.markdown("### ⏳ 드레싱 및 특이사항")
-    c1, c2 = st.columns(2)
-    u_h = c1.number_input("시간(Hour)", value=existing_data.get('dressing_hours', 0))
-    u_m = c2.number_input("분(Minute)", value=existing_data.get('dressing_mins', 0))
+    st.markdown("### 📝 현장 특이사항")
     u_note = st.text_area("📝 현장 특이사항", value=existing_data.get('note', ''))
        
 
@@ -1099,16 +1573,18 @@ if qr_scanned_serial:
             'worker': u_worker,
             'machine_no': f'{int(u_machine):02d}호기', 
             'spec_detail': u_spec,
-            'dressing_hours': u_h, 'dressing_mins': u_m, 
             'note': u_note,
-            'start_time': get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
+            'start_time': "-",
             'make': existing_data.get('make', ''),
-            'target_time': (get_now_kst() + timedelta(minutes=(u_h * 60) + u_m)).strftime('%Y-%m-%d %H:%M:%S'),
+            'target_time': "-",
             'disposal_reason': st.session_state.get('waste_reason_data', '')
         }
 
-        if u_status == "폐기":
-            confirm_and_save(qr_scanned_serial, st.session_state['confirm_data'])
+        if requires_waste_dialog(prev_status, u_status):
+            st.session_state['temp_serial'] = qr_scanned_serial
+            st.session_state['temp_data'] = existing_data
+            st.session_state['show_waste_dialog'] = True
+            st.rerun()
         else:
             st.session_state['show_confirm_dialog'] = True
             st.rerun()
@@ -1128,8 +1604,10 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "⚠️ 실시간 툴 드레싱 알림판", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
     if "sidebar_choice" not in st.session_state:
+        st.session_state.sidebar_choice = menu_options[0]
+    elif st.session_state.sidebar_choice not in menu_options:
         st.session_state.sidebar_choice = menu_options[0]
         
     tool_menu = st.sidebar.radio("하위 목록", menu_options, key="sidebar_choice")
@@ -1185,8 +1663,6 @@ else:
                     "init_time": fixed_time_str,
                     "worker": "",
                     "machine_no": "",
-                    "dressing_hours": 0,
-                    "dressing_mins": 0,
                     "start_time": "-",
                     "target_time": "-",
                     "use_limit": 100,
@@ -1388,19 +1864,6 @@ else:
                                 st.session_state.reset_message = f"🎯 지정 시리얼 [`{target_single_serial}`] 데이터가 안전하게 영구 삭제되었습니다!"
                                 st.session_state.reset_success = True
                                 st.rerun()
-
-
-
-    
-
-    # 2) ⚠️ 실시간 툴 드레싱 알림판 메뉴 호출부 (이 부분만 교체하세요)
-    elif tool_menu == "⚠️ 실시간 툴 드레싱 알림판":
-        st.title("⏳ 실시간 툴 드레싱 및 교체 주기 모니터링")
-        st.write("<br>", unsafe_allow_html=True)
-        
-        # 60초마다 자동 갱신되는 대시보드 함수 호출
-        show_live_dashboard()
-
 
 
     # 3) 📂 종합 현황판 창---------------------------------------------------------------------------------------------------------------------------~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1620,8 +2083,6 @@ else:
                             "init_time": get_now_kst().strftime("%H:%M"),
                             "worker": "",
                             "machine_no": "",
-                            "dressing_hours": 0,
-                            "dressing_mins": 0,
                             "start_time": "-",
                             "target_time": "-",
                             "use_limit": 10000,
