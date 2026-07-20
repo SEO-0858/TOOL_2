@@ -689,13 +689,24 @@ def normalize_lot_response(data, requested_work_order_no):
     if not isinstance(data, dict):
         data = {}
 
+    rows = data.get("rows")
+    first_row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+
+    def pick(*keys):
+        for source in (data, first_row):
+            for key in keys:
+                value = source.get(key)
+                if value is not None and str(value).strip():
+                    return str(value).strip()
+        return ""
+
     normalized = {
-        "work_order_no": data.get("work_order_no") or data.get("작업지시번호") or requested_work_order_no,
-        "product_name": data.get("product_name") or data.get("품명") or data.get("AssyName") or "",
-        "spec": data.get("spec") or data.get("품목규격") or data.get("AssyItemSpec") or "",
-        "plan_qty": data.get("plan_qty") or data.get("계획수량") or "",
+        "work_order_no": pick("work_order_no", "lot", "LOT", "작업지시번호") or requested_work_order_no,
+        "product_name": pick("product_name", "item_name", "품명", "AssyName"),
+        "spec": pick("spec", "item_spec", "품목규격", "규격", "AssyItemSpec"),
+        "plan_qty": pick("plan_qty", "plan_quantity", "계획수량"),
     }
-    normalized["lookup_ok"] = bool(str(normalized.get("spec", "")).strip())
+    normalized["lookup_ok"] = bool(normalized["spec"])
     return normalized
 
 
@@ -793,13 +804,14 @@ def render_lot_lookup_box(context_key):
     lot_info = st.session_state.get(lot_info_key, {})
     work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
     tail_entered = bool(str(tail or "").strip())
+    display_spec = str(lot_info.get("spec", "") or "").strip()
 
-    spec = st.text_input("ERP 규격(spec)", value=lot_info.get("spec", ""), disabled=True, key=f"lot_spec_{context_key}")
+    spec = st.text_input("ERP 규격(spec)", value=display_spec, disabled=True, key=f"lot_spec_{context_key}_{work_order_no}_{display_spec}")
 
     return {
         "work_order_no": work_order_no,
         "product_name": "",
-        "spec": spec.strip(),
+        "spec": display_spec or spec.strip(),
         "plan_qty": "",
         "lookup_ok": bool(lot_info.get("lookup_ok")),
         "lookup_error": lot_info.get("lookup_error", ""),
@@ -900,17 +912,18 @@ def render_lot_lookup_box(context_key):
         lot_info = st.session_state.get(lot_info_key, {})
         work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
         tail_entered = bool(str(tail or "").strip())
+        display_spec = str(lot_info.get("spec", "") or "").strip()
         spec = st.text_input(
             f"ERP 규격(spec) {row_no}",
-            value=lot_info.get("spec", ""),
+            value=display_spec,
             disabled=True,
-            key=f"lot_spec_{context_key}_{idx}",
+            key=f"lot_spec_{context_key}_{idx}_{work_order_no}_{display_spec}",
         )
 
         items.append({
             "work_order_no": work_order_no,
             "product_name": "",
-            "spec": spec.strip(),
+            "spec": display_spec or spec.strip(),
             "plan_qty": "",
             "lookup_ok": bool(lot_info.get("lookup_ok")),
             "lookup_error": lot_info.get("lookup_error", ""),
@@ -1081,17 +1094,18 @@ def render_lot_lookup_box(context_key):
         lot_info = st.session_state.get(lot_info_key, {})
         work_order_no = lot_info.get("work_order_no") or build_ksi_work_order_no(tail, prefix)
         tail_entered = bool(str(tail or "").strip())
+        display_spec = str(lot_info.get("spec", "") or "").strip()
         spec = st.text_input(
             f"ERP 규격(spec) {row_no}",
-            value=lot_info.get("spec", ""),
+            value=display_spec,
             disabled=True,
-            key=f"lot_spec_{context_key}_{idx}",
+            key=f"lot_spec_{context_key}_{idx}_{work_order_no}_{display_spec}",
         )
 
         items.append({
             "work_order_no": work_order_no,
             "product_name": "",
-            "spec": spec.strip(),
+            "spec": display_spec or spec.strip(),
             "plan_qty": "",
             "lookup_ok": bool(lot_info.get("lookup_ok")),
             "lookup_error": lot_info.get("lookup_error", ""),
