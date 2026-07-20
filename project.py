@@ -370,7 +370,7 @@ def get_status_info(item, current_now):
 
 def get_remaining_time(target_time_str):
     # 1. 값이 없으면 바로 탈출
-    if not target_time_str:
+    if not target_time_str or str(target_time_str).strip() == "-":
         return "-"
     
     try:
@@ -423,10 +423,11 @@ def render_tool_ui(item, color_hex, status_label, db_status):
     # 4. 장착 누적 시간 계산 (상태가 사용중/재사용일 때만)
 
     duration_text = ""
-    if item.get('status') in ["사용중", "재사용"] and item.get('start_time'):
+    start_time_raw = item.get('start_time')
+    if item.get('status') in ["사용중", "재사용"] and start_time_raw and str(start_time_raw).strip() != "-":
         try:
             # 1. DB 시간을 datetime 객체로 변환
-            start_dt = dt.strptime(item.get('start_time'), "%Y-%m-%d %H:%M:%S") 
+            start_dt = dt.strptime(str(start_time_raw).strip(), "%Y-%m-%d %H:%M:%S") 
             
             # 2. 현재 시간도 동일한 형식으로 변환 (KST 기준)
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
