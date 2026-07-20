@@ -636,6 +636,37 @@ def lot_api_debug_text():
     )
 
 
+def summarize_lot_http_error(exc):
+    body = ""
+    try:
+        body = exc.read().decode("utf-8", errors="replace")
+    except Exception:
+        body = ""
+
+    one_line = re.sub(r"\s+", " ", body).strip()
+    if len(one_line) > 220:
+        one_line = one_line[:220] + "..."
+
+    headers_text = ""
+    server = ""
+    try:
+        headers_text = str(exc.headers)
+        server = exc.headers.get("server", "") or exc.headers.get("Server", "")
+    except Exception:
+        headers_text = ""
+
+    body_lower = one_line.lower()
+    headers_lower = headers_text.lower()
+    if "invalid api key" in body_lower:
+        source = "bridge_key_rejected"
+    elif "cloudflare" in body_lower or "cf-ray" in headers_lower:
+        source = "cloudflare_block_or_challenge"
+    else:
+        source = "unknown_403"
+
+    return f" 403상세: source={source}, server={server or '(none)'}, body={one_line or '(empty)'}"
+
+
 def build_ksi_work_order_no(tail_or_full, prefix=None):
     value = str(tail_or_full or "").strip().upper()
     if not value:
@@ -682,7 +713,10 @@ def lookup_ksi_lot_info(work_order_no):
     else:
         lookup_url = base_url.rstrip("/") + "/lot/" + urlparse.quote(work_order_no)
 
-    headers = {"Accept": "application/json"}
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (KSI-LOT-Streamlit/1.0)",
+    }
     if api["key"]:
         headers["X-API-Key"] = api["key"]
         lookup_url = add_query_param(lookup_url, "key", api["key"])
@@ -700,6 +734,7 @@ def lookup_ksi_lot_info(work_order_no):
             return info, ""
     except urlerror.HTTPError as exc:
         if exc.code == 403:
+            return None, "LOT 조회 인증 실패(HTTP 403)." + lot_api_debug_text() + summarize_lot_http_error(exc)
             return None, "LOT 조회 인증 실패(HTTP 403): Streamlit Secrets의 ksi_lot_api.key 값을 중계 PC api_key와 똑같이 맞춰주세요." + lot_api_debug_text()
             return None, "LOT 조회 인증 실패(HTTP 403): Streamlit Secrets의 ksi_lot_api.key 값을 중계 PC api_key와 똑같이 맞춰주세요."
         return None, f"LOT 조회 서버 응답 오류: HTTP {exc.code}"
