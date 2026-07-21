@@ -66,23 +66,12 @@ def waste_dialog(serial, data):
                 quantities = re.findall(r'(?:수량|가공갯수):\s*(\d+)개', current_note)
                 total_accumulated_qty = sum(int(q) for q in quantities) + waste_qty
                 
-                valid_lot_items = lot_valid_items(lot_info)
-                lot_list = [item["lot_no"] for item in valid_lot_items if item.get("lot_no")]
-                spec_list = [item["spec"] for item in valid_lot_items if item.get("spec")]
-                first_lot_item = valid_lot_items[0] if valid_lot_items else {}
-
                 log_data = {
                     "serial_no": serial, "machine_no": machine_final, "disposal_reason": selected_reason,
                     "detail_reason": detail_reason, "worker": worker_input, "waste_qty": total_accumulated_qty,
                     "spec_detail": data.get('spec_detail', ''), "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S'),
-                    "erp_items": valid_lot_items,
-                    "erp_lot_no": first_lot_item.get("lot_no", ""),
-                    "erp_spec": first_lot_item.get("spec", ""),
-                    "erp_lot_list": lot_list,
-                    "erp_spec_list": spec_list,
-                    "erp_lot_text": " / ".join(lot_list),
-                    "erp_spec_text": " / ".join(spec_list),
                 }
+                log_data.update(disposal_lot_db_fields(lot_info, serial, latest_doc, data))
                 db_collection.database['disposal_logs'].insert_one(log_data)
                 
                 # DB 업데이트
@@ -165,13 +154,16 @@ def confirm_new_tool_registration(serial, spec, make):
 def log_disposal(serial_no, spec_detail, worker,reason):
     col = db_collection.database['disposal_logs']
     if col.find_one({"serial_no": serial_no}) is None:
-        db_collection.database['disposal_logs'].insert_one({
+        tool_doc = db_collection.find_one({"serial_no": serial_no})
+        log_data = {
             "serial_no": serial_no,
             "spec_detail": spec_detail,
             "reason": reason,
             "worker": worker,
             "disposal_date": get_now_kst().strftime('%Y-%m-%d %H:%M:%S')
-        })
+        }
+        log_data.update(disposal_lot_db_fields({}, serial_no, tool_doc, {}))
+        db_collection.database['disposal_logs'].insert_one(log_data)
         print(f"✅ 폐기 로그 저장 완료: {serial_no}")
     else:
         # 이미 로그가 있는 경우 아무것도 안 함 (중복 방지)
@@ -768,7 +760,7 @@ def render_lot_lookup_box(context_key):
     prefix = f"KK{get_now_kst().year}"
     no_lot_key = f"lot_not_required_{context_key}"
     if st.checkbox("LOT 없음 / 수리품 등 ERP 품목 없이 저장", key=no_lot_key):
-        st.info("LOT 정보 없이 저장합니다. 기존 ERP LOT/spec 기록은 비워집니다.")
+        st.info("LOT 정보 없이 저장합니다.")
         return {
             "items": [],
             "expected_count": 0,
@@ -1039,7 +1031,7 @@ def render_lot_lookup_box(context_key):
 
     no_lot_key = f"lot_not_required_{context_key}"
     if st.checkbox("LOT 없음 / 수리품 등 ERP 품목 없이 저장", key=no_lot_key):
-        st.info("LOT 정보 없이 저장합니다. 기존 ERP LOT/spec 기록은 비워집니다.")
+        st.info("LOT 정보 없이 저장합니다.")
         return {
             "items": [],
             "expected_count": 0,
@@ -1214,6 +1206,68 @@ def lot_db_unset_fields(lot_info=None):
         "last_product_spec": "",
     }
     return fields
+
+
+def disposal_lot_db_fields(lot_info, serial_no=None, tool_doc=None, form_data=None):
+    valid_items = lot_valid_items(lot_info)
+    if valid_items:
+        first = valid_items[0]
+        lot_list = [item["lot_no"] for item in valid_items if item.get("lot_no")]
+        spec_list = [item["spec"] for item in valid_items if item.get("spec")]
+        return {
+            "erp_items": valid_items,
+            "erp_lot_no": first.get("lot_no", ""),
+            "erp_spec": first.get("spec", ""),
+            "erp_lot_list": lot_list,
+            "erp_spec_list": spec_list,
+            "erp_lot_text": " / ".join(lot_list),
+            "erp_spec_text": " / ".join(spec_list),
+        }
+
+    sources = []
+    if serial_no:
+        try:
+            previous_log = db_collection.database['disposal_logs'].find_one(
+                {
+                    "serial_no": serial_no,
+                    "$or": [
+                        {"erp_lot_no": {"$nin": ["", None]}},
+                        {"erp_spec": {"$nin": ["", None]}},
+                        {"erp_lot_list": {"$exists": True, "$ne": []}},
+                        {"erp_spec_list": {"$exists": True, "$ne": []}},
+                    ],
+                },
+                sort=[("disposal_date", -1)],
+            )
+            if previous_log:
+                sources.append(previous_log)
+        except Exception:
+            pass
+
+    for source in (tool_doc, form_data):
+        if source:
+            sources.append(source)
+
+    field_map = {
+        "erp_items": ("erp_items", "last_erp_items"),
+        "erp_lot_no": ("erp_lot_no", "last_erp_lot_no"),
+        "erp_spec": ("erp_spec", "last_erp_spec"),
+        "erp_lot_list": ("erp_lot_list", "last_erp_lot_list"),
+        "erp_spec_list": ("erp_spec_list", "last_erp_spec_list"),
+        "erp_lot_text": ("erp_lot_text", "last_erp_lot_text"),
+        "erp_spec_text": ("erp_spec_text", "last_erp_spec_text"),
+    }
+    preserved = {}
+    for source in sources:
+        for target_key, source_keys in field_map.items():
+            if target_key in preserved:
+                continue
+            for source_key in source_keys:
+                value = source.get(source_key)
+                if value not in (None, "", []):
+                    preserved[target_key] = value
+                    break
+    return preserved
 
 
 def get_now_kst():
