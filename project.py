@@ -863,9 +863,6 @@ def lot_db_unset_fields(lot_info=None):
         "last_plan_qty": "",
         "last_product_spec": "",
     }
-    if not lot_info or not lot_info.get("spec"):
-        fields["last_erp_lot_no"] = ""
-        fields["last_erp_spec"] = ""
     return fields
 
 # 🕒 한국 시간(KST) 전역 강제 설정 함수
@@ -1034,14 +1031,6 @@ def lot_db_unset_fields(lot_info=None):
         "last_plan_qty": "",
         "last_product_spec": "",
     }
-    if not lot_valid_items(lot_info):
-        fields["last_erp_lot_no"] = ""
-        fields["last_erp_spec"] = ""
-        fields["last_erp_items"] = ""
-        fields["last_erp_lot_list"] = ""
-        fields["last_erp_spec_list"] = ""
-        fields["last_erp_lot_text"] = ""
-        fields["last_erp_spec_text"] = ""
     return fields
 
 
@@ -1224,14 +1213,6 @@ def lot_db_unset_fields(lot_info=None):
         "last_plan_qty": "",
         "last_product_spec": "",
     }
-    if not lot_valid_items(lot_info):
-        fields["last_erp_lot_no"] = ""
-        fields["last_erp_spec"] = ""
-        fields["last_erp_items"] = ""
-        fields["last_erp_lot_list"] = ""
-        fields["last_erp_spec_list"] = ""
-        fields["last_erp_lot_text"] = ""
-        fields["last_erp_spec_text"] = ""
     return fields
 
 
