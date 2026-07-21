@@ -1452,14 +1452,16 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 def confirm_and_save(serial, data):
     if not st.session_state.get('show_confirm_dialog', False):
         return
+    same_status = data['status'] == data['prev_status']
     # 1. 상태 대조 및 강조 로직
-    if data['status'] != data['prev_status']:
+    if not same_status:
         if data['status'] == "폐기":
             st.error(f"⚠️ 경고: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 변경합니다!")
         else:
             st.warning(f"🔄 알림: [ {data['prev_status']} ] ➔ [ {data['status']} ] (으)로 상태가 변경됩니다.")
     else:
-        st.info(f"현재 상태 유지: [ {data['status']} ]")
+        st.warning(f"선택한 상태가 현재 상태와 같습니다: [ {data['status']} ]")
+        st.info("상태 변경 없이 작업자/기계/메모/LOT 정보만 저장할지 확인해주세요. 실수라면 아래 취소를 누르세요.")
     reason = data.get('disposal_reason', '사유 없음')
     st.markdown("---")
     # 2. 요약 정보
@@ -1481,13 +1483,9 @@ def confirm_and_save(serial, data):
         qty_confirmed = st.checkbox(f"최종 가공수량 {qty}개 맞습니다.", key=f"confirm_final_qty_{serial}")
         lot_info = render_lot_lookup_box(f"confirm_{serial}_{data['prev_status']}_{data['status']}")
 
-    # 상태가 '폐기'로 변경될 때만 로그 남기기
-        if data['status'] == "폐기":           
-            log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
-
-
-    if st.button("✅ 최종 확정 및 저장"):
-        if data['status'] != data['prev_status']:
+    save_label = "✅ 상태 변경 없이 저장 진행" if same_status else "✅ 최종 확정 및 저장"
+    if st.button(save_label):
+        if not same_status:
             ok, msg = validate_process(data['prev_status'], data['status'])
             if not ok:
                 st.error(msg)
@@ -1501,7 +1499,7 @@ def confirm_and_save(serial, data):
             st.stop()
 
         final_note = data['note']
-        if data['status'] != data['prev_status']:
+        if not same_status:
             now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
             if data['status'] == "폐기":
                 log = f"\n[{now_str}] 상태:폐기, 스펙:{data['spec_detail']}, 작업자:{data['worker']}, 기계:{data['machine_no']}"
@@ -1516,8 +1514,11 @@ def confirm_and_save(serial, data):
             
             final_note += log
 
-        # 재고 계산 함수 호출        
-        update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
+        # 상태가 실제로 바뀔 때만 재고 수량을 계산합니다.
+        if not same_status:
+            update_inventory_count(data['spec_detail'], data.get('make', ''),data['prev_status'], data['status'])
+            if data['status'] == "폐기":
+                log_disposal(serial, data['spec_detail'], data.get('worker', ''), data.get('disposal_reason', '사유 없음'))
 
         db_collection.update_one(
             {"serial_no": serial},
