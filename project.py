@@ -1,5 +1,10 @@
 import streamlit as st
 import streamlit.components.v1 as components
+
+try:
+    from streamlit_qrcode_scanner import qrcode_scanner
+except ImportError:
+    qrcode_scanner = None
 from pymongo import MongoClient
 import datetime  # 기존 코드에서 datetime.datetime.utcnow() 등을 썼다면 필요합니다.
 from datetime import datetime as dt, timedelta
@@ -2177,219 +2182,51 @@ def render_material_qr_scanner():
 # Final QR scanner override. Keep this closest to the page renderer so it wins over
 # older scanner definitions above.
 def render_material_qr_scanner():
-    components.html(
-        """
-        <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
-          <button id="material-camera-start" type="button"
-            style="width:100%;padding:16px 18px;border:1px solid #0f6cbd;border-radius:12px;background:#0f6cbd;color:#fff;font-size:18px;font-weight:700;">
-            카메라 시작
-          </button>
-          <div id="material-qr-reader"
-            style="width:100%;min-height:360px;margin-top:16px;border:1px solid #d9e2ec;border-radius:14px;overflow:hidden;background:#fff;"></div>
-          <div id="material-qr-status"
-            style="margin-top:14px;padding:14px 16px;border-radius:12px;background:#eef6ff;color:#175cd3;font-size:16px;line-height:1.55;">
-            카메라 시작 버튼을 누른 뒤 권한 창이 뜨면 허용을 눌러주세요.
-          </div>
-        </div>
-        <style>
-          #material-qr-reader video,
-          #material-qr-reader canvas {
-            width: 100% !important;
-            max-height: 420px;
-            object-fit: cover;
-          }
-          #material-qr-reader div { box-sizing: border-box; }
-        </style>
-        <script>
-        (function () {
-          const statusBox = document.getElementById("material-qr-status");
-          const startBtn = document.getElementById("material-camera-start");
-          const QR_LIB_URLS = [
-            "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js",
-            "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
-          ];
-          let scanner = null;
-          let busy = false;
-          let done = false;
+    """
+    QR 값을 URL 이동으로 전달하지 않고 Streamlit Python 코드에 직접 반환합니다.
 
-          function esc(text) {
-            return String(text || "").replace(/[&<>"']/g, function (ch) {
-              return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch];
-            });
-          }
-          function setStatus(message, kind) {
-            if (!statusBox) return;
-            const colors = { info:["#eef6ff","#175cd3"], ok:["#e9f8ef","#16803c"], err:["#fff1f2","#be123c"] };
-            const c = colors[kind] || colors.info;
-            statusBox.style.background = c[0];
-            statusBox.style.color = c[1];
-            statusBox.innerHTML = message;
-          }
-          function setButton(text, disabled) {
-            if (!startBtn) return;
-            startBtn.textContent = text;
-            startBtn.disabled = !!disabled;
-            startBtn.style.opacity = disabled ? "0.65" : "1";
-          }
-          function parentHref() {
-            try {
-              if (window.parent && window.parent.location && window.parent.location.href) {
-                return window.parent.location.href;
-              }
-            } catch (err) {}
-            return document.referrer || window.location.href;
-          }
-          function resultUrl(decodedText) {
-            const url = new URL(parentHref());
-            url.searchParams.set("material_qr", String(decodedText || "").trim());
-            url.searchParams.set("material_scan", String(Date.now()));
-            url.searchParams.set("material_page", "1");
-            return url.toString();
-          }
-          function goTop(url) {
-            // Streamlit components.html은 iframe 안에서 실행됩니다.
-            // 브라우저별로 허용되는 이동 방식을 차례대로 시도합니다.
-            try {
-              window.open(url, "_top");
-              return;
-            } catch (err1) {}
+    장점
+    - 네이버 앱 브라우저의 자동 페이지 이동 차단 영향을 받지 않음
+    - QR 인식 직후 LOT 조회 화면으로 자동 전환
+    - 저장 후 컴포넌트를 새로 생성하여 다음 스캔 카메라를 다시 준비
+    """
+    if qrcode_scanner is None:
+        st.error(
+            "QR 스캐너 패키지가 설치되지 않았습니다. "
+            "GitHub의 requirements.txt에 "
+            "`streamlit-qrcode-scanner==0.1.2`를 추가한 뒤 재부팅해 주세요."
+        )
+        return None
 
-            try {
-              window.top.location.assign(url);
-              return;
-            } catch (err2) {}
-
-            try {
-              window.parent.location.assign(url);
-              return;
-            } catch (err3) {}
-
-            try {
-              window.location.assign(url);
-            } catch (err4) {}
-          }
-          function loadScript(src) {
-            return new Promise(function (resolve, reject) {
-              const existing = document.querySelector("script[src='" + src + "']");
-              if (existing) {
-                if (window.Html5Qrcode) { resolve(); return; }
-                existing.addEventListener("load", resolve, { once: true });
-                existing.addEventListener("error", reject, { once: true });
-                return;
-              }
-              const script = document.createElement("script");
-              script.src = src;
-              script.async = true;
-              script.onload = resolve;
-              script.onerror = function () { reject(new Error("QR 스캔 라이브러리를 불러오지 못했습니다.")); };
-              document.head.appendChild(script);
-            });
-          }
-          async function waitForLib() {
-            if (window.Html5Qrcode) return;
-            let lastErr = null;
-            for (const src of QR_LIB_URLS) {
-              try {
-                await loadScript(src);
-                if (window.Html5Qrcode) return;
-              } catch (err) { lastErr = err; }
-            }
-            throw lastErr || new Error("QR 스캔 라이브러리를 사용할 수 없습니다.");
-          }
-          async function warmUpPermission() {
-            let stream = null;
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
-                audio: false
-              });
-            } catch (err) {
-              if (err && err.name === "NotAllowedError") throw new Error("카메라 권한이 거부되었습니다. 브라우저 사이트 설정에서 카메라를 허용해 주세요.");
-              if (err && err.name === "NotFoundError") throw new Error("사용 가능한 카메라를 찾지 못했습니다.");
-              throw err;
-            } finally {
-              if (stream) {
-                stream.getTracks().forEach(function (track) { track.stop(); });
-              }
-            }
-          }
-          function qrBox(w, h) {
-            const size = Math.max(190, Math.floor(Math.min(w, h) * 0.72));
-            return { width: size, height: size };
-          }
-          async function chooseCamera() {
-            try {
-              const cams = await Html5Qrcode.getCameras();
-              if (cams && cams.length) {
-                const back = cams.find(function (cam) {
-                  return /back|rear|environment|후면/i.test(cam.label || "");
-                });
-                return (back || cams[cams.length - 1]).id;
-              }
-            } catch (err) {}
-            return { facingMode: "environment" };
-          }
-          async function start() {
-            if (busy || done) return;
-            busy = true;
-            setButton("카메라 여는 중...", true);
-            setStatus("권한 창이 뜨면 카메라 허용을 눌러주세요.", "info");
-            try {
-              if (!window.isSecureContext) throw new Error("카메라 사용은 HTTPS 주소에서만 가능합니다.");
-              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("이 브라우저는 카메라 접근을 지원하지 않습니다.");
-              await warmUpPermission();
-              setStatus("QR 스캔 기능을 준비하는 중입니다.", "info");
-              await waitForLib();
-              const camera = await chooseCamera();
-              scanner = new Html5Qrcode("material-qr-reader");
-              await scanner.start(
-                camera,
-                { fps: 10, qrbox: qrBox, aspectRatio: 1.0 },
-                function (decodedText) {
-                  if (done) return;
-                  done = true;
-                  const next = resultUrl(decodedText);
-                  setStatus(
-                    "QR 인식 완료: " + esc(decodedText) +
-                    "<br>조회 화면으로 이동합니다..." +
-                    "<br><a href='" + esc(next) + "' target='_blank' rel='noopener noreferrer' " +
-                    "style='display:inline-block;margin-top:12px;padding:12px 16px;border-radius:10px;background:#175cd3;color:#ffffff;font-weight:700;text-decoration:none;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
-                    "ok"
-                  );
-                  setButton("QR 인식 완료", true);
-                  try {
-                    scanner.stop()
-                      .then(function () { goTop(next); })
-                      .catch(function () { goTop(next); });
-                  } catch (err) { goTop(next); }
-                },
-                function () {}
-              );
-              setStatus("카메라가 실행 중입니다. 도면 QR을 화면 안에 맞춰주세요.", "ok");
-              setButton("카메라 실행 중", true);
-            } catch (err) {
-              busy = false;
-              setButton("다시 카메라 시작", false);
-              setStatus(
-                "카메라를 시작하지 못했습니다.<br>원인: " +
-                esc(err && (err.message || err.name) ? (err.message || err.name) : err) +
-                "<br><br>네이버 앱에서 안 되면 Chrome 또는 삼성 인터넷으로 접속해 주세요. 주소창의 사이트 설정에서 카메라 권한도 확인해 주세요.",
-                "err"
-              );
-            }
-          }
-          if (startBtn) startBtn.addEventListener("click", start);
-          setStatus("카메라 시작 버튼을 누르면 권한 요청이 뜹니다. 요청이 뜨면 허용을 눌러주세요.", "info");
-        })();
-        </script>
-        """,
-        height=680,
+    scanner_generation = int(
+        st.session_state.get("material_scanner_generation", 0) or 0
     )
 
+    st.caption("카메라 권한을 허용하면 후면 카메라로 QR을 인식합니다.")
+
+    try:
+        scanned_value = qrcode_scanner(
+            key=f"material_qrcode_scanner_{scanner_generation}"
+        )
+    except Exception as exc:
+        st.error(f"QR 스캐너 실행 오류: {exc}")
+        return None
+
+    if isinstance(scanned_value, bytes):
+        try:
+            scanned_value = scanned_value.decode("utf-8")
+        except Exception:
+            scanned_value = str(scanned_value)
+
+    scanned_text = str(scanned_value or "").strip()
+    return scanned_text or None
 
 def show_material_receiving_page_live_qr():
     st.title("📦 원자재 입고 정보")
     st.caption("작업자를 선택한 뒤 도면 QR을 스캔하면 K-System LOT 정보를 자동 조회합니다.")
+
+    if "material_scanner_generation" not in st.session_state:
+        st.session_state.material_scanner_generation = 0
 
     scanned_text = material_query_param("material_qr").strip()
     scan_nonce = material_query_param("material_scan").strip() or scanned_text
@@ -2414,7 +2251,19 @@ def show_material_receiving_page_live_qr():
 
     with input_tab:
         st.info(f"현재 작업자: {receiver_no} {receiver_name}")
-        render_material_qr_scanner()
+
+        scanned_value = render_material_qr_scanner()
+        if scanned_value:
+            component_scan_key = (
+                f"{st.session_state.material_scanner_generation}:"
+                f"{scanned_value}"
+            )
+            if component_scan_key != st.session_state.get(
+                "material_last_component_scan_key"
+            ):
+                st.session_state.material_last_component_scan_key = component_scan_key
+                apply_material_lot_lookup(scanned_value, "QR")
+                st.rerun()
 
         with st.expander("카메라가 안 될 때 수동 LOT 입력"):
             manual_lot = st.text_input(
@@ -2575,10 +2424,22 @@ def show_material_receiving_page_live_qr():
                         "source": "qr_live" if lookup_info.get("lookup_ok") else "manual_or_not_found",
                         "created_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
                     }
-                    get_material_collection().insert_one(doc)
+                    insert_result = get_material_collection().insert_one(doc)
+                    if not insert_result.inserted_id:
+                        st.error("MongoDB 저장 결과를 확인하지 못했습니다.")
+                        st.stop()
+
                     reset_material_live_lookup_state()
+
+                    # 다음 QR 스캔용으로 컴포넌트를 완전히 새로 생성합니다.
+                    st.session_state.material_scanner_generation = (
+                        int(st.session_state.get("material_scanner_generation", 0) or 0) + 1
+                    )
+                    st.session_state.pop("material_last_component_scan_key", None)
+
                     st.session_state.material_live_saved_message = (
-                        f"{lot_no} 입고 {int(received_qty)}개 저장 완료. 다음 QR을 스캔하세요."
+                        f"{lot_no} 입고 {int(received_qty)}개 저장 완료. "
+                        "다음 QR 카메라를 준비했습니다."
                     )
                     rerun_app()
 
