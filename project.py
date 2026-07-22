@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from pymongo import MongoClient
 import datetime  # 기존 코드에서 datetime.datetime.utcnow() 등을 썼다면 필요합니다.
 from datetime import datetime as dt, timedelta
@@ -1294,6 +1295,635 @@ def generate_app_qr_bytes(serial_text):
     return buf.getvalue()
 
 
+MATERIAL_MENU_LABEL = "📦 원자재 입고 정보"
+MATERIAL_COLLECTION_NAME = "material_receiving_logs"
+
+MATERIAL_RECEIVER_MAP = {
+    "01": "서재욱",
+    "02": "서동일",
+    "03": "정광우",
+    "04": "정우철",
+    "05": "강영천",
+    "06": "허진웅",
+    "07": "김연용",
+    "08": "이덕무",
+    "09": "홍민기",
+    "10": "이해근",
+    "11": "노재학",
+    "12": "변두학",
+    "13": "이동주",
+    "14": "이현준",
+    "15": "최광식",
+    "16": "한제훈",
+    "17": "한건우",
+    "18": "이승형",
+    "19": "유관우",
+    "20": "신재관",
+    "21": "최인준",
+    "22": "김성욱",
+    "23": "김은호",
+    "24": "문태수",
+    "25": "엄현석",
+    "26": "김영환",
+    "27": "나윤호",
+    "28": "권용수",
+    "29": "노우석",
+    "30": "박철환",
+}
+
+
+def get_material_collection():
+    return db_collection.database[MATERIAL_COLLECTION_NAME]
+
+
+def to_int_safe(value, default=0):
+    try:
+        if value in (None, ""):
+            return default
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def normalize_material_lot_text(raw_text):
+    text = str(raw_text or "").strip().upper().replace(" ", "")
+    if not text:
+        return ""
+    return build_ksi_work_order_no(text)
+
+
+def normalize_material_receiver_no(value):
+    digits = re.sub(r"\D", "", str(value or ""))
+    if not digits:
+        return ""
+    if len(digits) <= 2:
+        return digits.zfill(2)
+    return digits
+
+
+def get_material_received_total(lot_no):
+    if not lot_no:
+        return 0
+
+    pipeline = [
+        {"$match": {"lot_no": lot_no}},
+        {"$group": {"_id": "$lot_no", "total": {"$sum": "$received_qty"}}},
+    ]
+    result = list(get_material_collection().aggregate(pipeline))
+    return to_int_safe(result[0].get("total"), 0) if result else 0
+
+
+def build_material_search_query(keyword):
+    keyword = str(keyword or "").strip()
+    if not keyword:
+        return {}
+
+    fields = ["lot_no", "product_name", "spec", "receiver_name", "memo"]
+    tokens = [token for token in re.split(r"\s+", keyword) if token]
+    token_queries = []
+    for token in tokens:
+        safe_token = re.escape(token)
+        token_queries.append({
+            "$or": [
+                {field: {"$regex": safe_token, "$options": "i"}}
+                for field in fields
+            ]
+        })
+
+    return {"$and": token_queries} if len(token_queries) > 1 else token_queries[0]
+
+
+def get_material_records(keyword="", limit=500):
+    query = build_material_search_query(keyword)
+    return list(get_material_collection().find(query).sort("created_at", -1).limit(limit))
+
+
+def get_material_receiver_options():
+    return [f"{no} - {name}" for no, name in MATERIAL_RECEIVER_MAP.items()]
+
+
+def parse_material_receiver_option(option):
+    text = str(option or "")
+    receiver_no = text.split(" - ", 1)[0].strip()
+    return receiver_no, MATERIAL_RECEIVER_MAP.get(receiver_no, "")
+
+
+def rerun_app():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    st.experimental_rerun()
+
+
+def material_query_param(name):
+    try:
+        value = st.query_params.get(name, "")
+    except Exception:
+        try:
+            value = st.experimental_get_query_params().get(name, "")
+        except Exception:
+            return ""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value or "")
+
+
+def clear_material_query_params():
+    try:
+        for key in ("material_qr", "material_scan"):
+            if key in st.query_params:
+                del st.query_params[key]
+    except Exception:
+        pass
+
+
+def reset_material_live_lookup_state():
+    for key in (
+        "material_live_lot",
+        "material_live_lookup",
+        "material_live_message",
+        "material_received_qty_live",
+        "material_memo_live",
+        "material_receive_date_live",
+        "material_product_name_live",
+        "material_spec_live",
+        "material_plan_qty_live",
+    ):
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def apply_material_lot_lookup(raw_lot, source_label="QR"):
+    lot_no = normalize_material_lot_text(raw_lot)
+    for key in (
+        "material_received_qty_live",
+        "material_memo_live",
+        "material_receive_date_live",
+        "material_product_name_live",
+        "material_spec_live",
+        "material_plan_qty_live",
+    ):
+        if key in st.session_state:
+            del st.session_state[key]
+
+    st.session_state.material_live_lot = lot_no
+    st.session_state.material_live_lookup = {}
+
+    if not lot_no:
+        st.session_state.material_live_message = ("warning", "LOT 번호를 읽지 못했습니다.")
+        return
+
+    try:
+        info, message = lookup_ksi_lot_info(lot_no)
+    except Exception as exc:
+        info, message = None, f"K-System LOT 조회 오류: {exc}"
+
+    if info and info.get("lookup_ok"):
+        st.session_state.material_live_lookup = info
+        st.session_state.material_live_message = ("success", f"{source_label} 조회 성공: {lot_no}")
+        return
+
+    st.session_state.material_live_lookup = {
+        "lookup_ok": False,
+        "work_order_no": lot_no,
+        "product_name": "",
+        "spec": "",
+        "plan_qty": 0,
+    }
+    st.session_state.material_live_message = (
+        "warning",
+        message or f"{lot_no} 조회 결과가 없습니다. 필요하면 수동 정보로 저장하세요.",
+    )
+
+
+def render_material_qr_scanner():
+    components.html(
+        """
+        <div style="max-width:560px;margin:0 auto;">
+          <div id="material-qr-reader" style="width:100%;min-height:320px;border:1px solid #d8dee9;border-radius:8px;overflow:hidden;"></div>
+          <div id="material-qr-status" style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#eef6ff;color:#174ea6;font-size:15px;">
+            카메라를 준비 중입니다. 권한 요청이 나오면 허용을 눌러주세요.
+          </div>
+        </div>
+        <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script>
+        (function () {
+          const statusBox = document.getElementById("material-qr-status");
+          function setStatus(text) {
+            if (statusBox) statusBox.textContent = text;
+          }
+          function sendResult(decodedText) {
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set("material_qr", decodedText);
+            url.searchParams.set("material_scan", String(Date.now()));
+            window.parent.location.href = url.toString();
+          }
+          function startScanner() {
+            if (!window.Html5Qrcode) {
+              setTimeout(startScanner, 300);
+              return;
+            }
+            const scanner = new Html5Qrcode("material-qr-reader");
+            scanner.start(
+              { facingMode: "environment" },
+              { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
+              function(decodedText) {
+                setStatus("QR 인식 완료: " + decodedText);
+                scanner.stop()
+                  .then(function(){ sendResult(decodedText); })
+                  .catch(function(){ sendResult(decodedText); });
+              },
+              function() {}
+            ).then(function(){
+              setStatus("카메라 실행 중입니다. 도면 QR을 화면 안에 맞춰주세요.");
+            }).catch(function(){
+              setStatus("카메라를 열지 못했습니다. 브라우저 카메라 권한을 허용하거나 수동 입력을 사용하세요.");
+            });
+          }
+          startScanner();
+        })();
+        </script>
+        """,
+        height=520,
+    )
+
+
+def show_material_receiving_page_live_qr():
+    st.title("📦 원자재 입고 정보")
+    st.caption("작업자를 선택한 뒤 도면 QR을 스캔하면 K-System LOT 정보를 자동 조회합니다.")
+
+    scanned_text = material_query_param("material_qr")
+    scan_nonce = material_query_param("material_scan")
+    if scanned_text and scan_nonce and scan_nonce != st.session_state.get("material_last_scan_nonce"):
+        st.session_state.material_last_scan_nonce = scan_nonce
+        apply_material_lot_lookup(scanned_text, "QR")
+        clear_material_query_params()
+        rerun_app()
+
+    saved_message = st.session_state.get("material_live_saved_message", "")
+    if saved_message:
+        st.success(saved_message)
+        st.session_state.material_live_saved_message = ""
+
+    receiver_options = get_material_receiver_options()
+    selected_receiver = st.selectbox("입고 작업자", receiver_options, key="material_live_receiver")
+    receiver_no, receiver_name = parse_material_receiver_option(selected_receiver)
+
+    input_tab, search_tab = st.tabs(["📷 QR 입고", "🔍 입고 검색"])
+
+    with input_tab:
+        st.info(f"현재 작업자: {receiver_no} {receiver_name}")
+        render_material_qr_scanner()
+
+        with st.expander("카메라가 안 될 때 수동 LOT 입력"):
+            manual_lot = st.text_input(
+                "LOT 번호",
+                placeholder="예: KK20260703080 또는 0703080",
+                key="material_manual_lot_live",
+            )
+            if st.button("수동 LOT 조회", key="material_manual_lookup_live"):
+                apply_material_lot_lookup(manual_lot, "수동")
+                rerun_app()
+
+        message_type, message_text = st.session_state.get("material_live_message", ("info", ""))
+        if message_text:
+            getattr(st, message_type, st.info)(message_text)
+
+        lot_no = st.session_state.get("material_live_lot", "")
+        if not lot_no:
+            st.info("도면 QR을 카메라에 비추면 자동 조회됩니다.")
+        else:
+            lookup_info = st.session_state.get("material_live_lookup", {})
+            product_name_default = str(lookup_info.get("product_name", "") or "")
+            spec_default = str(lookup_info.get("spec", "") or "")
+            plan_qty_default = to_int_safe(lookup_info.get("plan_qty"), 0)
+            received_total = get_material_received_total(lot_no)
+            default_received_qty = max(plan_qty_default - received_total, 0) if plan_qty_default else 0
+
+            st.markdown("#### 조회된 입고 정보")
+            cols = st.columns(4)
+            cols[0].metric("LOT", lot_no)
+            cols[1].metric("K-System 수량", plan_qty_default)
+            cols[2].metric("기존 입고 합계", received_total)
+            cols[3].metric("남은 수량", max(plan_qty_default - received_total, 0) if plan_qty_default else 0)
+
+            with st.form("material_live_receiving_form"):
+                st.text_input("LOT", value=lot_no, disabled=True)
+                product_name = st.text_input("품명", value=product_name_default, key="material_product_name_live")
+                spec = st.text_input("규격", value=spec_default, key="material_spec_live")
+
+                qty_cols = st.columns(3)
+                with qty_cols[0]:
+                    plan_qty = st.number_input(
+                        "K-System 수량",
+                        min_value=0,
+                        value=plan_qty_default,
+                        step=1,
+                        key="material_plan_qty_live",
+                    )
+                with qty_cols[1]:
+                    st.number_input(
+                        "기존 입고 합계",
+                        min_value=0,
+                        value=received_total,
+                        step=1,
+                        disabled=True,
+                        key="material_received_total_live",
+                    )
+                with qty_cols[2]:
+                    received_qty = st.number_input(
+                        "이번 입고 수량",
+                        min_value=0,
+                        value=default_received_qty,
+                        step=1,
+                        key="material_received_qty_live",
+                    )
+
+                receive_date = st.date_input(
+                    "입고 날짜",
+                    value=get_now_kst().date(),
+                    key="material_receive_date_live",
+                )
+                memo = st.text_area(
+                    "메모",
+                    placeholder="부분 입고, 수량 차이, 특이사항",
+                    key="material_memo_live",
+                )
+                submitted = st.form_submit_button("✅ 저장 후 다음 QR 스캔")
+
+            if submitted:
+                if not receiver_no or not receiver_name.strip():
+                    st.error("작업자를 선택해 주세요.")
+                elif not lot_no:
+                    st.error("LOT 번호가 없습니다.")
+                elif received_qty <= 0:
+                    st.error("이번 입고 수량은 1개 이상이어야 합니다.")
+                else:
+                    now_kst = get_now_kst()
+                    received_total_after = received_total + int(received_qty)
+                    doc = {
+                        "lot_no": lot_no,
+                        "product_name": product_name.strip(),
+                        "spec": spec.strip(),
+                        "plan_qty": int(plan_qty),
+                        "received_qty": int(received_qty),
+                        "received_total_before": int(received_total),
+                        "received_total_after": int(received_total_after),
+                        "receive_date": str(receive_date),
+                        "receiver_no": receiver_no,
+                        "receiver_name": receiver_name,
+                        "memo": memo.strip(),
+                        "source": "qr_live" if lookup_info.get("lookup_ok") else "manual_or_not_found",
+                        "created_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                    get_material_collection().insert_one(doc)
+                    reset_material_live_lookup_state()
+                    st.session_state.material_live_saved_message = (
+                        f"{lot_no} 입고 {int(received_qty)}개 저장 완료. 다음 QR을 스캔하세요."
+                    )
+                    rerun_app()
+
+    with search_tab:
+        keyword = st.text_input(
+            "검색어",
+            placeholder="LOT, 품명 일부, 규격 일부, 인수자, 메모",
+            key="material_search_keyword_live",
+        )
+        records = get_material_records(keyword)
+        if not records:
+            st.info("검색 결과가 없습니다.")
+            return
+
+        rows = []
+        for item in records:
+            rows.append(
+                {
+                    "입고일": item.get("receive_date", ""),
+                    "LOT": item.get("lot_no", ""),
+                    "품명": item.get("product_name", ""),
+                    "규격": item.get("spec", ""),
+                    "K-System수량": item.get("plan_qty", 0),
+                    "입고수량": item.get("received_qty", 0),
+                    "누적입고": item.get("received_total_after", 0),
+                    "인수자": item.get("receiver_name", ""),
+                    "메모": item.get("memo", ""),
+                }
+            )
+
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        st.subheader("LOT별 입고 합계")
+        summary = df.groupby(["LOT", "품명", "규격"], dropna=False)["입고수량"].sum().reset_index()
+        st.dataframe(summary, use_container_width=True, hide_index=True)
+
+
+def show_material_receiving_page():
+    return show_material_receiving_page_live_qr()
+
+    st.title("📦 원자재 입고 정보")
+    st.caption("도면 QR의 LOT를 조회해서 원자재 입고 내역을 별도로 저장합니다. 툴 관리 기록과는 아직 연결하지 않습니다.")
+
+    input_tab, search_tab = st.tabs(["📥 입고 등록", "🔍 입고 검색"])
+
+    with input_tab:
+        if "material_scan_mode" not in st.session_state:
+            st.session_state.material_scan_mode = False
+        if "material_scan_counter" not in st.session_state:
+            st.session_state.material_scan_counter = 0
+
+        saved_message = st.session_state.get("material_last_saved_message", "")
+        if saved_message:
+            st.success(saved_message)
+            st.session_state.material_last_saved_message = ""
+
+        st.subheader("1. 인수자 선택")
+        c1, c2 = st.columns(2)
+        with c1:
+            receiver_no_raw = st.text_input("인수자 번호", placeholder="예: 02", key="material_receiver_no")
+        receiver_no = normalize_material_receiver_no(receiver_no_raw)
+        auto_receiver_name = MATERIAL_RECEIVER_MAP.get(receiver_no, "")
+        with c2:
+            if auto_receiver_name:
+                st.text_input("인수자 이름", value=auto_receiver_name, disabled=True, key="material_receiver_name_auto")
+                receiver_name = auto_receiver_name
+            else:
+                receiver_name = st.text_input("인수자 이름", placeholder="번호 미등록 시 직접 입력", key="material_receiver_name")
+
+        if receiver_no_raw.strip() and not auto_receiver_name:
+            st.warning("등록되지 않은 인수자 번호입니다. 번호를 확인하거나 이름을 직접 입력하세요.")
+
+        st.subheader("2. QR 스캔")
+        scan_cols = st.columns([1, 1, 3])
+        with scan_cols[0]:
+            if st.button("📷 스캔 모드 시작", key="material_scan_start"):
+                if not receiver_name.strip():
+                    st.warning("인수자를 먼저 선택하거나 입력하세요.")
+                else:
+                    st.session_state.material_scan_mode = True
+                    st.session_state.material_scan_counter += 1
+                    st.session_state.material_lookup_info = {}
+                    st.session_state.material_lookup_lot = ""
+                    st.session_state.material_auto_lookup_lot = ""
+                    st.rerun()
+        with scan_cols[1]:
+            if st.button("⏹ 스캔 모드 종료", key="material_scan_stop"):
+                st.session_state.material_scan_mode = False
+                st.session_state.material_lookup_info = {}
+                st.session_state.material_lookup_lot = ""
+                st.session_state.material_auto_lookup_lot = ""
+                st.rerun()
+
+        if st.session_state.material_scan_mode:
+            st.info(f"스캔 모드 실행 중: {receiver_name.strip() or '인수자 미지정'} / QR을 찍으면 LOT가 자동 조회됩니다.")
+        else:
+            st.info("인수자를 먼저 선택한 뒤 스캔 모드 시작을 누르세요.")
+
+        lot_input_key = f"material_lot_input_{st.session_state.material_scan_counter}"
+        lot_raw = st.text_input(
+            "QR 또는 LOT 번호",
+            placeholder="예: KK20260703080 또는 0703080",
+            key=lot_input_key,
+            disabled=not st.session_state.material_scan_mode,
+        )
+        lot_no = normalize_material_lot_text(lot_raw)
+
+        if st.button("LOT 조회", key="material_lookup_button", disabled=not st.session_state.material_scan_mode):
+            if not lot_no:
+                st.warning("LOT 번호를 먼저 입력하거나 QR 값을 붙여넣어 주세요.")
+            else:
+                info, message = lookup_ksi_lot_info(lot_no)
+                st.session_state.material_lookup_lot = lot_no
+                if info and info.get("lookup_ok"):
+                    st.session_state.material_lookup_info = info
+                    st.success(f"{lot_no} 조회 성공")
+                else:
+                    st.session_state.material_lookup_info = {}
+                    st.warning(message or "K-System에서 해당 LOT를 찾지 못했습니다. 필요하면 수동 저장을 사용하세요.")
+
+        if not st.session_state.material_scan_mode:
+            st.session_state.material_lookup_lot = ""
+            st.session_state.material_lookup_info = {}
+            st.session_state.material_auto_lookup_lot = ""
+        elif not lot_no:
+            st.session_state.material_lookup_lot = ""
+            st.session_state.material_lookup_info = {}
+            st.session_state.material_auto_lookup_lot = ""
+        elif len(lot_no) >= 13 and lot_no != st.session_state.get("material_auto_lookup_lot", ""):
+            info, message = lookup_ksi_lot_info(lot_no)
+            st.session_state.material_auto_lookup_lot = lot_no
+            st.session_state.material_lookup_lot = lot_no
+            if info and info.get("lookup_ok"):
+                st.session_state.material_lookup_info = info
+                st.success(f"{lot_no} 자동 조회 성공")
+            else:
+                st.session_state.material_lookup_info = {}
+                st.info(message or "K-System에서 해당 LOT를 찾지 못했습니다. 필요하면 수동 저장을 사용하세요.")
+
+        lookup_info = st.session_state.get("material_lookup_info", {})
+        lookup_lot = st.session_state.get("material_lookup_lot", "")
+        if lot_no != lookup_lot:
+            lookup_info = {}
+
+        product_name_default = str(lookup_info.get("product_name", "") or "")
+        spec_default = str(lookup_info.get("spec", "") or "")
+        plan_qty_default = to_int_safe(lookup_info.get("plan_qty"), 0)
+        received_total = get_material_received_total(lot_no)
+        default_received_qty = max(plan_qty_default - received_total, 0) if plan_qty_default else 0
+
+        if lot_no and received_total:
+            st.info(f"현재 LOT 기존 입고 합계: {received_total}개")
+
+        with st.form("material_receiving_form"):
+            st.text_input("저장될 LOT", value=lot_no, disabled=True)
+            product_name = st.text_input("품명", value=product_name_default)
+            spec = st.text_input("규격", value=spec_default)
+
+            qty_cols = st.columns(3)
+            with qty_cols[0]:
+                plan_qty = st.number_input("K-System 수량", min_value=0, value=plan_qty_default, step=1)
+            with qty_cols[1]:
+                st.number_input("기존 입고 합계", min_value=0, value=received_total, step=1, disabled=True)
+            with qty_cols[2]:
+                received_qty = st.number_input("이번 입고 수량", min_value=0, value=default_received_qty, step=1)
+
+            receive_date = st.date_input("입고 날짜", value=get_now_kst().date())
+            memo = st.text_area("메모", placeholder="부분 입고, 수량 차이, 특이사항 등을 적어두면 됩니다.")
+            allow_manual = st.checkbox("K-System 조회 결과 없이 수동 정보로 저장합니다.")
+            submitted = st.form_submit_button("✅ 원자재 입고 저장")
+
+        if submitted:
+            if not lot_no:
+                st.error("LOT 번호는 반드시 필요합니다.")
+                st.stop()
+            if not receiver_name.strip():
+                st.error("인수자를 먼저 선택하거나 입력하세요.")
+                st.stop()
+            if received_qty <= 0:
+                st.error("이번 입고 수량은 1개 이상이어야 합니다.")
+                st.stop()
+            if not allow_manual and not lookup_info.get("lookup_ok"):
+                st.error("먼저 LOT 조회에 성공하거나, 수동 저장 체크를 켜주세요.")
+                st.stop()
+
+            now_kst = get_now_kst()
+            doc = {
+                "lot_no": lot_no,
+                "product_name": product_name.strip(),
+                "spec": spec.strip(),
+                "plan_qty": int(plan_qty),
+                "received_qty": int(received_qty),
+                "received_total_before": int(received_total),
+                "received_total_after": int(received_total + received_qty),
+                "receive_date": receive_date.strftime("%Y-%m-%d"),
+                "receiver_no": receiver_no,
+                "receiver_name": receiver_name.strip(),
+                "memo": memo.strip(),
+                "source": "k_system" if lookup_info.get("lookup_ok") else "manual",
+                "created_at": now_kst,
+            }
+            get_material_collection().insert_one(doc)
+            st.session_state.material_lookup_info = {}
+            st.session_state.material_lookup_lot = ""
+            st.session_state.material_auto_lookup_lot = ""
+            st.session_state.material_scan_mode = True
+            st.session_state.material_scan_counter += 1
+            st.session_state.material_last_saved_message = f"{lot_no} 원자재 입고 {received_qty}개 저장 완료. 다음 LOT 스캔 대기 중입니다."
+            st.rerun()
+
+    with search_tab:
+        keyword = st.text_input("LOT / 품명 / 규격 / 인수자 검색", key="material_search_keyword")
+        records = get_material_records(keyword)
+        if not records:
+            st.info("검색된 원자재 입고 기록이 없습니다.")
+            return
+
+        rows = []
+        for record in records:
+            rows.append({
+                "입고일": record.get("receive_date", ""),
+                "LOT": record.get("lot_no", ""),
+                "품명": record.get("product_name", ""),
+                "규격": record.get("spec", ""),
+                "K-System 수량": record.get("plan_qty", 0),
+                "이번 입고": record.get("received_qty", 0),
+                "누적 입고": record.get("received_total_after", ""),
+                "인수자": record.get("receiver_name", ""),
+                "메모": record.get("memo", ""),
+            })
+
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        summary = (
+            df.groupby(["LOT", "품명", "규격", "K-System 수량"], dropna=False)["이번 입고"]
+            .sum()
+            .reset_index()
+            .rename(columns={"이번 입고": "입고 합계"})
+        )
+        st.subheader("LOT별 입고 합계")
+        st.dataframe(summary, use_container_width=True, hide_index=True)
+
+
 # 🟣 [재사용대기 팝업 대화창 정의]
 @st.dialog("📋 재사용대기 전환 추가 정보 기입")
 def show_reuse_pending_dialog(s_no, current_mach, orig_note, ed_worker, ed_machine_num, ed_hours, ed_mins,ed_spec):
@@ -1768,12 +2398,40 @@ else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
     menu_options = ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
+    all_menu_options = menu_options + [MATERIAL_MENU_LABEL]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
-    elif st.session_state.sidebar_choice not in menu_options:
+    elif st.session_state.sidebar_choice not in all_menu_options:
         st.session_state.sidebar_choice = menu_options[0]
-        
-    tool_menu = st.sidebar.radio("하위 목록", menu_options, key="sidebar_choice")
+
+    def sync_tool_sidebar_choice():
+        st.session_state.sidebar_choice = st.session_state.tool_sidebar_choice
+
+    selected_tool_index = (
+        menu_options.index(st.session_state.sidebar_choice)
+        if st.session_state.sidebar_choice in menu_options
+        else 0
+    )
+
+    st.sidebar.radio(
+        "하위 목록",
+        menu_options,
+        index=selected_tool_index,
+        key="tool_sidebar_choice",
+        on_change=sync_tool_sidebar_choice,
+    )
+
+    st.sidebar.markdown(
+        "<div style='height: 44px'></div>"
+        "<hr style='margin: 0 0 18px 0; border: 0; border-top: 1px solid #d8dee9;'>",
+        unsafe_allow_html=True,
+    )
+    st.sidebar.markdown("### 📦 원자재")
+    if st.sidebar.button(MATERIAL_MENU_LABEL, key="material_menu_button", use_container_width=True):
+        st.session_state.sidebar_choice = MATERIAL_MENU_LABEL
+        st.rerun()
+
+    tool_menu = st.session_state.sidebar_choice
     
     # 1) QR코드 대량 연속 선발행 창
     if tool_menu == "📊 빈데이터 QR코드 대량 선발행":
@@ -2331,6 +2989,9 @@ else:
 
   
     
+    elif tool_menu == MATERIAL_MENU_LABEL:
+        show_material_receiving_page()
+
     # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
         show_machine_dashboard()
