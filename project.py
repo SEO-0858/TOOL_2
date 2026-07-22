@@ -1496,7 +1496,6 @@ def apply_material_lot_lookup(raw_lot, source_label="QR"):
 
 
 def render_material_qr_scanner():
-    st.warning("QR 스캐너 코드 1번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;">
@@ -1952,7 +1951,6 @@ def render_material_qr_scanner():
 
 # Mobile-safe QR scanner override. Mobile browsers require a real tap/click before camera access.
 def render_material_qr_scanner():
-    st.warning("QR 스캐너 코드 2번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
@@ -2128,8 +2126,6 @@ def render_material_qr_scanner():
 # Final QR scanner override. Keep this closest to the page renderer so it wins over
 # older scanner definitions above.
 def render_material_qr_scanner():
-    st.warning("최종 QR 스캐너 실행 중")
-    st.warning("QR 스캐너 코드 3번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
@@ -2200,10 +2196,26 @@ def render_material_qr_scanner():
             return url.toString();
           }
           function goTop(url) {
-            try { window.top.location.href = url; return; } catch (err) {}
-            try { window.parent.location.href = url; return; } catch (err2) {}
-            try { window.open(url, "_top"); return; } catch (err3) {}
-            try { window.location.href = url; } catch (err4) {}
+            // Streamlit components.html은 iframe 안에서 실행됩니다.
+            // 브라우저별로 허용되는 이동 방식을 차례대로 시도합니다.
+            try {
+              window.open(url, "_top");
+              return;
+            } catch (err1) {}
+
+            try {
+              window.top.location.assign(url);
+              return;
+            } catch (err2) {}
+
+            try {
+              window.parent.location.assign(url);
+              return;
+            } catch (err3) {}
+
+            try {
+              window.location.assign(url);
+            } catch (err4) {}
           }
           function loadScript(src) {
             return new Promise(function (resolve, reject) {
@@ -2289,7 +2301,8 @@ def render_material_qr_scanner():
                   setStatus(
                     "QR 인식 완료: " + esc(decodedText) +
                     "<br>조회 화면으로 이동합니다..." +
-                    "<br><a href='" + esc(next) + "' target='_top' style='color:#175cd3;font-weight:700;text-decoration:underline;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
+                    "<br><a href='" + esc(next) + "' target='_blank' rel='noopener noreferrer' " +
+                    "style='display:inline-block;margin-top:12px;padding:12px 16px;border-radius:10px;background:#175cd3;color:#ffffff;font-weight:700;text-decoration:none;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
                     "ok"
                   );
                   setButton("QR 인식 완료", true);
