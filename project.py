@@ -2119,6 +2119,7 @@ def render_material_qr_scanner():
 # Final QR scanner override. Keep this closest to the page renderer so it wins over
 # older scanner definitions above.
 def render_material_qr_scanner():
+    st.warning("최종 QR 스캐너 실행 중")
     st.warning("QR 스캐너 코드 3번 실행")
     components.html(
         """
