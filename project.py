@@ -1496,6 +1496,7 @@ def apply_material_lot_lookup(raw_lot, source_label="QR"):
 
 
 def render_material_qr_scanner():
+    st.warning("QR 스캐너 코드 1번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;">
@@ -1942,6 +1943,7 @@ def render_material_qr_scanner():
 
 # Mobile-safe QR scanner override. Mobile browsers require a real tap/click before camera access.
 def render_material_qr_scanner():
+    st.warning("QR 스캐너 코드 2번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
@@ -2117,6 +2119,7 @@ def render_material_qr_scanner():
 # Final QR scanner override. Keep this closest to the page renderer so it wins over
 # older scanner definitions above.
 def render_material_qr_scanner():
+    st.warning("QR 스캐너 코드 3번 실행")
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
