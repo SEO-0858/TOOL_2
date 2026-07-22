@@ -4,3 +4,4 @@ pillow
 pandas
 pytz
 xlsxwriter
+streamlit-qrcode-scanner==0.1.2
