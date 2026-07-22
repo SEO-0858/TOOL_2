@@ -1749,14 +1749,19 @@ def render_material_qr_scanner():
           function sendResult(decodedText) {
             const nextUrl = buildResultUrl(decodedText);
             showFallback(decodedText, nextUrl);
-            setTimeout(function () {
-              const link = document.getElementById("material-qr-go");
-              if (link) link.click();
-            }, 120);
+
             try {
-              window.open(nextUrl, "_top");
+                window.top.location.href = nextUrl;
             } catch (err) {
-              try { window.parent.location.href = nextUrl; } catch (err2) {}
+                try {
+                window.parent.postMessage(
+                    {
+                    type: "streamlit:setComponentValue",
+                    value: decodedText
+                    },
+                    "*"
+                );
+                } catch (err2) {}
             }
           }
 
