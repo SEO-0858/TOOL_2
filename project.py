@@ -1429,7 +1429,7 @@ def material_query_param(name):
 
 def clear_material_query_params():
     try:
-        for key in ("material_qr", "material_scan"):
+        for key in ("material_qr", "material_scan", "material_page"):
             if key in st.query_params:
                 del st.query_params[key]
     except Exception:
@@ -1942,13 +1942,189 @@ def render_material_qr_scanner():
     )
 
 
+# Mobile-safe QR scanner override. Mobile browsers require a real tap/click before camera access.
+def render_material_qr_scanner():
+    components.html(
+        """
+        <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
+          <button id="material-camera-start" type="button"
+            style="width:100%;padding:16px 18px;border:1px solid #0f6cbd;border-radius:12px;background:#0f6cbd;color:#fff;font-size:18px;font-weight:700;">
+            Start camera
+          </button>
+          <div id="material-qr-reader"
+            style="width:100%;min-height:360px;margin-top:16px;border:1px solid #d9e2ec;border-radius:14px;overflow:hidden;background:#fff;"></div>
+          <div id="material-qr-status"
+            style="margin-top:14px;padding:14px 16px;border-radius:12px;background:#eef6ff;color:#175cd3;font-size:16px;line-height:1.55;">
+            Tap Start camera. When the browser asks for permission, allow camera access.
+          </div>
+        </div>
+        <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script>
+        (function () {
+          const statusBox = document.getElementById("material-qr-status");
+          const startBtn = document.getElementById("material-camera-start");
+          let scanner = null;
+          let busy = false;
+          let done = false;
+
+          function esc(text) {
+            return String(text || "").replace(/[&<>"']/g, function (ch) {
+              return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch];
+            });
+          }
+
+          function setStatus(message, kind) {
+            if (!statusBox) return;
+            const colors = {
+              info: ["#eef6ff", "#175cd3"],
+              ok: ["#e9f8ef", "#16803c"],
+              err: ["#fff1f2", "#be123c"]
+            };
+            const c = colors[kind] || colors.info;
+            statusBox.style.background = c[0];
+            statusBox.style.color = c[1];
+            statusBox.innerHTML = message;
+          }
+
+          function setButton(text, disabled) {
+            if (!startBtn) return;
+            startBtn.textContent = text;
+            startBtn.disabled = !!disabled;
+            startBtn.style.opacity = disabled ? "0.65" : "1";
+          }
+
+          function parentHref() {
+            try {
+              if (window.parent && window.parent.location && window.parent.location.href) {
+                return window.parent.location.href;
+              }
+            } catch (err) {}
+            return document.referrer || window.location.href;
+          }
+
+        function resultUrl(decodedText) {
+          const url = new URL(parentHref());
+          url.searchParams.set("material_qr", decodedText);
+          url.searchParams.set("material_scan", String(Date.now()));
+          url.searchParams.set("material_page", "1");
+          return url.toString();
+        }
+
+          function goTop(url) {
+            try { window.open(url, "_top"); return; } catch (err) {}
+            try { window.top.location.href = url; return; } catch (err2) {}
+            try { window.parent.location.href = url; } catch (err3) {}
+          }
+
+          function waitForLib() {
+            return new Promise(function (resolve, reject) {
+              const started = Date.now();
+              const timer = setInterval(function () {
+                if (window.Html5Qrcode) {
+                  clearInterval(timer);
+                  resolve();
+                } else if (Date.now() - started > 8000) {
+                  clearInterval(timer);
+                  reject(new Error("html5-qrcode library did not load"));
+                }
+              }, 150);
+            });
+          }
+
+          function qrBox(w, h) {
+            const size = Math.max(190, Math.floor(Math.min(w, h) * 0.72));
+            return { width: size, height: size };
+          }
+
+          async function chooseCamera() {
+            try {
+              const cams = await Html5Qrcode.getCameras();
+              if (cams && cams.length) {
+                const back = cams.find(function (cam) {
+                  return /back|rear|environment/i.test(cam.label || "");
+                });
+                return (back || cams[cams.length - 1]).id;
+              }
+            } catch (err) {}
+            return { facingMode: "environment" };
+          }
+
+          async function start() {
+            if (busy || done) return;
+            busy = true;
+            setButton("Opening camera...", true);
+            setStatus("If a permission popup appears, tap Allow.", "info");
+
+            try {
+              if (!window.isSecureContext) {
+                throw new Error("Camera access requires HTTPS.");
+              }
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("This browser does not support camera access.");
+              }
+
+              await waitForLib();
+              const camera = await chooseCamera();
+              scanner = new Html5Qrcode("material-qr-reader");
+
+              await scanner.start(
+                camera,
+                { fps: 10, qrbox: qrBox, aspectRatio: 1.0 },
+                function (decodedText) {
+                  if (done) return;
+            done = true;
+            const next = resultUrl(decodedText);
+            setStatus(
+              "QR 인식 완료: " + esc(decodedText) +
+              "<br>조회 화면으로 이동합니다..." +
+              "<br><a href=\"" + esc(next) + "\" target=\"_top\" style=\"color:#175cd3;font-weight:700;text-decoration:underline;\">자동 이동이 안 되면 여기를 눌러주세요.</a>",
+              "ok"
+            );
+            setButton("QR recognized", true);
+
+                  try {
+                    scanner.stop()
+                      .then(function () { goTop(next); })
+                      .catch(function () { goTop(next); });
+                  } catch (err) {
+                    goTop(next);
+                  }
+                },
+                function () {}
+              );
+
+              setStatus("Camera is running. Point it at the drawing QR code.", "ok");
+              setButton("Camera running", true);
+            } catch (err) {
+              busy = false;
+              setButton("Start camera again", false);
+              setStatus(
+                "Camera could not start.<br>Reason: " +
+                esc(err && (err.name || err.message) ? ((err.name || "") + " " + (err.message || "")) : err) +
+                "<br><br>Try Chrome or Samsung Internet, and clear camera permission for this site if needed.",
+                "err"
+              );
+            }
+          }
+
+          if (startBtn) startBtn.addEventListener("click", start);
+          setStatus("Tap Start camera. Permission popup appears only after this tap.", "info");
+        })();
+        </script>
+        """,
+        height=650,
+    )
+
+
 def show_material_receiving_page_live_qr():
     st.title("📦 원자재 입고 정보")
     st.caption("작업자를 선택한 뒤 도면 QR을 스캔하면 K-System LOT 정보를 자동 조회합니다.")
 
-    scanned_text = material_query_param("material_qr")
-    scan_nonce = material_query_param("material_scan")
-    if scanned_text and scan_nonce and scan_nonce != st.session_state.get("material_last_scan_nonce"):
+    scanned_text = material_query_param("material_qr").strip()
+    scan_nonce = material_query_param("material_scan").strip() or scanned_text
+    scan_key = f"{scan_nonce}:{scanned_text}"
+    if scanned_text and scan_key != st.session_state.get("material_last_scan_key"):
+        st.session_state.material_last_scan_key = scan_key
         st.session_state.material_last_scan_nonce = scan_nonce
         apply_material_lot_lookup(scanned_text, "QR")
         clear_material_query_params()
@@ -2798,6 +2974,13 @@ else:
         st.session_state.sidebar_choice = menu_options[0]
     elif st.session_state.sidebar_choice not in all_menu_options:
         st.session_state.sidebar_choice = menu_options[0]
+
+    material_query_active = any(
+        material_query_param(name)
+        for name in ("material_qr", "material_scan", "material_page")
+    )
+    if material_query_active:
+        st.session_state.sidebar_choice = MATERIAL_MENU_LABEL
 
     def sync_tool_sidebar_choice():
         st.session_state.sidebar_choice = st.session_state.tool_sidebar_choice
