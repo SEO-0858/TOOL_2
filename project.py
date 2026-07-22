@@ -1499,6 +1499,370 @@ def render_material_qr_scanner():
     components.html(
         """
         <div style="max-width:560px;margin:0 auto;">
+          <button
+            id="material-camera-start"
+            type="button"
+            style="width:100%;padding:16px 18px;border:1px solid #cfd7e3;border-radius:12px;background:#f8fafc;color:#1f2937;font-size:18px;font-weight:700;"
+          >
+            카메라 시작
+          </button>
+          <div
+            id="material-qr-reader"
+            style="width:100%;min-height:360px;margin-top:16px;border:1px solid #d9e2ec;border-radius:14px;overflow:hidden;background:#fff;"
+          ></div>
+          <div
+            id="material-qr-status"
+            style="margin-top:14px;padding:14px 16px;border-radius:12px;background:#eef6ff;color:#175cd3;font-size:16px;line-height:1.55;"
+          >
+            카메라 시작 버튼을 누르면 권한 요청이 뜹니다. 요청이 뜨면 허용을 눌러주세요.
+          </div>
+        </div>
+
+        <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script>
+        (function () {
+          const statusBox = document.getElementById("material-qr-status");
+          const startBtn = document.getElementById("material-camera-start");
+          let scanner = null;
+          let isStarting = false;
+          let hasResult = false;
+
+          const escapeMap = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"};
+
+          function escapeHtml(text) {
+            return String(text || "").replace(/[&<>"']/g, function (ch) {
+              return escapeMap[ch] || ch;
+            });
+          }
+
+          function setStatus(message, kind) {
+            if (!statusBox) return;
+            const colors = {
+              info: ["#eef6ff", "#175cd3"],
+              success: ["#e9f8ef", "#16803c"],
+              error: ["#fff1f2", "#be123c"]
+            };
+            const selected = colors[kind] || colors.info;
+            statusBox.style.background = selected[0];
+            statusBox.style.color = selected[1];
+            statusBox.innerHTML = message;
+          }
+
+          function setButton(text, disabled) {
+            if (!startBtn) return;
+            startBtn.textContent = text;
+            startBtn.disabled = !!disabled;
+            startBtn.style.opacity = disabled ? "0.65" : "1";
+          }
+
+          function buildResultUrl(decodedText) {
+            let href = document.referrer || window.location.href;
+            try {
+              href = window.parent.location.href || href;
+            } catch (err) {}
+            const url = new URL(href);
+            url.searchParams.set("material_qr", decodedText);
+            url.searchParams.set("material_scan", String(Date.now()));
+            return url.toString();
+          }
+
+          function showResult(decodedText, nextUrl) {
+            setStatus(
+              "QR 인식 완료: " + escapeHtml(decodedText) +
+              "<br>자동 조회 화면으로 이동합니다." +
+              "<br><a href='" + nextUrl + "' target='_top' style='color:#175cd3;font-weight:700;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
+              "success"
+            );
+          }
+
+          function sendResult(decodedText) {
+            const nextUrl = buildResultUrl(decodedText);
+            showResult(decodedText, nextUrl);
+            setTimeout(function () {
+              try {
+                window.open(nextUrl, "_top");
+              } catch (err) {
+                try {
+                  window.parent.location.href = nextUrl;
+                } catch (err2) {}
+              }
+            }, 150);
+          }
+
+          function waitForLibrary() {
+            return new Promise(function (resolve, reject) {
+              let count = 0;
+              const timer = setInterval(function () {
+                count += 1;
+                if (window.Html5Qrcode) {
+                  clearInterval(timer);
+                  resolve();
+                } else if (count > 60) {
+                  clearInterval(timer);
+                  reject(new Error("QR 스캐너 라이브러리를 불러오지 못했습니다."));
+                }
+              }, 100);
+            });
+          }
+
+          function makeQrBox(viewfinderWidth, viewfinderHeight) {
+            const size = Math.max(180, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72));
+            return { width: size, height: size };
+          }
+
+          async function startScanner() {
+            if (isStarting || hasResult) return;
+            isStarting = true;
+            setButton("카메라 여는 중...", true);
+            setStatus("권한 요청이 뜨면 허용을 눌러주세요.", "info");
+
+            try {
+              if (!window.isSecureContext) {
+                throw new Error("HTTPS 주소에서만 카메라를 사용할 수 있습니다.");
+              }
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("이 브라우저는 카메라 기능을 지원하지 않습니다. Chrome 또는 Samsung Internet으로 열어보세요.");
+              }
+
+              await waitForLibrary();
+
+              let cameraConfig = { facingMode: "environment" };
+              try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length) {
+                  const backCamera = cameras.find(function (camera) {
+                    return /back|rear|environment/i.test(camera.label || "");
+                  });
+                  cameraConfig = (backCamera || cameras[cameras.length - 1]).id;
+                }
+              } catch (cameraListError) {}
+
+              scanner = new Html5Qrcode("material-qr-reader");
+              await scanner.start(
+                cameraConfig,
+                { fps: 10, qrbox: makeQrBox, aspectRatio: 1.0 },
+                function (decodedText) {
+                  if (hasResult) return;
+                  hasResult = true;
+                  setStatus("QR 인식 완료: " + escapeHtml(decodedText), "success");
+                  setButton("QR 인식 완료", true);
+                  try {
+                    scanner.stop()
+                      .then(function () { sendResult(decodedText); })
+                      .catch(function () { sendResult(decodedText); });
+                  } catch (stopError) {
+                    sendResult(decodedText);
+                  }
+                },
+                function () {}
+              );
+
+              setStatus("카메라 실행 중입니다. 도면 QR을 화면 안에 맞춰주세요.", "success");
+              setButton("카메라 실행 중", true);
+            } catch (err) {
+              isStarting = false;
+              setButton("다시 카메라 시작", false);
+              const reason = escapeHtml(
+                err && (err.name || err.message)
+                  ? ((err.name || "") + " " + (err.message || ""))
+                  : err
+              );
+              setStatus(
+                "카메라를 열지 못했습니다.<br>이유: " + reason +
+                "<br><br>브라우저 주소가 https인지 확인하고, 계속 안 되면 Chrome 또는 Samsung Internet으로 열어보세요.",
+                "error"
+              );
+            }
+          }
+
+          if (startBtn) {
+            startBtn.addEventListener("click", startScanner);
+          }
+          setStatus("카메라 시작 버튼을 눌러주세요. 권한 요청이 뜨면 허용을 눌러주세요.", "info");
+        })();
+        </script>
+        """,
+        height=650,
+    )
+    return
+
+    components.html(
+        """
+        <div style="max-width:560px;margin:0 auto;">
+          <button
+            id="material-camera-start"
+            type="button"
+            style="width:100%;padding:16px 18px;margin:0 0 14px 0;border:1px solid #0f6cbd;border-radius:10px;background:#0f6cbd;color:white;font-size:20px;font-weight:700;">
+            카메라 시작
+          </button>
+          <div id="material-qr-reader" style="width:100%;min-height:330px;border:1px solid #d6dce5;border-radius:12px;overflow:hidden;background:#fff;"></div>
+          <div id="material-qr-status" style="margin-top:14px;padding:14px;border-radius:10px;background:#eef6ff;color:#174ea6;font-size:18px;">
+            카메라 시작 버튼을 누르면 권한 요청이 뜹니다. 요청이 뜨면 허용을 눌러주세요.
+          </div>
+        </div>
+        <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script>
+        (function () {
+          const statusBox = document.getElementById("material-qr-status");
+          const startBtn = document.getElementById("material-camera-start");
+          let scanner = null;
+          let isStarting = false;
+          let hasResult = false;
+
+          function escapeHtml(text) {
+            return String(text || "").replace(/[&<>"']/g, function (ch) {
+              return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#039;"}[ch];
+            });
+          }
+
+          function setStatus(message, kind) {
+            if (!statusBox) return;
+            statusBox.innerHTML = message;
+            if (kind === "error") {
+              statusBox.style.background = "#fff4e5";
+              statusBox.style.color = "#8a4b00";
+            } else if (kind === "success") {
+              statusBox.style.background = "#e9f8ef";
+              statusBox.style.color = "#116329";
+            } else {
+              statusBox.style.background = "#eef6ff";
+              statusBox.style.color = "#174ea6";
+            }
+          }
+
+          function setButton(text, disabled) {
+            if (!startBtn) return;
+            startBtn.textContent = text;
+            startBtn.disabled = !!disabled;
+            startBtn.style.opacity = disabled ? "0.65" : "1";
+          }
+
+          function buildResultUrl(decodedText) {
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set("material_qr", decodedText);
+            url.searchParams.set("material_scan", String(Date.now()));
+            return url.toString();
+          }
+
+          function showFallback(decodedText, nextUrl) {
+            setStatus(
+              "QR 인식 완료: " + escapeHtml(decodedText) +
+              "<br><br><a id='material-qr-go' href='" + nextUrl + "' target='_top' " +
+              "style='display:inline-block;padding:10px 14px;border-radius:8px;background:#0f6cbd;color:#fff;text-decoration:none;font-weight:700;'>조회 화면으로 이동</a>",
+              "success"
+            );
+          }
+
+          function sendResult(decodedText) {
+            const nextUrl = buildResultUrl(decodedText);
+            showFallback(decodedText, nextUrl);
+            setTimeout(function () {
+              const link = document.getElementById("material-qr-go");
+              if (link) link.click();
+            }, 120);
+            try {
+              window.open(nextUrl, "_top");
+            } catch (err) {
+              try { window.parent.location.href = nextUrl; } catch (err2) {}
+            }
+          }
+
+          function waitForLibrary() {
+            return new Promise(function (resolve, reject) {
+              const startedAt = Date.now();
+              const timer = setInterval(function () {
+                if (window.Html5Qrcode) {
+                  clearInterval(timer);
+                  resolve();
+                } else if (Date.now() - startedAt > 6000) {
+                  clearInterval(timer);
+                  reject(new Error("QR 카메라 라이브러리를 불러오지 못했습니다."));
+                }
+              }, 150);
+            });
+          }
+
+          async function startScanner() {
+            if (isStarting || hasResult) return;
+            isStarting = true;
+            setButton("카메라 여는 중...", true);
+            setStatus("카메라 권한 요청이 뜨면 허용을 눌러주세요.");
+
+            try {
+              if (!window.isSecureContext) {
+                throw new Error("HTTPS 화면에서만 카메라를 사용할 수 있습니다.");
+              }
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("이 브라우저는 웹 카메라 기능을 지원하지 않습니다. Chrome 또는 Edge로 열어보세요.");
+              }
+
+              await waitForLibrary();
+              scanner = scanner || new Html5Qrcode("material-qr-reader");
+
+              let cameraConfig = { facingMode: "environment" };
+              try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length > 0) {
+                  const backCamera = cameras.find(function (camera) {
+                    return /back|rear|environment|후면|뒤/i.test(camera.label || "");
+                  });
+                  cameraConfig = (backCamera || cameras[cameras.length - 1]).id;
+                }
+              } catch (cameraListError) {
+                cameraConfig = { facingMode: "environment" };
+              }
+
+              await scanner.start(
+                cameraConfig,
+                { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
+                function (decodedText) {
+                  if (hasResult) return;
+                  hasResult = true;
+                  setStatus("QR 인식 완료: " + escapeHtml(decodedText), "success");
+                  try {
+                    scanner.stop().then(function () {
+                      sendResult(decodedText);
+                    }).catch(function () {
+                      sendResult(decodedText);
+                    });
+                  } catch (stopError) {
+                    sendResult(decodedText);
+                  }
+                },
+                function () {}
+              );
+
+              setStatus("카메라 실행 중입니다. 도면 QR을 화면 안에 맞춰주세요.");
+              setButton("카메라 실행 중", true);
+            } catch (err) {
+              isStarting = false;
+              setButton("다시 카메라 시작", false);
+              const reason = escapeHtml((err && (err.name || err.message)) ? ((err.name || "") + " " + (err.message || "")) : err);
+              setStatus(
+                "카메라를 열지 못했습니다.<br>이유: " + reason +
+                "<br><br>브라우저 주소가 https인지 확인하고, 계속 안 되면 아래 수동 LOT 입력을 사용하세요.",
+                "error"
+              );
+            }
+          }
+
+          if (startBtn) {
+            startBtn.addEventListener("click", startScanner);
+          }
+
+          setTimeout(function () {
+            if (!hasResult) startScanner();
+          }, 700);
+        })();
+        </script>
+        """,
+        height=650,
+    )
+    return
+
+    components.html(
+        """
+        <div style="max-width:560px;margin:0 auto;">
           <div id="material-qr-reader" style="width:100%;min-height:320px;border:1px solid #d8dee9;border-radius:8px;overflow:hidden;"></div>
           <div id="material-qr-status" style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#eef6ff;color:#174ea6;font-size:15px;">
             카메라를 준비 중입니다. 권한 요청이 나오면 허용을 눌러주세요.
