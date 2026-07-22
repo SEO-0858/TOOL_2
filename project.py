@@ -1577,16 +1577,9 @@ def render_material_qr_scanner():
 
           function sendResult(decodedText) {
             const nextUrl = buildResultUrl(decodedText);
+            alert(nextUrl);
             showResult(decodedText, nextUrl);
-            setTimeout(function () {
-              try {
-                window.open(nextUrl, "_top");
-              } catch (err) {
-                try {
-                  window.parent.location.href = nextUrl;
-                } catch (err2) {}
-              }
-            }, 150);
+
           }
 
           function waitForLibrary() {
