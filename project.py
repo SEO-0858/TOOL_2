@@ -1346,9 +1346,47 @@ def to_int_safe(value, default=0):
 
 
 def normalize_material_lot_text(raw_text):
-    text = str(raw_text or "").strip().upper().replace(" ", "")
-    if not text:
+    """
+    QR에 LOT 번호만 들어 있거나, URL 전체가 들어 있어도 LOT 번호만 추출합니다.
+    예:
+      KK20260703080
+      0703080
+      https://.../?serial=KK20260703080
+      https://.../?lot=0703080
+    """
+    original = str(raw_text or "").strip()
+    if not original:
         return ""
+
+    # 1) QR 내용이 URL이면 쿼리 파라미터에서 LOT 후보를 먼저 찾습니다.
+    try:
+        parsed = urlparse.urlparse(original)
+        query = urlparse.parse_qs(parsed.query)
+        for key in ("material_qr", "lot", "lot_no", "work_order_no", "serial"):
+            values = query.get(key)
+            if values:
+                candidate = str(values[0]).strip()
+                if candidate and candidate != original:
+                    return normalize_material_lot_text(candidate)
+    except Exception:
+        pass
+
+    text = original.upper().replace(" ", "")
+
+    # 2) 문자열 안에 완성형 작업지시번호(KK + 연도 + 숫자)가 있으면 그것만 추출합니다.
+    full_match = re.search(r"KK20\d{6,}", text)
+    if full_match:
+        return full_match.group(0)
+
+    # 3) URL 경로나 일반 문자열에 섞인 경우 숫자 덩어리 중 가장 긴 값을 사용합니다.
+    digit_groups = re.findall(r"\d+", text)
+    if digit_groups:
+        candidate = max(digit_groups, key=len)
+        # 7자리 이상인 값만 LOT 후보로 인정합니다.
+        if len(candidate) >= 7:
+            return build_ksi_work_order_no(candidate)
+
+    # 4) 마지막 일반 처리
     return build_ksi_work_order_no(text)
 
 
@@ -1371,6 +1409,16 @@ def get_material_received_total(lot_no):
     ]
     result = list(get_material_collection().aggregate(pipeline))
     return to_int_safe(result[0].get("total"), 0) if result else 0
+
+
+def get_material_latest_record(lot_no):
+    """해당 LOT의 가장 최근 입고 이력을 반환합니다."""
+    if not lot_no:
+        return None
+    return get_material_collection().find_one(
+        {"lot_no": lot_no},
+        sort=[("_id", -1)],
+    )
 
 
 def build_material_search_query(keyword):
@@ -1469,7 +1517,10 @@ def apply_material_lot_lookup(raw_lot, source_label="QR"):
     st.session_state.material_live_lookup = {}
 
     if not lot_no:
-        st.session_state.material_live_message = ("warning", "LOT 번호를 읽지 못했습니다.")
+        st.session_state.material_live_message = (
+            "warning",
+            f"QR은 인식했지만 LOT 번호를 추출하지 못했습니다. 인식값: {str(raw_lot)[:120]}"
+        )
         return
 
     try:
@@ -2388,14 +2439,35 @@ def show_material_receiving_page_live_qr():
             spec_default = str(lookup_info.get("spec", "") or "")
             plan_qty_default = to_int_safe(lookup_info.get("plan_qty"), 0)
             received_total = get_material_received_total(lot_no)
-            default_received_qty = max(plan_qty_default - received_total, 0) if plan_qty_default else 0
+            latest_record = get_material_latest_record(lot_no)
+            remaining_qty = max(plan_qty_default - received_total, 0) if plan_qty_default else 0
+            is_duplicate_lot = received_total > 0
+            is_fully_received = bool(plan_qty_default > 0 and received_total >= plan_qty_default)
+            default_received_qty = remaining_qty
 
             st.markdown("#### 조회된 입고 정보")
             cols = st.columns(4)
             cols[0].metric("LOT", lot_no)
             cols[1].metric("K-System 수량", plan_qty_default)
             cols[2].metric("기존 입고 합계", received_total)
-            cols[3].metric("남은 수량", max(plan_qty_default - received_total, 0) if plan_qty_default else 0)
+            cols[3].metric("남은 수량", remaining_qty)
+
+            if is_fully_received:
+                st.error(
+                    f"🚫 이미 전량 입고 완료된 LOT입니다. "
+                    f"K-System 수량 {plan_qty_default}개 / 기존 입고 합계 {received_total}개"
+                )
+            elif is_duplicate_lot:
+                latest_date = str((latest_record or {}).get("receive_date", "-"))
+                latest_name = str((latest_record or {}).get("receiver_name", "-"))
+                latest_qty = to_int_safe((latest_record or {}).get("received_qty"), 0)
+                st.warning(
+                    "⚠️ 이미 입고 이력이 있는 LOT입니다.\n\n"
+                    f"- 기존 입고 합계: **{received_total}개**\n"
+                    f"- 남은 수량: **{remaining_qty}개**\n"
+                    f"- 최근 입고: **{latest_date} / {latest_name} / {latest_qty}개**\n\n"
+                    "부분 입고를 추가하는 경우에만 아래 확인란을 체크한 뒤 저장하세요."
+                )
 
             with st.form("material_live_receiving_form"):
                 st.text_input("LOT", value=lot_no, disabled=True)
@@ -2439,17 +2511,54 @@ def show_material_receiving_page_live_qr():
                     placeholder="부분 입고, 수량 차이, 특이사항",
                     key="material_memo_live",
                 )
-                submitted = st.form_submit_button("✅ 저장 후 다음 QR 스캔")
+
+                duplicate_confirmed = True
+                if is_duplicate_lot and not is_fully_received:
+                    duplicate_confirmed = st.checkbox(
+                        f"⚠️ 기존 입고 합계 {received_total}개를 확인했으며, 남은 수량에 추가 입고합니다.",
+                        key="material_duplicate_confirm_live",
+                    )
+
+                submitted = st.form_submit_button(
+                    "🚫 전량 입고 완료" if is_fully_received else "✅ 저장 후 다음 QR 스캔",
+                    disabled=is_fully_received,
+                )
 
             if submitted:
                 if not receiver_no or not receiver_name.strip():
                     st.error("작업자를 선택해 주세요.")
                 elif not lot_no:
                     st.error("LOT 번호가 없습니다.")
+                elif is_duplicate_lot and not duplicate_confirmed:
+                    st.error("기존 입고 이력을 확인했다는 체크가 필요합니다.")
                 elif received_qty <= 0:
                     st.error("이번 입고 수량은 1개 이상이어야 합니다.")
+                elif plan_qty > 0 and int(received_qty) > max(int(plan_qty) - int(received_total), 0):
+                    st.error(
+                        f"이번 입고 수량이 남은 수량을 초과합니다. "
+                        f"현재 남은 수량은 {max(int(plan_qty) - int(received_total), 0)}개입니다."
+                    )
                 else:
+                    # 저장 버튼을 누른 순간 DB를 다시 확인하여 다른 사용자의 동시 저장도 방지합니다.
+                    latest_total = get_material_received_total(lot_no)
+                    latest_remaining = max(int(plan_qty) - int(latest_total), 0) if int(plan_qty) > 0 else 0
+
+                    if int(plan_qty) > 0 and latest_total >= int(plan_qty):
+                        st.error(
+                            f"🚫 저장 직전에 확인한 결과 이미 전량 입고 완료되었습니다. "
+                            f"K-System 수량 {int(plan_qty)}개 / 입고 합계 {latest_total}개"
+                        )
+                        st.stop()
+
+                    if int(plan_qty) > 0 and int(received_qty) > latest_remaining:
+                        st.error(
+                            f"다른 작업자의 입고가 먼저 저장되어 남은 수량이 {latest_remaining}개로 변경되었습니다. "
+                            "화면을 새로고침한 뒤 다시 확인해 주세요."
+                        )
+                        st.stop()
+
                     now_kst = get_now_kst()
+                    received_total = latest_total
                     received_total_after = received_total + int(received_qty)
                     doc = {
                         "lot_no": lot_no,
