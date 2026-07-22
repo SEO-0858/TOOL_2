@@ -1740,7 +1740,7 @@ def render_material_qr_scanner():
           function showFallback(decodedText, nextUrl) {
             setStatus(
               "QR 인식 완료: " + escapeHtml(decodedText) +
-              "<br><br><a id='material-qr-go' href='" + nextUrl + "' target='_top' " +
+              "<br><br><a id='material-qr-go' href='" + nextUrl + "' target='_blank' " +
               "style='display:inline-block;padding:10px 14px;border-radius:8px;background:#0f6cbd;color:#fff;text-decoration:none;font-weight:700;'>조회 화면으로 이동</a>",
               "success"
             );
