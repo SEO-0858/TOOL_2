@@ -2588,7 +2588,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [100, 300, 500, 1000],
+                    [10,100, 300, 500, 1000],
                     index=2,
                     key="material_search_limit_live",
                 )
