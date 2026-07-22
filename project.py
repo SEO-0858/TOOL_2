@@ -2116,6 +2116,202 @@ def render_material_qr_scanner():
     )
 
 
+# Final QR scanner override. Keep this closest to the page renderer so it wins over
+# older scanner definitions above.
+def render_material_qr_scanner():
+    components.html(
+        """
+        <div style="max-width:560px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
+          <button id="material-camera-start" type="button"
+            style="width:100%;padding:16px 18px;border:1px solid #0f6cbd;border-radius:12px;background:#0f6cbd;color:#fff;font-size:18px;font-weight:700;">
+            카메라 시작
+          </button>
+          <div id="material-qr-reader"
+            style="width:100%;min-height:360px;margin-top:16px;border:1px solid #d9e2ec;border-radius:14px;overflow:hidden;background:#fff;"></div>
+          <div id="material-qr-status"
+            style="margin-top:14px;padding:14px 16px;border-radius:12px;background:#eef6ff;color:#175cd3;font-size:16px;line-height:1.55;">
+            카메라 시작 버튼을 누른 뒤 권한 창이 뜨면 허용을 눌러주세요.
+          </div>
+        </div>
+        <style>
+          #material-qr-reader video,
+          #material-qr-reader canvas {
+            width: 100% !important;
+            max-height: 420px;
+            object-fit: cover;
+          }
+          #material-qr-reader div { box-sizing: border-box; }
+        </style>
+        <script>
+        (function () {
+          const statusBox = document.getElementById("material-qr-status");
+          const startBtn = document.getElementById("material-camera-start");
+          const QR_LIB_URLS = [
+            "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js",
+            "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+          ];
+          let scanner = null;
+          let busy = false;
+          let done = false;
+
+          function esc(text) {
+            return String(text || "").replace(/[&<>"']/g, function (ch) {
+              return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch];
+            });
+          }
+          function setStatus(message, kind) {
+            if (!statusBox) return;
+            const colors = { info:["#eef6ff","#175cd3"], ok:["#e9f8ef","#16803c"], err:["#fff1f2","#be123c"] };
+            const c = colors[kind] || colors.info;
+            statusBox.style.background = c[0];
+            statusBox.style.color = c[1];
+            statusBox.innerHTML = message;
+          }
+          function setButton(text, disabled) {
+            if (!startBtn) return;
+            startBtn.textContent = text;
+            startBtn.disabled = !!disabled;
+            startBtn.style.opacity = disabled ? "0.65" : "1";
+          }
+          function parentHref() {
+            try {
+              if (window.parent && window.parent.location && window.parent.location.href) {
+                return window.parent.location.href;
+              }
+            } catch (err) {}
+            return document.referrer || window.location.href;
+          }
+          function resultUrl(decodedText) {
+            const url = new URL(parentHref());
+            url.searchParams.set("material_qr", String(decodedText || "").trim());
+            url.searchParams.set("material_scan", String(Date.now()));
+            url.searchParams.set("material_page", "1");
+            return url.toString();
+          }
+          function goTop(url) {
+            try { window.top.location.href = url; return; } catch (err) {}
+            try { window.parent.location.href = url; return; } catch (err2) {}
+            try { window.open(url, "_top"); return; } catch (err3) {}
+            try { window.location.href = url; } catch (err4) {}
+          }
+          function loadScript(src) {
+            return new Promise(function (resolve, reject) {
+              const existing = document.querySelector("script[src='" + src + "']");
+              if (existing) {
+                if (window.Html5Qrcode) { resolve(); return; }
+                existing.addEventListener("load", resolve, { once: true });
+                existing.addEventListener("error", reject, { once: true });
+                return;
+              }
+              const script = document.createElement("script");
+              script.src = src;
+              script.async = true;
+              script.onload = resolve;
+              script.onerror = function () { reject(new Error("QR 스캔 라이브러리를 불러오지 못했습니다.")); };
+              document.head.appendChild(script);
+            });
+          }
+          async function waitForLib() {
+            if (window.Html5Qrcode) return;
+            let lastErr = null;
+            for (const src of QR_LIB_URLS) {
+              try {
+                await loadScript(src);
+                if (window.Html5Qrcode) return;
+              } catch (err) { lastErr = err; }
+            }
+            throw lastErr || new Error("QR 스캔 라이브러리를 사용할 수 없습니다.");
+          }
+          async function warmUpPermission() {
+            let stream = null;
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false
+              });
+            } catch (err) {
+              if (err && err.name === "NotAllowedError") throw new Error("카메라 권한이 거부되었습니다. 브라우저 사이트 설정에서 카메라를 허용해 주세요.");
+              if (err && err.name === "NotFoundError") throw new Error("사용 가능한 카메라를 찾지 못했습니다.");
+              throw err;
+            } finally {
+              if (stream) {
+                stream.getTracks().forEach(function (track) { track.stop(); });
+              }
+            }
+          }
+          function qrBox(w, h) {
+            const size = Math.max(190, Math.floor(Math.min(w, h) * 0.72));
+            return { width: size, height: size };
+          }
+          async function chooseCamera() {
+            try {
+              const cams = await Html5Qrcode.getCameras();
+              if (cams && cams.length) {
+                const back = cams.find(function (cam) {
+                  return /back|rear|environment|후면/i.test(cam.label || "");
+                });
+                return (back || cams[cams.length - 1]).id;
+              }
+            } catch (err) {}
+            return { facingMode: "environment" };
+          }
+          async function start() {
+            if (busy || done) return;
+            busy = true;
+            setButton("카메라 여는 중...", true);
+            setStatus("권한 창이 뜨면 카메라 허용을 눌러주세요.", "info");
+            try {
+              if (!window.isSecureContext) throw new Error("카메라 사용은 HTTPS 주소에서만 가능합니다.");
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("이 브라우저는 카메라 접근을 지원하지 않습니다.");
+              await warmUpPermission();
+              setStatus("QR 스캔 기능을 준비하는 중입니다.", "info");
+              await waitForLib();
+              const camera = await chooseCamera();
+              scanner = new Html5Qrcode("material-qr-reader");
+              await scanner.start(
+                camera,
+                { fps: 10, qrbox: qrBox, aspectRatio: 1.0 },
+                function (decodedText) {
+                  if (done) return;
+                  done = true;
+                  const next = resultUrl(decodedText);
+                  setStatus(
+                    "QR 인식 완료: " + esc(decodedText) +
+                    "<br>조회 화면으로 이동합니다..." +
+                    "<br><a href='" + esc(next) + "' target='_top' style='color:#175cd3;font-weight:700;text-decoration:underline;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
+                    "ok"
+                  );
+                  setButton("QR 인식 완료", true);
+                  try {
+                    scanner.stop()
+                      .then(function () { goTop(next); })
+                      .catch(function () { goTop(next); });
+                  } catch (err) { goTop(next); }
+                },
+                function () {}
+              );
+              setStatus("카메라가 실행 중입니다. 도면 QR을 화면 안에 맞춰주세요.", "ok");
+              setButton("카메라 실행 중", true);
+            } catch (err) {
+              busy = false;
+              setButton("다시 카메라 시작", false);
+              setStatus(
+                "카메라를 시작하지 못했습니다.<br>원인: " +
+                esc(err && (err.message || err.name) ? (err.message || err.name) : err) +
+                "<br><br>네이버 앱에서 안 되면 Chrome 또는 삼성 인터넷으로 접속해 주세요. 주소창의 사이트 설정에서 카메라 권한도 확인해 주세요.",
+                "err"
+              );
+            }
+          }
+          if (startBtn) startBtn.addEventListener("click", start);
+          setStatus("카메라 시작 버튼을 누르면 권한 요청이 뜹니다. 요청이 뜨면 허용을 눌러주세요.", "info");
+        })();
+        </script>
+        """,
+        height=680,
+    )
+
+
 def show_material_receiving_page_live_qr():
     st.title("📦 원자재 입고 정보")
     st.caption("작업자를 선택한 뒤 도면 QR을 스캔하면 K-System LOT 정보를 자동 조회합니다.")
