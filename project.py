@@ -1451,6 +1451,80 @@ def get_material_records(keyword="", limit=500):
     return list(get_material_collection().find(query).sort("created_at", -1).limit(limit))
 
 
+def build_material_advanced_search_query(
+    lot_no="",
+    product_name="",
+    spec="",
+    receiver_name="",
+    memo="",
+    start_date=None,
+    end_date=None,
+):
+    """입고 검색 화면에서 사용하는 조건별 MongoDB 조회 쿼리입니다."""
+    conditions = []
+
+    field_values = {
+        "lot_no": lot_no,
+        "product_name": product_name,
+        "spec": spec,
+        "receiver_name": receiver_name,
+        "memo": memo,
+    }
+
+    for field, value in field_values.items():
+        value = str(value or "").strip()
+        if value:
+            conditions.append(
+                {field: {"$regex": re.escape(value), "$options": "i"}}
+            )
+
+    if start_date and end_date:
+        conditions.append(
+            {
+                "receive_date": {
+                    "$gte": str(start_date),
+                    "$lte": str(end_date),
+                }
+            }
+        )
+    elif start_date:
+        conditions.append({"receive_date": {"$gte": str(start_date)}})
+    elif end_date:
+        conditions.append({"receive_date": {"$lte": str(end_date)}})
+
+    if not conditions:
+        return {}
+
+    return {"$and": conditions} if len(conditions) > 1 else conditions[0]
+
+
+def get_material_advanced_records(
+    lot_no="",
+    product_name="",
+    spec="",
+    receiver_name="",
+    memo="",
+    start_date=None,
+    end_date=None,
+    limit=500,
+):
+    query = build_material_advanced_search_query(
+        lot_no=lot_no,
+        product_name=product_name,
+        spec=spec,
+        receiver_name=receiver_name,
+        memo=memo,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return list(
+        get_material_collection()
+        .find(query)
+        .sort([("receive_date", -1), ("created_at", -1), ("_id", -1)])
+        .limit(int(limit))
+    )
+
+
 def get_material_receiver_options():
     return [f"{no} - {name}" for no, name in MATERIAL_RECEIVER_MAP.items()]
 
@@ -2444,38 +2518,253 @@ def show_material_receiving_page_live_qr():
                     rerun_app()
 
     with search_tab:
-        keyword = st.text_input(
-            "검색어",
-            placeholder="LOT, 품명 일부, 규격 일부, 인수자, 메모",
-            key="material_search_keyword_live",
+        st.markdown("#### 🔍 입고 내역 조건 검색")
+        st.caption(
+            "검색 조건을 입력하고 조회 버튼을 눌러야 결과가 표시됩니다. "
+            "빈 화면에서 전체 입고 내역은 자동으로 불러오지 않습니다."
         )
-        records = get_material_records(keyword)
-        if not records:
-            st.info("검색 결과가 없습니다.")
-            return
 
-        rows = []
-        for item in records:
-            rows.append(
-                {
-                    "입고일": item.get("receive_date", ""),
-                    "LOT": item.get("lot_no", ""),
-                    "품명": item.get("product_name", ""),
-                    "규격": item.get("spec", ""),
-                    "K-System수량": item.get("plan_qty", 0),
-                    "입고수량": item.get("received_qty", 0),
-                    "누적입고": item.get("received_total_after", 0),
-                    "인수자": item.get("receiver_name", ""),
-                    "메모": item.get("memo", ""),
-                }
+        today = get_now_kst().date()
+        default_start = today.replace(day=1)
+
+        with st.form("material_advanced_search_form", clear_on_submit=False):
+            row1 = st.columns(2)
+            with row1[0]:
+                search_lot = st.text_input(
+                    "LOT",
+                    placeholder="예: KK20260511043 또는 11043",
+                    key="material_search_lot_live",
+                )
+            with row1[1]:
+                search_product = st.text_input(
+                    "품명",
+                    placeholder="예: RING",
+                    key="material_search_product_live",
+                )
+
+            row2 = st.columns(2)
+            with row2[0]:
+                search_spec = st.text_input(
+                    "규격",
+                    placeholder="예: 716-087943",
+                    key="material_search_spec_live",
+                )
+            with row2[1]:
+                search_receiver = st.text_input(
+                    "인수자",
+                    placeholder="예: 서동일",
+                    key="material_search_receiver_live",
+                )
+
+            search_memo = st.text_input(
+                "메모",
+                placeholder="메모 내용 일부",
+                key="material_search_memo_live",
             )
 
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+            st.markdown("##### 입고일 검색")
+            date_cols = st.columns(2)
+            with date_cols[0]:
+                search_start_date = st.date_input(
+                    "시작일",
+                    value=default_start,
+                    key="material_search_start_date_live",
+                )
+            with date_cols[1]:
+                search_end_date = st.date_input(
+                    "종료일",
+                    value=today,
+                    key="material_search_end_date_live",
+                )
 
-        st.subheader("LOT별 입고 합계")
-        summary = df.groupby(["LOT", "품명", "규격"], dropna=False)["입고수량"].sum().reset_index()
-        st.dataframe(summary, use_container_width=True, hide_index=True)
+            option_cols = st.columns([2, 1])
+            with option_cols[0]:
+                use_date_filter = st.checkbox(
+                    "날짜 조건 사용",
+                    value=False,
+                    help="체크하지 않으면 날짜와 관계없이 입력한 조건만 검색합니다.",
+                    key="material_search_use_date_live",
+                )
+            with option_cols[1]:
+                result_limit = st.selectbox(
+                    "최대 표시 건수",
+                    [100, 300, 500, 1000],
+                    index=2,
+                    key="material_search_limit_live",
+                )
+
+            search_submitted = st.form_submit_button(
+                "🔍 조건으로 조회",
+                use_container_width=True,
+            )
+
+        clear_col, info_col = st.columns([1, 3])
+        with clear_col:
+            if st.button(
+                "검색 결과 지우기",
+                key="material_search_clear_live",
+                use_container_width=True,
+            ):
+                st.session_state.pop("material_search_results_live", None)
+                st.session_state.pop("material_search_executed_live", None)
+                st.session_state.pop("material_search_description_live", None)
+                st.rerun()
+        with info_col:
+            st.caption("부분 문자열 검색 가능: LOT에 `11043`, 규격에 `716` 입력")
+
+        if search_submitted:
+            if use_date_filter and search_start_date > search_end_date:
+                st.error("시작일은 종료일보다 늦을 수 없습니다.")
+                st.session_state.pop("material_search_results_live", None)
+                st.session_state.material_search_executed_live = False
+            else:
+                has_text_condition = any(
+                    str(value or "").strip()
+                    for value in (
+                        search_lot,
+                        search_product,
+                        search_spec,
+                        search_receiver,
+                        search_memo,
+                    )
+                )
+
+                if not has_text_condition and not use_date_filter:
+                    st.warning(
+                        "검색 조건을 하나 이상 입력해 주세요. "
+                        "전체 데이터가 한꺼번에 표시되는 것을 방지하기 위해 빈 조건 조회는 실행하지 않습니다."
+                    )
+                    st.session_state.pop("material_search_results_live", None)
+                    st.session_state.material_search_executed_live = False
+                else:
+                    query_start_date = search_start_date if use_date_filter else None
+                    query_end_date = search_end_date if use_date_filter else None
+
+                    records = get_material_advanced_records(
+                        lot_no=search_lot,
+                        product_name=search_product,
+                        spec=search_spec,
+                        receiver_name=search_receiver,
+                        memo=search_memo,
+                        start_date=query_start_date,
+                        end_date=query_end_date,
+                        limit=result_limit,
+                    )
+
+                    st.session_state.material_search_results_live = records
+                    st.session_state.material_search_executed_live = True
+
+                    descriptions = []
+                    if str(search_lot or "").strip():
+                        descriptions.append(f"LOT: {search_lot.strip()}")
+                    if str(search_product or "").strip():
+                        descriptions.append(f"품명: {search_product.strip()}")
+                    if str(search_spec or "").strip():
+                        descriptions.append(f"규격: {search_spec.strip()}")
+                    if str(search_receiver or "").strip():
+                        descriptions.append(f"인수자: {search_receiver.strip()}")
+                    if str(search_memo or "").strip():
+                        descriptions.append(f"메모: {search_memo.strip()}")
+                    if use_date_filter:
+                        descriptions.append(
+                            f"입고일: {search_start_date} ~ {search_end_date}"
+                        )
+                    st.session_state.material_search_description_live = " / ".join(descriptions)
+
+        search_executed = bool(
+            st.session_state.get("material_search_executed_live", False)
+        )
+
+        if not search_executed:
+            st.info("LOT, 품명, 규격, 인수자 또는 날짜 조건을 입력한 뒤 조회 버튼을 눌러주세요.")
+        else:
+            records = st.session_state.get("material_search_results_live", [])
+            description = st.session_state.get(
+                "material_search_description_live", ""
+            )
+
+            if description:
+                st.caption(f"현재 검색 조건: {description}")
+
+            if not records:
+                st.warning("조건에 맞는 입고 내역이 없습니다.")
+            else:
+                rows = []
+                for item in records:
+                    rows.append(
+                        {
+                            "입고일": item.get("receive_date", ""),
+                            "LOT": item.get("lot_no", ""),
+                            "품명": item.get("product_name", ""),
+                            "규격": item.get("spec", ""),
+                            "K-System수량": to_int_safe(item.get("plan_qty"), 0),
+                            "입고수량": to_int_safe(item.get("received_qty"), 0),
+                            "누적입고": to_int_safe(
+                                item.get("received_total_after"), 0
+                            ),
+                            "인수자": item.get("receiver_name", ""),
+                            "메모": item.get("memo", ""),
+                        }
+                    )
+
+                df = pd.DataFrame(rows)
+
+                metric_cols = st.columns(3)
+                metric_cols[0].metric("검색 결과", f"{len(df):,}건")
+                metric_cols[1].metric(
+                    "검색된 입고수량 합계",
+                    f"{int(df['입고수량'].sum()):,}개",
+                )
+                metric_cols[2].metric(
+                    "검색된 LOT 수",
+                    f"{int(df['LOT'].nunique()):,}개",
+                )
+
+                if len(records) >= int(result_limit):
+                    st.warning(
+                        f"최대 표시 건수 {int(result_limit):,}건까지만 표시했습니다. "
+                        "검색 조건을 더 구체적으로 입력해 주세요."
+                    )
+
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                st.subheader("LOT별 입고 합계")
+                summary = (
+                    df.groupby(["LOT", "품명", "규격"], dropna=False)
+                    .agg(
+                        **{
+                            "K-System수량": ("K-System수량", "max"),
+                            "입고수량": ("입고수량", "sum"),
+                            "최근입고일": ("입고일", "max"),
+                        }
+                    )
+                    .reset_index()
+                )
+                summary["남은수량"] = (
+                    summary["K-System수량"] - summary["입고수량"]
+                ).clip(lower=0)
+
+                summary = summary[
+                    [
+                        "LOT",
+                        "품명",
+                        "규격",
+                        "K-System수량",
+                        "입고수량",
+                        "남은수량",
+                        "최근입고일",
+                    ]
+                ]
+
+                st.dataframe(
+                    summary,
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 
 def show_material_receiving_page():
