@@ -1511,11 +1511,42 @@ def render_material_qr_scanner():
           function setStatus(text) {
             if (statusBox) statusBox.textContent = text;
           }
-          function sendResult(decodedText) {
-            const url = new URL(window.parent.location.href);
+          function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, function (ch) {
+              return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch];
+            });
+          }
+          function buildResultUrl(decodedText) {
+            let baseHref = window.location.href;
+            try {
+              if (window.parent && window.parent.location && window.parent.location.href) {
+                baseHref = window.parent.location.href;
+              }
+            } catch (e) {}
+            const url = new URL(baseHref);
             url.searchParams.set("material_qr", decodedText);
             url.searchParams.set("material_scan", String(Date.now()));
-            window.parent.location.href = url.toString();
+            return url.toString();
+          }
+          function showFallback(decodedText, nextUrl) {
+            if (!statusBox) return;
+            const safeUrl = String(nextUrl).replace(/"/g, "&quot;");
+            statusBox.innerHTML =
+              "QR 인식 완료: " + escapeHtml(decodedText) +
+              "<br><a id='material-qr-go' href=\"" + safeUrl + "\" target=\"_top\" " +
+              "style=\"display:inline-block;margin-top:8px;color:#174ea6;font-weight:700;text-decoration:underline;\">" +
+              "자동 조회가 안 되면 여기를 누르세요</a>";
+          }
+          function sendResult(decodedText) {
+            const nextUrl = buildResultUrl(decodedText);
+            showFallback(decodedText, nextUrl);
+            setTimeout(function () {
+              const link = document.getElementById("material-qr-go");
+              if (link) link.click();
+            }, 150);
+            try { window.open(nextUrl, "_top"); } catch (e) {}
+            try { window.top.location.assign(nextUrl); } catch (e) {}
+            try { window.parent.location.assign(nextUrl); } catch (e) {}
           }
           function startScanner() {
             if (!window.Html5Qrcode) {
