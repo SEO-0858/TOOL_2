@@ -2532,7 +2532,7 @@ def show_material_receiving_page_live_qr():
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
-                    placeholder="예: KK20260511043 또는 11043",
+                    placeholder="예: KK20260000000 또는 0000000",
                     key="material_search_lot_live",
                 )
             with row1[1]:
@@ -2552,7 +2552,7 @@ def show_material_receiving_page_live_qr():
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder="예: 서동일",
+                    placeholder="예: 서재욱",
                     key="material_search_receiver_live",
                 )
 
