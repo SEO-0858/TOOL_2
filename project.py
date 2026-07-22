@@ -1570,7 +1570,7 @@ def render_material_qr_scanner():
             setStatus(
               "QR 인식 완료: " + escapeHtml(decodedText) +
               "<br>자동 조회 화면으로 이동합니다." +
-              "<br><a href='" + nextUrl + "' target='_top' style='color:#175cd3;font-weight:700;'>"QR 인식 완료 [2번 코드]: " + escapeHtml(decodedText)</a>",
+              "<br><a href='" + nextUrl + "' target='_top' style='color:#175cd3;font-weight:700;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
               "success"
             );
           }
@@ -2075,7 +2075,7 @@ def render_material_qr_scanner():
             setStatus(
               "QR 인식 완료: " + esc(decodedText) +
               "<br>조회 화면으로 이동합니다..." +
-              "<br><a href=\"" + esc(next) + "\" target=\"_top\" style=\"color:#175cd3;font-weight:700;text-decoration:underline;\">"QR 인식 완료 [1번 코드]: " + escapeHtml(decodedText)</a>",
+              "<br><a href=\"" + esc(next) + "\" target=\"_top\" style=\"color:#175cd3;font-weight:700;text-decoration:underline;\">자동 이동이 안 되면 여기를 눌러주세요.</a>",
               "ok"
             );
             setButton("QR recognized", true);
@@ -2276,7 +2276,7 @@ def render_material_qr_scanner():
                   setStatus(
                     "QR 인식 완료: " + esc(decodedText) +
                     "<br>조회 화면으로 이동합니다..." +
-                    "<br><a href='" + esc(next) + "' target='_top' style='color:#175cd3;font-weight:700;text-decoration:underline;'>"QR 인식 완료 [3번 코드]: " + escapeHtml(decodedText)</a>",
+                    "<br><a href='" + esc(next) + "' target='_top' style='color:#175cd3;font-weight:700;text-decoration:underline;'>자동 이동이 안 되면 여기를 눌러주세요.</a>",
                     "ok"
                   );
                   setButton("QR 인식 완료", true);
