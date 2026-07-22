@@ -1576,12 +1576,21 @@ def render_material_qr_scanner():
             );
           }
 
-          function sendResult(decodedText) {
-            const nextUrl = buildResultUrl(decodedText);
-            alert(nextUrl);
-            showResult(decodedText, nextUrl);
+            function sendResult(decodedText) {
+                const nextUrl = buildResultUrl(decodedText);
 
-          }
+                showResult(decodedText, nextUrl);
+
+                try {
+                    window.open(nextUrl, "_top");
+                } catch (err) {
+                    try {
+                    window.top.location.href = nextUrl;
+                    } catch (err2) {
+                    window.location.href = nextUrl;
+                    }
+                }
+            }
 
           function waitForLibrary() {
             return new Promise(function (resolve, reject) {
