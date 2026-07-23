@@ -1663,7 +1663,7 @@ def show_material_receiving_page_live_qr():
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
-                    placeholder="예: KK20260511043 또는 11043",
+                    placeholder="예: KK20261234567 또는 1234567",
                     key="material_search_lot_live",
                 )
             with row1[1]:
@@ -1677,13 +1677,13 @@ def show_material_receiving_page_live_qr():
             with row2[0]:
                 search_spec = st.text_input(
                     "규격",
-                    placeholder="예: 716-087943",
+                    placeholder="예: 123-123456",
                     key="material_search_spec_live",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder="예: 서동일",
+                    placeholder="예: 서재욱",
                     key="material_search_receiver_live",
                 )
 
@@ -1719,7 +1719,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [100, 300, 500, 1000],
+                    [5,10, 30, 50, 100],
                     index=2,
                     key="material_search_limit_live",
                 )
