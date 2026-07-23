@@ -1805,7 +1805,7 @@ def show_material_receiving_page_live_qr():
             with row1[1]:
                 search_product = st.text_input(
                     "품명",
-                    placeholder="예: RING",
+                    placeholder=" ",
                     key="material_search_product_live",
                 )
 
@@ -1813,13 +1813,13 @@ def show_material_receiving_page_live_qr():
             with row2[0]:
                 search_spec = st.text_input(
                     "규격",
-                    placeholder="예: 716-087943",
+                    placeholder=" ",
                     key="material_search_spec_live",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder="예: 서동일",
+                    placeholder=" ",
                     key="material_search_receiver_live",
                 )
 
@@ -1864,7 +1864,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [100, 300, 500, 1000],
+                    [10,100, 300, 500, 1000],
                     index=2,
                     key="material_search_limit_live",
                 )
@@ -2069,7 +2069,7 @@ def show_material_receiving_page_live_qr():
                     key=memo_widget_key,
                 )
                 st.caption(
-                    f"메모 수정 작업자: {receiver_no} {receiver_name} · "
+                    f"메모 수정 작업자: {receiver_name} · "
                     "메모 기입 일시는 확인창을 여는 순간 자동 기록됩니다."
                 )
 
