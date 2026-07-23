@@ -6,6 +6,7 @@ try:
 except ImportError:
     qrcode_scanner = None
 from pymongo import MongoClient
+from bson import ObjectId
 import datetime  # 기존 코드에서 datetime.datetime.utcnow() 등을 썼다면 필요합니다.
 from datetime import datetime as dt, timedelta
 import pandas as pd
@@ -1053,6 +1054,9 @@ def generate_app_qr_bytes(serial_text):
 MATERIAL_MENU_LABEL = "📦 원자재 입고 정보"
 MATERIAL_COLLECTION_NAME = "material_receiving_logs"
 
+HANDOVER_MENU_LABEL = "🚚 3PART 인계"
+TOSS_COLLECTION_NAME = "toss_logs"
+
 MATERIAL_RECEIVER_MAP = {
     "01": "서재욱",
     "02": "서동일",
@@ -1861,6 +1865,549 @@ def show_material_receiving_page_live_qr():
 
 
 
+
+# =================================================================================================
+# 🚚 3PART 인수인계 관리
+# - 원자재 입고 이력(material_receiving_logs)을 기준으로 LOT별 인계 가능 수량을 계산합니다.
+# - 실제 인계/취소 이력은 toss_logs에 보존합니다.
+# - 취소는 원본 삭제가 아니라 상태 변경 방식으로 처리합니다.
+# =================================================================================================
+
+def get_toss_collection():
+    return db_collection.database[TOSS_COLLECTION_NAME]
+
+
+@st.cache_resource
+def ensure_toss_indexes():
+    """조회 성능용 인덱스입니다. 인덱스 생성 권한이 없어도 앱은 계속 동작합니다."""
+    try:
+        collection = get_toss_collection()
+        collection.create_index([("lot_no", 1), ("is_cancelled", 1)])
+        collection.create_index([("lot_no", 1), ("handover_at", -1)])
+        collection.create_index([("handover_date", -1)])
+        return True
+    except Exception:
+        return False
+
+
+def get_handover_total(lot_no):
+    """취소되지 않은 정상 인계수량만 합산합니다."""
+    if not lot_no:
+        return 0
+    pipeline = [
+        {
+            "$match": {
+                "lot_no": lot_no,
+                "is_cancelled": {"$ne": True},
+                "status": {"$ne": "cancelled"},
+            }
+        },
+        {"$group": {"_id": "$lot_no", "total": {"$sum": "$handover_qty"}}},
+    ]
+    result = list(get_toss_collection().aggregate(pipeline))
+    return to_int_safe(result[0].get("total"), 0) if result else 0
+
+
+def calculate_handover_state(plan_qty, received_total, handover_total):
+    """LOT의 수량과 상태를 한 곳에서 계산하는 순수 함수입니다."""
+    plan_qty = max(to_int_safe(plan_qty, 0), 0)
+    received_total = max(to_int_safe(received_total, 0), 0)
+    handover_total = max(to_int_safe(handover_total, 0), 0)
+
+    missing_received = max(plan_qty - received_total, 0) if plan_qty > 0 else 0
+    available_qty = max(received_total - handover_total, 0)
+    overall_not_handed = (
+        max(plan_qty - handover_total, 0)
+        if plan_qty > 0
+        else available_qty
+    )
+
+    is_complete = bool(
+        plan_qty > 0
+        and received_total >= plan_qty
+        and handover_total >= plan_qty
+    )
+
+    if is_complete:
+        status = "✅ 인수인계 완료"
+    elif received_total <= 0:
+        status = "입고대기"
+    elif handover_total <= 0:
+        status = "출고대기"
+    elif available_qty > 0:
+        status = "일부출고"
+    elif plan_qty > 0 and received_total < plan_qty:
+        status = "입고대기 · 현재 입고분 인계완료"
+    else:
+        status = "현재 입고분 인계완료"
+
+    return {
+        "plan_qty": plan_qty,
+        "received_total": received_total,
+        "missing_received": missing_received,
+        "handover_total": handover_total,
+        "available_qty": available_qty,
+        "overall_not_handed": overall_not_handed,
+        "is_complete": is_complete,
+        "status": status,
+        "has_quantity_error": handover_total > received_total,
+    }
+
+
+def build_handover_material_query(keyword):
+    keyword = str(keyword or "").strip()
+    if not keyword:
+        return {}
+    tokens = [token for token in re.split(r"\s+", keyword) if token]
+    token_conditions = []
+    for token in tokens:
+        safe = re.escape(token)
+        token_conditions.append(
+            {
+                "$or": [
+                    {"lot_no": {"$regex": safe, "$options": "i"}},
+                    {"product_name": {"$regex": safe, "$options": "i"}},
+                    {"spec": {"$regex": safe, "$options": "i"}},
+                ]
+            }
+        )
+    return {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+
+
+def get_handover_lot_summaries(keyword, limit=200):
+    """입고 로그를 LOT별로 합산하고 최신 품명/규격/계획수량을 함께 반환합니다."""
+    query = build_handover_material_query(keyword)
+    pipeline = []
+    if query:
+        pipeline.append({"$match": query})
+    pipeline.extend(
+        [
+            {"$sort": {"_id": 1}},
+            {
+                "$group": {
+                    "_id": "$lot_no",
+                    "received_total": {"$sum": "$received_qty"},
+                    "product_name": {"$last": "$product_name"},
+                    "spec": {"$last": "$spec"},
+                    "plan_qty": {"$last": "$plan_qty"},
+                    "latest_receive_date": {"$last": "$receive_date"},
+                }
+            },
+            {"$sort": {"latest_receive_date": -1, "_id": 1}},
+            {"$limit": int(limit)},
+        ]
+    )
+    rows = []
+    for item in get_material_collection().aggregate(pipeline):
+        lot_no = str(item.get("_id", "") or "").strip()
+        if not lot_no:
+            continue
+        handover_total = get_handover_total(lot_no)
+        state = calculate_handover_state(
+            item.get("plan_qty"), item.get("received_total"), handover_total
+        )
+        rows.append(
+            {
+                "lot_no": lot_no,
+                "product_name": str(item.get("product_name", "") or ""),
+                "spec": str(item.get("spec", "") or ""),
+                "latest_receive_date": str(item.get("latest_receive_date", "") or ""),
+                **state,
+            }
+        )
+    return rows
+
+
+def get_toss_records(lot_no, limit=300):
+    if not lot_no:
+        return []
+    return list(
+        get_toss_collection()
+        .find({"lot_no": lot_no})
+        .sort([("handover_at", -1), ("_id", -1)])
+        .limit(int(limit))
+    )
+
+
+def clear_handover_selection():
+    for key in (
+        "handover_selected_lot",
+        "handover_selected_snapshot",
+        "handover_search_results",
+        "handover_search_executed",
+    ):
+        st.session_state.pop(key, None)
+
+
+@st.dialog("⚠️ 인수인계 취소")
+def cancel_handover_dialog(record_id_text):
+    try:
+        record_id = ObjectId(str(record_id_text))
+    except Exception:
+        st.error("취소 대상 기록번호가 올바르지 않습니다.")
+        return
+
+    record = get_toss_collection().find_one({"_id": record_id})
+    if not record:
+        st.error("취소할 인계 기록을 찾지 못했습니다.")
+        return
+
+    if record.get("is_cancelled") is True or record.get("status") == "cancelled":
+        st.warning("이미 취소된 인계 기록입니다.")
+        return
+
+    st.write(f"LOT: **{record.get('lot_no', '')}**")
+    st.write(f"인계수량: **{to_int_safe(record.get('handover_qty'), 0):,}개**")
+    st.write(f"인계자: **{record.get('handover_by', '')}**")
+    st.write(f"인수자: **{record.get('received_by', '')}**")
+    st.write(f"인계일시: **{record.get('handover_at', '')}**")
+    st.warning("원본 이력은 삭제되지 않으며 취소 담당자·사유·시간이 영구 보관됩니다.")
+
+    worker_options = get_material_receiver_options()
+    cancel_worker_option = st.selectbox(
+        "취소 담당자",
+        worker_options,
+        key=f"cancel_handover_worker_{record_id_text}",
+    )
+    cancel_worker_no, cancel_worker_name = parse_material_receiver_option(cancel_worker_option)
+    cancel_reason = st.text_area(
+        "취소 사유 (필수)",
+        placeholder="예: 인계수량 오입력, 다른 LOT 선택",
+        key=f"cancel_handover_reason_{record_id_text}",
+    )
+    confirmed = st.checkbox(
+        "위 인계기록을 취소하며 취소 후 수량이 다시 계산되는 것을 확인했습니다.",
+        key=f"cancel_handover_confirm_{record_id_text}",
+    )
+
+    col_confirm, col_close = st.columns(2)
+    if col_confirm.button(
+        "🚫 인계기록 취소 확정",
+        key=f"cancel_handover_confirm_btn_{record_id_text}",
+        use_container_width=True,
+    ):
+        if not cancel_worker_no or not cancel_worker_name:
+            st.error("취소 담당자를 선택해 주세요.")
+        elif not cancel_reason.strip():
+            st.error("취소 사유를 입력해 주세요.")
+        elif not confirmed:
+            st.error("취소 확인란을 체크해 주세요.")
+        else:
+            now_kst = get_now_kst()
+            result = get_toss_collection().update_one(
+                {
+                    "_id": record_id,
+                    "is_cancelled": {"$ne": True},
+                    "status": {"$ne": "cancelled"},
+                },
+                {
+                    "$set": {
+                        "status": "cancelled",
+                        "is_cancelled": True,
+                        "cancelled_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                        "cancelled_date": now_kst.strftime("%Y-%m-%d"),
+                        "cancelled_by_no": cancel_worker_no,
+                        "cancelled_by": cancel_worker_name,
+                        "cancel_reason": cancel_reason.strip(),
+                    }
+                },
+            )
+            if result.modified_count != 1:
+                st.error("다른 사용자가 이미 취소했거나 기록 상태가 변경되었습니다.")
+                st.stop()
+            st.session_state.handover_flash_message = (
+                f"{record.get('lot_no', '')} 인계 {to_int_safe(record.get('handover_qty'), 0):,}개를 "
+                f"취소했습니다. 현재 수량을 다시 계산했습니다."
+            )
+            time.sleep(0.4)
+            st.rerun()
+
+    if col_close.button(
+        "닫기",
+        key=f"cancel_handover_close_btn_{record_id_text}",
+        use_container_width=True,
+    ):
+        st.rerun()
+
+
+def show_3part_handover_page():
+    ensure_toss_indexes()
+    st.title("🚚 3PART 인수인계")
+    st.caption(
+        "원자재 입고 이력을 LOT별로 합산해 현재 인계 가능 수량을 계산합니다. "
+        "인계 취소 시 원본 기록은 삭제하지 않습니다."
+    )
+
+    flash_message = st.session_state.pop("handover_flash_message", "")
+    if flash_message:
+        st.success(flash_message)
+
+    search_tab, history_tab = st.tabs(["🚚 인계 등록", "📜 전체 인계이력 검색"])
+
+    with search_tab:
+        with st.form("handover_lot_search_form", clear_on_submit=False):
+            keyword = st.text_input(
+                "LOT · 품명 · 규격 검색",
+                placeholder="예: KK20260703080, RING, 716-087943",
+                key="handover_search_keyword",
+            )
+            search_submitted = st.form_submit_button("🔍 입고 LOT 조회", use_container_width=True)
+
+        if search_submitted:
+            if not keyword.strip():
+                st.warning("LOT, 품명 또는 규격을 입력해 주세요.")
+                st.session_state.handover_search_executed = False
+                st.session_state.pop("handover_search_results", None)
+            else:
+                try:
+                    results = get_handover_lot_summaries(keyword.strip(), limit=200)
+                    st.session_state.handover_search_results = results
+                    st.session_state.handover_search_executed = True
+                    if len(results) == 1:
+                        st.session_state.handover_selected_lot = results[0]["lot_no"]
+                except Exception as exc:
+                    st.error(f"LOT 검색 중 오류가 발생했습니다: {exc}")
+                    results = []
+
+        results = st.session_state.get("handover_search_results", [])
+        if st.session_state.get("handover_search_executed"):
+            if not results:
+                st.warning("조건에 맞는 입고 LOT가 없습니다.")
+            else:
+                option_map = {item["lot_no"]: item for item in results}
+                option_lots = list(option_map.keys())
+                current_lot = st.session_state.get("handover_selected_lot")
+                default_index = option_lots.index(current_lot) if current_lot in option_lots else 0
+                selected_lot = st.selectbox(
+                    "인계할 LOT 선택",
+                    option_lots,
+                    index=default_index,
+                    format_func=lambda lot: (
+                        f"{lot} | {option_map[lot]['product_name']} | {option_map[lot]['spec']} | "
+                        f"인계가능 {option_map[lot]['available_qty']:,}개"
+                    ),
+                    key="handover_lot_selectbox",
+                )
+                st.session_state.handover_selected_lot = selected_lot
+
+                # 선택 후 최신 DB값을 다시 읽어 오래된 검색 결과로 저장되는 것을 방지합니다.
+                refreshed = get_handover_lot_summaries(selected_lot, limit=50)
+                selected = next((x for x in refreshed if x["lot_no"] == selected_lot), option_map[selected_lot])
+
+                st.markdown("#### LOT 현재 상태")
+                metric_cols = st.columns(6)
+                metric_cols[0].metric("계획수량", f"{selected['plan_qty']:,}")
+                metric_cols[1].metric("누적입고", f"{selected['received_total']:,}")
+                metric_cols[2].metric("미입고", f"{selected['missing_received']:,}")
+                metric_cols[3].metric("누적인계", f"{selected['handover_total']:,}")
+                metric_cols[4].metric("현재 인계가능", f"{selected['available_qty']:,}")
+                metric_cols[5].metric("전체 미인계", f"{selected['overall_not_handed']:,}")
+                st.info(f"현재 상태: **{selected['status']}**")
+
+                if selected.get("has_quantity_error"):
+                    st.error(
+                        "데이터 점검 필요: 정상 인계수량이 누적입고보다 큽니다. "
+                        "추가 등록은 차단되며 기존 이력의 취소 여부를 확인해야 합니다."
+                    )
+
+                if selected["is_complete"]:
+                    st.success("이 LOT은 계획수량 전부가 입고되고 인계되어 완료되었습니다.")
+                elif selected["available_qty"] <= 0:
+                    st.warning("현재 추가로 인계할 수 있는 수량이 없습니다.")
+
+                worker_options = get_material_receiver_options()
+                with st.form(f"handover_register_form_{selected_lot}"):
+                    handover_qty = st.number_input(
+                        "이번 인계수량",
+                        min_value=0,
+                        value=int(selected["available_qty"]),
+                        step=1,
+                        disabled=selected["available_qty"] <= 0 or selected.get("has_quantity_error", False),
+                    )
+                    person_cols = st.columns(2)
+                    with person_cols[0]:
+                        handover_by_option = st.selectbox("인계자 (4PART)", worker_options)
+                    with person_cols[1]:
+                        received_by_option = st.selectbox("인수자 (3PART)", worker_options)
+                    memo = st.text_area("메모", placeholder="부분 인계, 특이사항")
+                    register_confirmed = st.checkbox(
+                        f"LOT {selected_lot} / 인계수량 {int(handover_qty):,}개를 확인했습니다."
+                    )
+                    register_submitted = st.form_submit_button(
+                        "✅ 3PART 인수인계 등록",
+                        use_container_width=True,
+                        disabled=selected["available_qty"] <= 0 or selected.get("has_quantity_error", False),
+                    )
+
+                if register_submitted:
+                    handover_by_no, handover_by = parse_material_receiver_option(handover_by_option)
+                    received_by_no, received_by = parse_material_receiver_option(received_by_option)
+
+                    if int(handover_qty) <= 0:
+                        st.error("인계수량은 1개 이상이어야 합니다.")
+                    elif not handover_by or not received_by:
+                        st.error("인계자와 인수자를 모두 선택해 주세요.")
+                    elif handover_by_no == received_by_no:
+                        st.error("인계자와 인수자는 서로 다른 작업자를 선택해 주세요.")
+                    elif not register_confirmed:
+                        st.error("LOT와 인계수량 확인란을 체크해 주세요.")
+                    else:
+                        # 저장 직전 입고수량과 정상 인계합계를 다시 조회합니다.
+                        latest_received_total = get_material_received_total(selected_lot)
+                        latest_handover_total = get_handover_total(selected_lot)
+                        latest_available = max(latest_received_total - latest_handover_total, 0)
+
+                        if int(handover_qty) > latest_available:
+                            st.error(
+                                f"다른 사용자의 저장으로 인계 가능 수량이 {latest_available:,}개로 변경되었습니다. "
+                                "LOT을 다시 조회해 주세요."
+                            )
+                            st.stop()
+
+                        latest_material = get_material_latest_record(selected_lot) or {}
+                        now_kst = get_now_kst()
+                        doc = {
+                            "lot_no": selected_lot,
+                            "product_name": str(latest_material.get("product_name", selected.get("product_name", "")) or ""),
+                            "spec": str(latest_material.get("spec", selected.get("spec", "")) or ""),
+                            "plan_qty": to_int_safe(latest_material.get("plan_qty"), selected.get("plan_qty", 0)),
+                            "received_total_at_handover": int(latest_received_total),
+                            "handover_total_before": int(latest_handover_total),
+                            "handover_qty": int(handover_qty),
+                            "handover_total_after": int(latest_handover_total + int(handover_qty)),
+                            "handover_by_no": handover_by_no,
+                            "handover_by": handover_by,
+                            "received_by_no": received_by_no,
+                            "received_by": received_by,
+                            "handover_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                            "handover_date": now_kst.strftime("%Y-%m-%d"),
+                            "memo": memo.strip(),
+                            "status": "active",
+                            "is_cancelled": False,
+                            "cancelled_at": None,
+                            "cancelled_date": None,
+                            "cancelled_by_no": None,
+                            "cancelled_by": None,
+                            "cancel_reason": None,
+                            "created_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                        result = get_toss_collection().insert_one(doc)
+                        if not result.inserted_id:
+                            st.error("MongoDB 인계 저장 결과를 확인하지 못했습니다.")
+                            st.stop()
+
+                        st.session_state.handover_flash_message = (
+                            f"{selected_lot} 인계 {int(handover_qty):,}개를 저장했습니다."
+                        )
+                        # 다음 화면에서 DB를 다시 조회하도록 이전 검색 결과를 제거합니다.
+                        st.session_state.pop("handover_search_results", None)
+                        st.session_state.handover_search_executed = False
+                        st.rerun()
+
+                st.markdown("#### LOT별 인계 이력")
+                history = get_toss_records(selected_lot)
+                if not history:
+                    st.info("아직 등록된 인계 이력이 없습니다.")
+                else:
+                    for record in history:
+                        cancelled = bool(record.get("is_cancelled")) or record.get("status") == "cancelled"
+                        status_text = "❌ 취소" if cancelled else "✅ 정상"
+                        with st.container(border=True):
+                            info_cols = st.columns([1.2, 0.8, 1, 1, 1.2])
+                            info_cols[0].write(f"**{record.get('handover_at', '')}**")
+                            info_cols[1].write(f"**{to_int_safe(record.get('handover_qty'), 0):,}개**")
+                            info_cols[2].write(f"인계: {record.get('handover_by', '')}")
+                            info_cols[3].write(f"인수: {record.get('received_by', '')}")
+                            info_cols[4].write(status_text)
+                            if record.get("memo"):
+                                st.caption(f"메모: {record.get('memo')}")
+                            if cancelled:
+                                st.caption(
+                                    f"취소: {record.get('cancelled_at', '')} / "
+                                    f"{record.get('cancelled_by', '')} / {record.get('cancel_reason', '')}"
+                                )
+                            else:
+                                if st.button(
+                                    "⚠️ 이 인계기록 취소",
+                                    key=f"open_cancel_handover_{record['_id']}",
+                                ):
+                                    cancel_handover_dialog(str(record["_id"]))
+
+    with history_tab:
+        st.markdown("#### 전체 인계이력 조건 검색")
+        with st.form("handover_history_search_form", clear_on_submit=False):
+            row1 = st.columns(3)
+            lot_keyword = row1[0].text_input("LOT", key="handover_history_lot")
+            person_keyword = row1[1].text_input("인계자/인수자", key="handover_history_person")
+            include_cancelled = row1[2].checkbox("취소 이력 포함", value=True)
+            row2 = st.columns(2)
+            start_date = row2[0].date_input("시작일", value=get_now_kst().date().replace(day=1))
+            end_date = row2[1].date_input("종료일", value=get_now_kst().date())
+            history_submitted = st.form_submit_button("🔍 인계이력 조회", use_container_width=True)
+
+        if history_submitted:
+            if start_date > end_date:
+                st.error("시작일은 종료일보다 늦을 수 없습니다.")
+            else:
+                conditions = [
+                    {"handover_date": {"$gte": str(start_date), "$lte": str(end_date)}}
+                ]
+                if lot_keyword.strip():
+                    conditions.append({"lot_no": {"$regex": re.escape(lot_keyword.strip()), "$options": "i"}})
+                if person_keyword.strip():
+                    safe_person = re.escape(person_keyword.strip())
+                    conditions.append(
+                        {
+                            "$or": [
+                                {"handover_by": {"$regex": safe_person, "$options": "i"}},
+                                {"received_by": {"$regex": safe_person, "$options": "i"}},
+                                {"cancelled_by": {"$regex": safe_person, "$options": "i"}},
+                            ]
+                        }
+                    )
+                if not include_cancelled:
+                    conditions.append({"is_cancelled": {"$ne": True}})
+                query = {"$and": conditions}
+                records = list(
+                    get_toss_collection()
+                    .find(query)
+                    .sort([("handover_at", -1), ("_id", -1)])
+                    .limit(1000)
+                )
+                st.session_state.handover_history_results = records
+
+        history_records = st.session_state.get("handover_history_results")
+        if history_records is None:
+            st.info("조건을 선택하고 인계이력 조회 버튼을 눌러주세요.")
+        elif not history_records:
+            st.warning("조건에 맞는 인계 이력이 없습니다.")
+        else:
+            rows = []
+            for record in history_records:
+                cancelled = bool(record.get("is_cancelled")) or record.get("status") == "cancelled"
+                rows.append(
+                    {
+                        "상태": "취소" if cancelled else "정상",
+                        "인계일시": record.get("handover_at", ""),
+                        "LOT": record.get("lot_no", ""),
+                        "품명": record.get("product_name", ""),
+                        "규격": record.get("spec", ""),
+                        "인계수량": to_int_safe(record.get("handover_qty"), 0),
+                        "인계자": record.get("handover_by", ""),
+                        "인수자": record.get("received_by", ""),
+                        "메모": record.get("memo", ""),
+                        "취소일시": record.get("cancelled_at", ""),
+                        "취소담당자": record.get("cancelled_by", ""),
+                        "취소사유": record.get("cancel_reason", ""),
+                    }
+                )
+            df = pd.DataFrame(rows)
+            metric_cols = st.columns(3)
+            metric_cols[0].metric("검색 결과", f"{len(df):,}건")
+            metric_cols[1].metric("정상 인계수량", f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개")
+            metric_cols[2].metric("취소 건수", f"{int((df['상태'] == '취소').sum()):,}건")
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
 def show_material_receiving_page():
     return show_material_receiving_page_live_qr()
 
@@ -2541,7 +3088,7 @@ else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
     menu_options = ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
-    all_menu_options = menu_options + [MATERIAL_MENU_LABEL]
+    all_menu_options = menu_options + [MATERIAL_MENU_LABEL, HANDOVER_MENU_LABEL]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
     elif st.session_state.sidebar_choice not in all_menu_options:
@@ -2579,6 +3126,9 @@ else:
     st.sidebar.markdown("### 📦 원자재")
     if st.sidebar.button(MATERIAL_MENU_LABEL, key="material_menu_button", use_container_width=True):
         st.session_state.sidebar_choice = MATERIAL_MENU_LABEL
+        st.rerun()
+    if st.sidebar.button(HANDOVER_MENU_LABEL, key="handover_menu_button", use_container_width=True):
+        st.session_state.sidebar_choice = HANDOVER_MENU_LABEL
         st.rerun()
 
     tool_menu = st.session_state.sidebar_choice
@@ -3141,6 +3691,9 @@ else:
     
     elif tool_menu == MATERIAL_MENU_LABEL:
         show_material_receiving_page()
+
+    elif tool_menu == HANDOVER_MENU_LABEL:
+        show_3part_handover_page()
 
     # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
