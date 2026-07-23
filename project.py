@@ -708,11 +708,42 @@ def normalize_lot_response(data, requested_work_order_no):
                     return str(value).strip()
         return ""
 
+    # K-System 조회 목록에서 생산부서가 "품질경영팀"인 행의 진행상태만 추출합니다.
+    quality_management_status = ""
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+
+            department = ""
+            for key in (
+                "생산부서", "production_department", "department",
+                "dept_name", "department_name", "부서", "팀명",
+            ):
+                value = row.get(key)
+                if value is not None and str(value).strip():
+                    department = str(value).strip()
+                    break
+
+            if re.sub(r"\s+", "", department) != "품질경영팀":
+                continue
+
+            for key in (
+                "진행상태", "progress_status", "process_status",
+                "status", "work_status",
+            ):
+                value = row.get(key)
+                if value is not None and str(value).strip():
+                    quality_management_status = str(value).strip()
+                    break
+            break
+
     normalized = {
         "work_order_no": pick("work_order_no", "lot", "LOT", "작업지시번호") or requested_work_order_no,
         "product_name": pick("product_name", "item_name", "품명", "AssyName"),
         "spec": pick("spec", "item_spec", "품목규격", "규격", "AssyItemSpec"),
         "plan_qty": pick("plan_qty", "plan_quantity", "계획수량"),
+        "quality_management_status": quality_management_status,
     }
     normalized["lookup_ok"] = bool(normalized["spec"])
     return normalized
@@ -1928,6 +1959,27 @@ def show_material_receiving_page_live_qr():
                         limit=result_limit,
                     )
 
+                    # 검색된 LOT별로 K-System을 한 번씩 조회하여
+                    # "품질경영팀" 행의 진행상태만 검색 결과에 임시로 붙입니다.
+                    # MongoDB 원본 입고 데이터는 변경하지 않습니다.
+                    quality_status_cache = {}
+                    for record in records:
+                        record_lot_no = str(record.get("lot_no", "") or "").strip()
+                        if not record_lot_no:
+                            record["_quality_management_status"] = ""
+                            continue
+
+                        if record_lot_no not in quality_status_cache:
+                            try:
+                                lot_info, _ = lookup_ksi_lot_info(record_lot_no)
+                                quality_status_cache[record_lot_no] = (
+                                    str((lot_info or {}).get("quality_management_status", "") or "").strip()
+                                )
+                            except Exception:
+                                quality_status_cache[record_lot_no] = ""
+
+                        record["_quality_management_status"] = quality_status_cache[record_lot_no]
+
                     st.session_state.material_search_results_live = records
                     st.session_state.material_search_executed_live = True
 
@@ -1983,6 +2035,9 @@ def show_material_receiving_page_live_qr():
                             "입고수량": to_int_safe(item.get("received_qty"), 0),
                             "누적입고": to_int_safe(
                                 item.get("received_total_after"), 0
+                            ),
+                            "품질경영팀 진행상태": item.get(
+                                "_quality_management_status", ""
                             ),
                             "인수자": item.get("receiver_name", ""),
                             "메모": item.get("memo", ""),
