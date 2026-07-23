@@ -1095,6 +1095,104 @@ def get_material_collection():
     return db_collection.database[MATERIAL_COLLECTION_NAME]
 
 
+@st.dialog("📝 원자재 입고 메모 수정 최종 확인")
+def confirm_material_memo_update():
+    """입고 검색에서 선택한 한 건의 메모만 최종 확인 후 수정합니다."""
+    record = st.session_state.get("material_memo_edit_record")
+    new_memo = str(st.session_state.get("material_memo_edit_pending", ""))
+    editor_no = str(st.session_state.get("material_memo_edit_editor_no", ""))
+    editor_name = str(st.session_state.get("material_memo_edit_editor_name", ""))
+
+    if not record:
+        st.error("수정할 입고 기록을 찾지 못했습니다. 창을 닫고 다시 선택해 주세요.")
+        return
+
+    old_memo = str(record.get("memo", "") or "")
+    st.warning("아래 입고수량과 메모 내용을 다시 확인한 뒤 저장해 주세요.")
+
+    info_cols = st.columns(2)
+    info_cols[0].write(f"**LOT:** {record.get('lot_no', '-')}")
+    info_cols[1].write(f"**입고일:** {record.get('receive_date', '-')}")
+    info_cols[0].write(f"**품명:** {record.get('product_name', '-')}")
+    info_cols[1].write(f"**규격:** {record.get('spec', '-')}")
+    info_cols[0].write(
+        f"**이번 입고수량:** {to_int_safe(record.get('received_qty'), 0):,}개"
+    )
+    info_cols[1].write(
+        f"**누적 입고수량:** {to_int_safe(record.get('received_total_after'), 0):,}개"
+    )
+    st.write(f"**기존 인수자:** {record.get('receiver_name', '-')}")
+    st.write(f"**메모 수정 작업자:** {editor_no} {editor_name}".strip())
+
+    st.markdown("##### 변경 전 메모")
+    st.code(old_memo if old_memo else "(메모 없음)", language=None)
+    st.markdown("##### 변경 후 메모")
+    st.code(new_memo if new_memo else "(메모를 비움)", language=None)
+
+    confirmed = st.checkbox(
+        "위 입고수량과 변경할 메모 내용이 정확합니다.",
+        key="material_memo_edit_final_confirm",
+    )
+
+    cancel_col, save_col = st.columns(2)
+    if cancel_col.button("❌ 취소", use_container_width=True):
+        st.session_state.pop("material_memo_edit_pending", None)
+        st.session_state.pop("material_memo_edit_record", None)
+        st.session_state.pop("material_memo_edit_final_confirm", None)
+        st.rerun()
+
+    if save_col.button("✅ 확인 후 저장", use_container_width=True):
+        if not confirmed:
+            st.error("입고수량과 메모 내용을 확인했다는 체크가 필요합니다.")
+            return
+        if new_memo == old_memo:
+            st.warning("메모 내용이 변경되지 않았습니다.")
+            return
+
+        record_id = record.get("_id")
+        if not record_id:
+            st.error("입고 기록의 고유 ID가 없어 저장할 수 없습니다.")
+            return
+
+        now_text = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        result = get_material_collection().update_one(
+            {"_id": ObjectId(str(record_id))},
+            {
+                "$set": {
+                    "memo": new_memo,
+                    "memo_updated_at": now_text,
+                    "memo_updated_by_no": editor_no,
+                    "memo_updated_by": editor_name,
+                }
+            },
+        )
+
+        if result.matched_count != 1:
+            st.error("수정할 입고 기록을 MongoDB에서 찾지 못했습니다.")
+            return
+        if result.modified_count != 1:
+            st.error("MongoDB에서 메모가 변경되지 않았습니다. 내용을 다시 확인해 주세요.")
+            return
+
+        # 화면에 보관된 검색 결과도 새 메모로 갱신합니다.
+        cached_records = st.session_state.get("material_search_results_live", [])
+        for cached in cached_records:
+            if str(cached.get("_id")) == str(record_id):
+                cached["memo"] = new_memo
+                cached["memo_updated_at"] = now_text
+                cached["memo_updated_by_no"] = editor_no
+                cached["memo_updated_by"] = editor_name
+                break
+
+        st.session_state.material_memo_edit_saved_message = (
+            f"{record.get('lot_no', '')} 입고 기록의 메모가 수정되었습니다."
+        )
+        st.session_state.pop("material_memo_edit_pending", None)
+        st.session_state.pop("material_memo_edit_record", None)
+        st.session_state.pop("material_memo_edit_final_confirm", None)
+        st.rerun()
+
+
 def to_int_safe(value, default=0):
     try:
         if value in (None, ""):
@@ -1663,7 +1761,7 @@ def show_material_receiving_page_live_qr():
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
-                    placeholder="예: KK20261234567 또는 1234567",
+                    placeholder="예: KK20260511043 또는 11043",
                     key="material_search_lot_live",
                 )
             with row1[1]:
@@ -1677,13 +1775,13 @@ def show_material_receiving_page_live_qr():
             with row2[0]:
                 search_spec = st.text_input(
                     "규격",
-                    placeholder="예: 123-123456",
+                    placeholder="예: 716-087943",
                     key="material_search_spec_live",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder="예: 서재욱",
+                    placeholder="예: 서동일",
                     key="material_search_receiver_live",
                 )
 
@@ -1719,7 +1817,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [5,10, 30, 50, 100],
+                    [100, 300, 500, 1000],
                     index=2,
                     key="material_search_limit_live",
                 )
@@ -1863,7 +1961,75 @@ def show_material_receiving_page_live_qr():
                     hide_index=True,
                 )
 
+                saved_memo_message = st.session_state.pop(
+                    "material_memo_edit_saved_message", ""
+                )
+                if saved_memo_message:
+                    st.success(saved_memo_message)
 
+                st.divider()
+                st.markdown("#### 📝 선택한 입고 기록 메모 수정")
+                st.caption(
+                    "입고수량과 다른 정보는 변경하지 않고, 선택한 입고 건의 메모만 수정합니다."
+                )
+
+                record_options = list(range(len(records)))
+
+                def material_record_label(index):
+                    item = records[index]
+                    return (
+                        f"{item.get('receive_date', '-')} | "
+                        f"{item.get('lot_no', '-')} | "
+                        f"입고 {to_int_safe(item.get('received_qty'), 0):,}개 | "
+                        f"{item.get('receiver_name', '-')}"
+                    )
+
+                selected_record_index = st.selectbox(
+                    "수정할 입고 기록",
+                    options=record_options,
+                    format_func=material_record_label,
+                    key="material_memo_edit_selected_index",
+                )
+                selected_record = records[selected_record_index]
+
+                detail_cols = st.columns(3)
+                detail_cols[0].metric(
+                    "K-System 수량",
+                    f"{to_int_safe(selected_record.get('plan_qty'), 0):,}개",
+                )
+                detail_cols[1].metric(
+                    "이번 입고수량",
+                    f"{to_int_safe(selected_record.get('received_qty'), 0):,}개",
+                )
+                detail_cols[2].metric(
+                    "누적 입고수량",
+                    f"{to_int_safe(selected_record.get('received_total_after'), 0):,}개",
+                )
+
+                selected_record_id = str(selected_record.get("_id", ""))
+                memo_widget_key = f"material_memo_edit_text_{selected_record_id}"
+                edited_memo = st.text_area(
+                    "메모 수정",
+                    value=str(selected_record.get("memo", "") or ""),
+                    height=140,
+                    placeholder="예: 2026-07-23 가공 중 원자재 3개 깨짐 발견, 업체 반품 예정",
+                    key=memo_widget_key,
+                )
+
+                if st.button(
+                    "🔎 수량 및 메모 확인",
+                    key=f"material_memo_edit_review_{selected_record_id}",
+                    use_container_width=True,
+                ):
+                    if edited_memo == str(selected_record.get("memo", "") or ""):
+                        st.warning("메모 내용이 변경되지 않았습니다.")
+                    else:
+                        st.session_state.material_memo_edit_record = dict(selected_record)
+                        st.session_state.material_memo_edit_pending = edited_memo
+                        st.session_state.material_memo_edit_editor_no = receiver_no
+                        st.session_state.material_memo_edit_editor_name = receiver_name
+                        st.session_state.pop("material_memo_edit_final_confirm", None)
+                        confirm_material_memo_update()
 
 
 # =================================================================================================
