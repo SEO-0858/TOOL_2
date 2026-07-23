@@ -1102,6 +1102,10 @@ def confirm_material_memo_update():
     new_memo = str(st.session_state.get("material_memo_edit_pending", ""))
     editor_no = str(st.session_state.get("material_memo_edit_editor_no", ""))
     editor_name = str(st.session_state.get("material_memo_edit_editor_name", ""))
+    edit_datetime = str(
+        st.session_state.get("material_memo_edit_timestamp", "")
+        or get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    )
 
     if not record:
         st.error("수정할 입고 기록을 찾지 못했습니다. 창을 닫고 다시 선택해 주세요.")
@@ -1122,7 +1126,9 @@ def confirm_material_memo_update():
         f"**누적 입고수량:** {to_int_safe(record.get('received_total_after'), 0):,}개"
     )
     st.write(f"**기존 인수자:** {record.get('receiver_name', '-')}")
-    st.write(f"**메모 수정 작업자:** {editor_no} {editor_name}".strip())
+    editor_display = f"{editor_no} {editor_name}".strip() or "작업자 정보 없음"
+    st.write(f"**메모 수정 작업자:** {editor_display}")
+    st.write(f"**메모 기입 일시:** {edit_datetime}")
 
     st.markdown("##### 변경 전 메모")
     st.code(old_memo if old_memo else "(메모 없음)", language=None)
@@ -1138,6 +1144,7 @@ def confirm_material_memo_update():
     if cancel_col.button("❌ 취소", use_container_width=True):
         st.session_state.pop("material_memo_edit_pending", None)
         st.session_state.pop("material_memo_edit_record", None)
+        st.session_state.pop("material_memo_edit_timestamp", None)
         st.session_state.pop("material_memo_edit_final_confirm", None)
         st.rerun()
 
@@ -1154,7 +1161,8 @@ def confirm_material_memo_update():
             st.error("입고 기록의 고유 ID가 없어 저장할 수 없습니다.")
             return
 
-        now_text = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        # 확인창에 표시한 시간과 MongoDB에 저장하는 시간을 동일하게 사용합니다.
+        now_text = edit_datetime
         result = get_material_collection().update_one(
             {"_id": ObjectId(str(record_id))},
             {
@@ -1189,6 +1197,7 @@ def confirm_material_memo_update():
         )
         st.session_state.pop("material_memo_edit_pending", None)
         st.session_state.pop("material_memo_edit_record", None)
+        st.session_state.pop("material_memo_edit_timestamp", None)
         st.session_state.pop("material_memo_edit_final_confirm", None)
         st.rerun()
 
@@ -1761,13 +1770,13 @@ def show_material_receiving_page_live_qr():
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
-                    placeholder="예: KK20260511043 또는 11043",
+                    placeholder="예: KK20260000000 또는 0000000",
                     key="material_search_lot_live",
                 )
             with row1[1]:
                 search_product = st.text_input(
                     "품명",
-                    placeholder="예: RING",
+                    placeholder=" ",
                     key="material_search_product_live",
                 )
 
@@ -1775,13 +1784,13 @@ def show_material_receiving_page_live_qr():
             with row2[0]:
                 search_spec = st.text_input(
                     "규격",
-                    placeholder="예: 716-087943",
+                    placeholder=" ",
                     key="material_search_spec_live",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder="예: 서동일",
+                    placeholder=" ",
                     key="material_search_receiver_live",
                 )
 
@@ -1817,7 +1826,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [100, 300, 500, 1000],
+                    [10, 30, 50, 100],
                     index=2,
                     key="material_search_limit_live",
                 )
@@ -2012,8 +2021,12 @@ def show_material_receiving_page_live_qr():
                     "메모 수정",
                     value=str(selected_record.get("memo", "") or ""),
                     height=140,
-                    placeholder="예: 2026-07-23 가공 중 원자재 3개 깨짐 발견, 업체 반품 예정",
+                    placeholder="예: 가공 중 원자재 3개 깨짐 발견, 업체 반품 예정",
                     key=memo_widget_key,
+                )
+                st.caption(
+                    f"메모 수정 작업자: {receiver_no} {receiver_name} · "
+                    "메모 기입 일시는 확인창을 여는 순간 자동 기록됩니다."
                 )
 
                 if st.button(
@@ -2026,8 +2039,13 @@ def show_material_receiving_page_live_qr():
                     else:
                         st.session_state.material_memo_edit_record = dict(selected_record)
                         st.session_state.material_memo_edit_pending = edited_memo
+                        # 화면 상단의 현재 입고 작업자를 메모 수정 작업자로 자동 적용합니다.
                         st.session_state.material_memo_edit_editor_no = receiver_no
                         st.session_state.material_memo_edit_editor_name = receiver_name
+                        # 확인창에 표시한 일시를 그대로 MongoDB에도 저장합니다.
+                        st.session_state.material_memo_edit_timestamp = (
+                            get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+                        )
                         st.session_state.pop("material_memo_edit_final_confirm", None)
                         confirm_material_memo_update()
 
@@ -2367,7 +2385,7 @@ def show_3part_handover_page():
                 metric_cols[2].metric("미입고", f"{selected['missing_received']:,}")
                 metric_cols[3].metric("누적인계", f"{selected['handover_total']:,}")
                 metric_cols[4].metric("현재 인계가능", f"{selected['available_qty']:,}")
-                metric_cols[5].metric("전체 미인계", f"{selected['overall_not_handed']:,}")
+                metric_cols[5].metric("전체 미 인계", f"{selected['overall_not_handed']:,}")
                 st.info(f"현재 상태: **{selected['status']}**")
 
                 if selected.get("has_quantity_error"):
@@ -2667,7 +2685,7 @@ def show_material_receiving_page():
         lot_input_key = f"material_lot_input_{st.session_state.material_scan_counter}"
         lot_raw = st.text_input(
             "QR 또는 LOT 번호",
-            placeholder="예: KK20260703080 또는 0703080",
+            placeholder="예: KK20260000000 또는 0000000",
             key=lot_input_key,
             disabled=not st.session_state.material_scan_mode,
         )
