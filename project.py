@@ -2215,7 +2215,6 @@ def show_3part_handover_page():
                 elif selected["available_qty"] <= 0:
                     st.warning("현재 추가로 인계할 수 있는 수량이 없습니다.")
 
-                worker_options = get_material_receiver_options()
                 with st.form(f"handover_register_form_{selected_lot}"):
                     handover_qty = st.number_input(
                         "이번 인계수량",
@@ -2226,9 +2225,9 @@ def show_3part_handover_page():
                     )
                     person_cols = st.columns(2)
                     with person_cols[0]:
-                        handover_by_option = st.selectbox("인계자 (4PART)", worker_options)
+                        handover_by = st.text_input("인계자 (4PART)")
                     with person_cols[1]:
-                        received_by_option = st.selectbox("인수자 (3PART)", worker_options)
+                        received_by = st.text_input("인수자 (3PART)")
                     memo = st.text_area("메모", placeholder="부분 인계, 특이사항")
                     register_confirmed = st.checkbox(
                         f"LOT {selected_lot} / 인계수량 {int(handover_qty):,}개를 확인했습니다."
@@ -2240,15 +2239,17 @@ def show_3part_handover_page():
                     )
 
                 if register_submitted:
-                    handover_by_no, handover_by = parse_material_receiver_option(handover_by_option)
-                    received_by_no, received_by = parse_material_receiver_option(received_by_option)
+                    handover_by = str(handover_by or "").strip()
+                    received_by = str(received_by or "").strip()
+                    handover_by_no = ""
+                    received_by_no = ""
 
                     if int(handover_qty) <= 0:
                         st.error("인계수량은 1개 이상이어야 합니다.")
                     elif not handover_by or not received_by:
-                        st.error("인계자와 인수자를 모두 선택해 주세요.")
-                    elif handover_by_no == received_by_no:
-                        st.error("인계자와 인수자는 서로 다른 작업자를 선택해 주세요.")
+                        st.error("인계자와 인수자를 모두 입력해 주세요.")
+                    elif handover_by.casefold() == received_by.casefold():
+                        st.error("인계자와 인수자는 서로 다른 이름을 입력해 주세요.")
                     elif not register_confirmed:
                         st.error("LOT와 인계수량 확인란을 체크해 주세요.")
                     else:
