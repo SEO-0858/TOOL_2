@@ -2337,10 +2337,22 @@ def show_3part_handover_page():
     with history_tab:
         st.markdown("#### 전체 인계이력 조건 검색")
         with st.form("handover_history_search_form", clear_on_submit=False):
-            row1 = st.columns(3)
-            lot_keyword = row1[0].text_input("LOT", key="handover_history_lot")
-            person_keyword = row1[1].text_input("인계자/인수자", key="handover_history_person")
-            include_cancelled = row1[2].checkbox("취소 이력 포함", value=True)
+            row1 = st.columns([1.2, 1.6, 1.2, 0.9])
+            lot_keyword = row1[0].text_input(
+                "LOT",
+                placeholder="예: 0703080",
+                key="handover_history_lot",
+            )
+            product_spec_keyword = row1[1].text_input(
+                "품명 / 규격",
+                placeholder="품명, 규격 또는 규격 안의 약자 일부",
+                key="handover_history_product_spec",
+            )
+            person_keyword = row1[2].text_input(
+                "인계자 / 인수자",
+                key="handover_history_person",
+            )
+            include_cancelled = row1[3].checkbox("취소 이력 포함", value=True)
             row2 = st.columns(2)
             start_date = row2[0].date_input("시작일", value=get_now_kst().date().replace(day=1))
             end_date = row2[1].date_input("종료일", value=get_now_kst().date())
@@ -2355,6 +2367,22 @@ def show_3part_handover_page():
                 ]
                 if lot_keyword.strip():
                     conditions.append({"lot_no": {"$regex": re.escape(lot_keyword.strip()), "$options": "i"}})
+                if product_spec_keyword.strip():
+                    # 공백으로 여러 단어를 입력하면 각 단어가 품명 또는 규격 중 하나에 모두 포함되어야 합니다.
+                    # 예: "RING 716" -> 품명에 RING, 규격에 716이 있어도 검색됩니다.
+                    product_spec_tokens = [
+                        token for token in re.split(r"\s+", product_spec_keyword.strip()) if token
+                    ]
+                    for token in product_spec_tokens:
+                        safe_product_spec = re.escape(token)
+                        conditions.append(
+                            {
+                                "$or": [
+                                    {"product_name": {"$regex": safe_product_spec, "$options": "i"}},
+                                    {"spec": {"$regex": safe_product_spec, "$options": "i"}},
+                                ]
+                            }
+                        )
                 if person_keyword.strip():
                     safe_person = re.escape(person_keyword.strip())
                     conditions.append(
