@@ -1318,6 +1318,7 @@ def build_material_advanced_search_query(
     spec="",
     receiver_name="",
     memo="",
+    memo_exists_only=False,
     start_date=None,
     end_date=None,
 ):
@@ -1338,6 +1339,11 @@ def build_material_advanced_search_query(
             conditions.append(
                 {field: {"$regex": re.escape(value), "$options": "i"}}
             )
+
+    # 메모 필드에 공백이 아닌 실제 문자가 1개 이상 있는 입고 건만 조회합니다.
+    # 이 조건은 메모 내용 검색어와 함께 사용할 수도 있습니다.
+    if memo_exists_only:
+        conditions.append({"memo": {"$regex": r"\S"}})
 
     if start_date and end_date:
         conditions.append(
@@ -1365,6 +1371,7 @@ def get_material_advanced_records(
     spec="",
     receiver_name="",
     memo="",
+    memo_exists_only=False,
     start_date=None,
     end_date=None,
     limit=500,
@@ -1375,6 +1382,7 @@ def get_material_advanced_records(
         spec=spec,
         receiver_name=receiver_name,
         memo=memo,
+        memo_exists_only=memo_exists_only,
         start_date=start_date,
         end_date=end_date,
     )
@@ -1618,6 +1626,27 @@ def show_material_receiving_page_live_qr():
                     f"🚫 이미 전량 입고 완료된 LOT입니다. "
                     f"K-System 수량 {plan_qty_default}개 / 기존 입고 합계 {received_total}개"
                 )
+                st.info(
+                    "내용을 확인한 뒤 아래 버튼을 누르면 현재 LOT 화면을 닫고 "
+                    "다음 QR을 바로 스캔할 수 있습니다."
+                )
+                if st.button(
+                    "⬅️ 확인 완료 · 다음 QR 찍기",
+                    key=f"material_duplicate_back_{lot_no}",
+                    use_container_width=True,
+                ):
+                    reset_material_live_lookup_state()
+                    st.session_state.material_scanner_generation = (
+                        int(st.session_state.get("material_scanner_generation", 0) or 0) + 1
+                    )
+                    st.session_state.pop("material_last_component_scan_key", None)
+                    st.session_state.pop("material_last_scan_key", None)
+                    st.session_state.pop("material_last_scan_nonce", None)
+                    st.session_state.material_live_message = (
+                        "info",
+                        "다음 원자재 QR을 스캔해 주세요.",
+                    )
+                    rerun_app()
             elif is_duplicate_lot:
                 latest_date = str((latest_record or {}).get("receive_date", "-"))
                 latest_name = str((latest_record or {}).get("receiver_name", "-"))
@@ -1770,13 +1799,13 @@ def show_material_receiving_page_live_qr():
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
-                    placeholder="예: KK20260000000 또는 0000000",
+                    placeholder="예: KK20260511043 또는 11043",
                     key="material_search_lot_live",
                 )
             with row1[1]:
                 search_product = st.text_input(
                     "품명",
-                    placeholder=" ",
+                    placeholder="예: RING",
                     key="material_search_product_live",
                 )
 
@@ -1784,13 +1813,13 @@ def show_material_receiving_page_live_qr():
             with row2[0]:
                 search_spec = st.text_input(
                     "규격",
-                    placeholder=" ",
+                    placeholder="예: 716-087943",
                     key="material_search_spec_live",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
-                    placeholder=" ",
+                    placeholder="예: 서동일",
                     key="material_search_receiver_live",
                 )
 
@@ -1798,6 +1827,15 @@ def show_material_receiving_page_live_qr():
                 "메모",
                 placeholder="메모 내용 일부",
                 key="material_search_memo_live",
+            )
+            memo_exists_only = st.checkbox(
+                "📝 메모가 작성된 입고 건만 조회",
+                value=False,
+                help=(
+                    "메모가 비어 있거나 공백만 입력된 입고 건은 제외하고, "
+                    "실제 메모 내용이 있는 기록만 조회합니다."
+                ),
+                key="material_search_memo_exists_only_live",
             )
 
             st.markdown("##### 입고일 검색")
@@ -1826,7 +1864,7 @@ def show_material_receiving_page_live_qr():
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
-                    [10, 30, 50, 100],
+                    [100, 300, 500, 1000],
                     index=2,
                     key="material_search_limit_live",
                 )
@@ -1867,7 +1905,7 @@ def show_material_receiving_page_live_qr():
                     )
                 )
 
-                if not has_text_condition and not use_date_filter:
+                if not has_text_condition and not use_date_filter and not memo_exists_only:
                     st.warning(
                         "검색 조건을 하나 이상 입력해 주세요. "
                         "전체 데이터가 한꺼번에 표시되는 것을 방지하기 위해 빈 조건 조회는 실행하지 않습니다."
@@ -1884,6 +1922,7 @@ def show_material_receiving_page_live_qr():
                         spec=search_spec,
                         receiver_name=search_receiver,
                         memo=search_memo,
+                        memo_exists_only=memo_exists_only,
                         start_date=query_start_date,
                         end_date=query_end_date,
                         limit=result_limit,
@@ -1903,6 +1942,8 @@ def show_material_receiving_page_live_qr():
                         descriptions.append(f"인수자: {search_receiver.strip()}")
                     if str(search_memo or "").strip():
                         descriptions.append(f"메모: {search_memo.strip()}")
+                    if memo_exists_only:
+                        descriptions.append("메모 작성 건만")
                     if use_date_filter:
                         descriptions.append(
                             f"입고일: {search_start_date} ~ {search_end_date}"
@@ -1914,7 +1955,10 @@ def show_material_receiving_page_live_qr():
         )
 
         if not search_executed:
-            st.info("LOT, 품명, 규격, 인수자 또는 날짜 조건을 입력한 뒤 조회 버튼을 눌러주세요.")
+            st.info(
+                "LOT, 품명, 규격, 인수자, 날짜 조건을 입력하거나 "
+                "'메모가 작성된 입고 건만 조회'를 선택한 뒤 조회 버튼을 눌러주세요."
+            )
         else:
             records = st.session_state.get("material_search_results_live", [])
             description = st.session_state.get(
@@ -2385,7 +2429,7 @@ def show_3part_handover_page():
                 metric_cols[2].metric("미입고", f"{selected['missing_received']:,}")
                 metric_cols[3].metric("누적인계", f"{selected['handover_total']:,}")
                 metric_cols[4].metric("현재 인계가능", f"{selected['available_qty']:,}")
-                metric_cols[5].metric("전체 미 인계", f"{selected['overall_not_handed']:,}")
+                metric_cols[5].metric("전체 미인계", f"{selected['overall_not_handed']:,}")
                 st.info(f"현재 상태: **{selected['status']}**")
 
                 if selected.get("has_quantity_error"):
@@ -2685,7 +2729,7 @@ def show_material_receiving_page():
         lot_input_key = f"material_lot_input_{st.session_state.material_scan_counter}"
         lot_raw = st.text_input(
             "QR 또는 LOT 번호",
-            placeholder="예: KK20260000000 또는 0000000",
+            placeholder="예: KK20260703080 또는 0703080",
             key=lot_input_key,
             disabled=not st.session_state.material_scan_mode,
         )
