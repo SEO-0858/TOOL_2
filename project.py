@@ -1643,6 +1643,13 @@ def render_material_qr_scanner():
 
 def reset_material_search_state():
     """입고 검색 조건·결과·선택·삭제 관련 상태를 최초 화면으로 초기화합니다."""
+    # Streamlit은 이미 렌더링된 위젯 키를 같은 실행 중 단순 삭제해도
+    # 브라우저의 이전 값이 다시 살아날 수 있습니다. 세대 번호를 올려
+    # 완전히 새로운 위젯 키를 만들면 입력값이 확실하게 초기화됩니다.
+    st.session_state["material_search_generation"] = int(
+        st.session_state.get("material_search_generation", 0) or 0
+    ) + 1
+
     exact_keys = (
         "material_search_lot_live",
         "material_search_product_live",
@@ -1674,7 +1681,11 @@ def reset_material_search_state():
         "material_delete_open_",
     )
     for key in list(st.session_state.keys()):
-        if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
+        key_text = str(key)
+        if any(key_text.startswith(prefix) for prefix in dynamic_prefixes):
+            st.session_state.pop(key, None)
+        # 이전 세대의 입고 검색 위젯 값도 정리합니다.
+        elif key_text.startswith("material_search_widget_"):
             st.session_state.pop(key, None)
 
 
@@ -1936,20 +1947,26 @@ def show_material_receiving_page_live_qr():
 
         today = get_now_kst().date()
         default_start = today.replace(day=1)
+        search_generation = int(
+            st.session_state.get("material_search_generation", 0) or 0
+        )
 
-        with st.form("material_advanced_search_form", clear_on_submit=False):
+        with st.form(
+            f"material_advanced_search_form_{search_generation}",
+            clear_on_submit=False,
+        ):
             row1 = st.columns(2)
             with row1[0]:
                 search_lot = st.text_input(
                     "LOT",
                     placeholder="예: KK20260511043 또는 11043",
-                    key="material_search_lot_live",
+                    key=f"material_search_widget_lot_{search_generation}",
                 )
             with row1[1]:
                 search_product = st.text_input(
                     "품명",
                     placeholder=" ",
-                    key="material_search_product_live",
+                    key=f"material_search_widget_product_{search_generation}",
                 )
 
             row2 = st.columns(2)
@@ -1957,19 +1974,19 @@ def show_material_receiving_page_live_qr():
                 search_spec = st.text_input(
                     "규격",
                     placeholder=" ",
-                    key="material_search_spec_live",
+                    key=f"material_search_widget_spec_{search_generation}",
                 )
             with row2[1]:
                 search_receiver = st.text_input(
                     "인수자",
                     placeholder=" ",
-                    key="material_search_receiver_live",
+                    key=f"material_search_widget_receiver_{search_generation}",
                 )
 
             search_memo = st.text_input(
                 "메모",
                 placeholder="메모 내용 일부",
-                key="material_search_memo_live",
+                key=f"material_search_widget_memo_{search_generation}",
             )
             memo_exists_only = st.checkbox(
                 "📝 메모가 작성된 입고 건만 조회",
@@ -1978,7 +1995,7 @@ def show_material_receiving_page_live_qr():
                     "메모가 비어 있거나 공백만 입력된 입고 건은 제외하고, "
                     "실제 메모 내용이 있는 기록만 조회합니다."
                 ),
-                key="material_search_memo_exists_only_live",
+                key=f"material_search_widget_memo_exists_{search_generation}",
             )
 
             st.markdown("##### 입고일 검색")
@@ -1987,13 +2004,13 @@ def show_material_receiving_page_live_qr():
                 search_start_date = st.date_input(
                     "시작일",
                     value=default_start,
-                    key="material_search_start_date_live",
+                    key=f"material_search_widget_start_date_{search_generation}",
                 )
             with date_cols[1]:
                 search_end_date = st.date_input(
                     "종료일",
                     value=today,
-                    key="material_search_end_date_live",
+                    key=f"material_search_widget_end_date_{search_generation}",
                 )
 
             option_cols = st.columns([2, 1])
@@ -2002,14 +2019,14 @@ def show_material_receiving_page_live_qr():
                     "날짜 조건 사용",
                     value=False,
                     help="체크하지 않으면 날짜와 관계없이 입력한 조건만 검색합니다.",
-                    key="material_search_use_date_live",
+                    key=f"material_search_widget_use_date_{search_generation}",
                 )
             with option_cols[1]:
                 result_limit = st.selectbox(
                     "최대 표시 건수",
                     [10,100, 300, 500, 1000],
                     index=2,
-                    key="material_search_limit_live",
+                    key=f"material_search_widget_limit_{search_generation}",
                 )
 
             search_submitted = st.form_submit_button(
@@ -2021,7 +2038,7 @@ def show_material_receiving_page_live_qr():
         with clear_col:
             st.button(
                 "🔄 새 검색 · 전체 초기화",
-                key="material_search_clear_live",
+                key=f"material_search_clear_live_{search_generation}",
                 use_container_width=True,
                 on_click=reset_material_search_state,
             )
