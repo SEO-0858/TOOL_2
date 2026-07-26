@@ -1641,6 +1641,43 @@ def render_material_qr_scanner():
     scanned_text = str(scanned_value or "").strip()
     return scanned_text or None
 
+def reset_material_search_state():
+    """입고 검색 조건·결과·선택·삭제 관련 상태를 최초 화면으로 초기화합니다."""
+    exact_keys = (
+        "material_search_lot_live",
+        "material_search_product_live",
+        "material_search_spec_live",
+        "material_search_receiver_live",
+        "material_search_memo_live",
+        "material_search_memo_exists_only_live",
+        "material_search_start_date_live",
+        "material_search_end_date_live",
+        "material_search_use_date_live",
+        "material_search_limit_live",
+        "material_search_results_live",
+        "material_search_executed_live",
+        "material_search_description_live",
+        "material_memo_edit_selected_index",
+        "material_memo_edit_pending",
+        "material_memo_edit_record",
+        "material_memo_edit_timestamp",
+        "material_memo_edit_final_confirm",
+        "material_delete_selected_lot",
+    )
+    for key in exact_keys:
+        st.session_state.pop(key, None)
+
+    # LOT별로 동적으로 생성되는 삭제 토글·확인입력·버튼 상태도 함께 제거합니다.
+    dynamic_prefixes = (
+        "material_delete_mode_",
+        "material_delete_confirm_tail_",
+        "material_delete_open_",
+    )
+    for key in list(st.session_state.keys()):
+        if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
+            st.session_state.pop(key, None)
+
+
 def show_material_receiving_page_live_qr():
     st.title("📦 원자재 입고 정보")
     st.caption("작업자를 선택한 뒤 도면 QR을 스캔하면 K-System LOT 정보를 자동 조회합니다.")
@@ -1982,15 +2019,12 @@ def show_material_receiving_page_live_qr():
 
         clear_col, info_col = st.columns([1, 3])
         with clear_col:
-            if st.button(
-                "검색 결과 지우기",
+            st.button(
+                "🔄 새 검색 · 전체 초기화",
                 key="material_search_clear_live",
                 use_container_width=True,
-            ):
-                st.session_state.pop("material_search_results_live", None)
-                st.session_state.pop("material_search_executed_live", None)
-                st.session_state.pop("material_search_description_live", None)
-                st.rerun()
+                on_click=reset_material_search_state,
+            )
         with info_col:
             st.caption("부분 문자열 검색 가능: LOT에 `11043`, 규격에 `716` 입력")
 
@@ -2525,7 +2559,7 @@ def cancel_handover_dialog(record_id_text):
 
 
 def reset_handover_search_state():
-    """3PART 인계 등록 화면을 최초 검색 상태로 초기화합니다."""
+    """3PART 인계 검색 조건·결과·선택·입력 상태를 최초 화면으로 초기화합니다."""
     keys_to_clear = (
         "handover_search_keyword",
         "handover_search_results",
@@ -2535,6 +2569,18 @@ def reset_handover_search_state():
     )
     for key in keys_to_clear:
         st.session_state.pop(key, None)
+
+    # 선택 LOT별 등록 폼 입력값까지 제거하여 다음 검색에 이전 내용이 남지 않게 합니다.
+    dynamic_prefixes = (
+        "handover_qty_",
+        "handover_by_",
+        "handover_received_by_",
+        "handover_memo_",
+        "handover_confirm_",
+    )
+    for key in list(st.session_state.keys()):
+        if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
+            st.session_state.pop(key, None)
 
 
 def show_3part_handover_page():
@@ -2558,19 +2604,21 @@ def show_3part_handover_page():
                 placeholder="예: KK20260703080, RING, 716-087943",
                 key="handover_search_keyword",
             )
-            search_col, reset_col = st.columns([3, 1])
-            with search_col:
-                search_submitted = st.form_submit_button(
-                    "🔍 입고 LOT 조회",
-                    use_container_width=True,
-                )
-            with reset_col:
-                st.form_submit_button(
-                    "🔄 검색 초기화",
-                    use_container_width=True,
-                    key="handover_search_reset_submit",
-                    on_click=reset_handover_search_state,
-                )
+            search_submitted = st.form_submit_button(
+                "🔍 입고 LOT 조회",
+                use_container_width=True,
+            )
+
+        reset_col, reset_info_col = st.columns([1, 3])
+        with reset_col:
+            st.button(
+                "🔄 새 검색 · 전체 초기화",
+                key="handover_search_reset_button",
+                use_container_width=True,
+                on_click=reset_handover_search_state,
+            )
+        with reset_info_col:
+            st.caption("검색어·조회 결과·선택 LOT·현재 상태·인계 입력값을 모두 지웁니다.")
 
         if search_submitted:
             if not keyword.strip():
@@ -2650,15 +2698,17 @@ def show_3part_handover_page():
                         value=int(selected["available_qty"]),
                         step=1,
                         disabled=selected["available_qty"] <= 0 or selected.get("has_quantity_error", False),
+                        key=f"handover_qty_{selected_lot}",
                     )
                     person_cols = st.columns(2)
                     with person_cols[0]:
-                        handover_by = st.text_input("인계자 (4PART)")
+                        handover_by = st.text_input("인계자 (4PART)", key=f"handover_by_{selected_lot}")
                     with person_cols[1]:
-                        received_by = st.text_input("인수자 (3PART)")
-                    memo = st.text_area("메모", placeholder="부분 인계, 특이사항")
+                        received_by = st.text_input("인수자 (3PART)", key=f"handover_received_by_{selected_lot}")
+                    memo = st.text_area("메모", placeholder="부분 인계, 특이사항", key=f"handover_memo_{selected_lot}")
                     register_confirmed = st.checkbox(
-                        f"LOT {selected_lot} / 인계수량 {int(handover_qty):,}개를 확인했습니다."
+                        f"LOT {selected_lot} / 인계수량 {int(handover_qty):,}개를 확인했습니다.",
+                        key=f"handover_confirm_{selected_lot}",
                     )
                     register_submitted = st.form_submit_button(
                         "✅ 3PART 인수인계 등록",
