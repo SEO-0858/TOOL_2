@@ -1126,6 +1126,75 @@ def get_material_collection():
     return db_collection.database[MATERIAL_COLLECTION_NAME]
 
 
+@st.dialog("⚠️ LOT 데이터 완전 삭제")
+def confirm_material_lot_delete(lot_no):
+    """선택 LOT의 입고·3PART 인계 기록을 두 컬렉션에서 모두 완전 삭제합니다."""
+    lot_no = str(lot_no or "").strip().upper()
+    if not lot_no:
+        st.error("삭제할 LOT 번호가 없습니다.")
+        return
+
+    material_collection = get_material_collection()
+    toss_collection = db_collection.database[TOSS_COLLECTION_NAME]
+    material_count = material_collection.count_documents({"lot_no": lot_no})
+    toss_count = toss_collection.count_documents({"lot_no": lot_no})
+    expected_tail = lot_no[-7:] if len(lot_no) >= 7 else lot_no
+
+    st.error("이 작업은 복구할 수 없는 완전 삭제입니다.")
+    st.write(f"**선택 LOT:** `{lot_no}`")
+    count_cols = st.columns(2)
+    count_cols[0].metric("입고 기록", f"{material_count:,}건")
+    count_cols[1].metric("3PART 인계 기록", f"{toss_count:,}건")
+    st.info(f"삭제 확인을 위해 LOT의 마지막 숫자 7자리 **{expected_tail}**를 입력하세요.")
+
+    confirm_tail = st.text_input(
+        "LOT 마지막 숫자 7자리",
+        max_chars=7,
+        placeholder="예: 0630011",
+        key=f"material_delete_confirm_tail_{lot_no}",
+    ).strip()
+    valid_tail = bool(
+        len(confirm_tail) == 7
+        and confirm_tail.isdigit()
+        and confirm_tail == expected_tail
+    )
+
+    if confirm_tail and not valid_tail:
+        st.warning("입력한 7자리 숫자가 선택 LOT와 일치하지 않습니다.")
+
+    cancel_col, delete_col = st.columns(2)
+    if cancel_col.button("❌ 취소", use_container_width=True):
+        st.rerun()
+
+    if delete_col.button(
+        "🗑️ 두 컬렉션에서 완전 삭제",
+        disabled=not valid_tail,
+        type="primary",
+        use_container_width=True,
+    ):
+        try:
+            material_result = material_collection.delete_many({"lot_no": lot_no})
+            toss_result = toss_collection.delete_many({"lot_no": lot_no})
+        except Exception as exc:
+            st.error(f"MongoDB 삭제 중 오류가 발생했습니다: {exc}")
+            return
+
+        st.session_state.material_lot_delete_saved_message = (
+            f"LOT {lot_no} 삭제 완료 · "
+            f"입고 {material_result.deleted_count}건 / "
+            f"3PART 인계 {toss_result.deleted_count}건"
+        )
+        for key in (
+            "material_search_results_live",
+            "material_search_executed_live",
+            "material_search_description_live",
+            "material_memo_edit_selected_index",
+        ):
+            st.session_state.pop(key, None)
+        st.session_state.pop(f"material_delete_confirm_tail_{lot_no}", None)
+        st.rerun()
+
+
 @st.dialog("📝 원자재 입고 메모 수정 최종 확인")
 def confirm_material_memo_update():
     """입고 검색에서 선택한 한 건의 메모만 최종 확인 후 수정합니다."""
@@ -1594,6 +1663,12 @@ def show_material_receiving_page_live_qr():
         st.success(saved_message)
         st.session_state.material_live_saved_message = ""
 
+    deleted_lot_message = st.session_state.pop(
+        "material_lot_delete_saved_message", ""
+    )
+    if deleted_lot_message:
+        st.success(deleted_lot_message)
+
     receiver_options = get_material_receiver_options()
     selected_receiver = st.selectbox("입고 작업자", receiver_options, key="material_live_receiver")
     receiver_no, receiver_name = parse_material_receiver_option(selected_receiver)
@@ -1959,26 +2034,24 @@ def show_material_receiving_page_live_qr():
                         limit=result_limit,
                     )
 
-                    # 검색된 LOT별로 K-System을 한 번씩 조회하여
-                    # "품질경영팀" 행의 진행상태만 검색 결과에 임시로 붙입니다.
-                    # MongoDB 원본 입고 데이터는 변경하지 않습니다.
-                    quality_status_cache = {}
+                    # 검색된 LOT별로 MongoDB의 입고/3PART 인계 수량을 계산합니다.
+                    # K-System 진행상태는 더 이상 사용하지 않습니다.
+                    handover_state_cache = {}
                     for record in records:
                         record_lot_no = str(record.get("lot_no", "") or "").strip()
                         if not record_lot_no:
-                            record["_quality_management_status"] = ""
+                            record["_handover_status"] = ""
                             continue
 
-                        if record_lot_no not in quality_status_cache:
-                            try:
-                                lot_info, _ = lookup_ksi_lot_info(record_lot_no)
-                                quality_status_cache[record_lot_no] = (
-                                    str((lot_info or {}).get("quality_management_status", "") or "").strip()
-                                )
-                            except Exception:
-                                quality_status_cache[record_lot_no] = ""
+                        if record_lot_no not in handover_state_cache:
+                            received_total = get_material_received_total(record_lot_no)
+                            handover_total = get_handover_total(record_lot_no)
+                            state = calculate_handover_state(
+                                record.get("plan_qty"), received_total, handover_total
+                            )
+                            handover_state_cache[record_lot_no] = state
 
-                        record["_quality_management_status"] = quality_status_cache[record_lot_no]
+                        record["_handover_status"] = handover_state_cache[record_lot_no]["status"]
 
                     st.session_state.material_search_results_live = records
                     st.session_state.material_search_executed_live = True
@@ -2036,8 +2109,8 @@ def show_material_receiving_page_live_qr():
                             "누적입고": to_int_safe(
                                 item.get("received_total_after"), 0
                             ),
-                            "품질경영팀 진행상태": item.get(
-                                "_quality_management_status", ""
+                            "3PART 인계정보": item.get(
+                                "_handover_status", ""
                             ),
                             "인수자": item.get("receiver_name", ""),
                             "메모": item.get("memo", ""),
@@ -2099,6 +2172,44 @@ def show_material_receiving_page_live_qr():
                     key="material_memo_edit_selected_index",
                 )
                 selected_record = records[selected_record_index]
+                selected_lot_no = str(selected_record.get("lot_no", "") or "").strip()
+                selected_received_total = get_material_received_total(selected_lot_no)
+                selected_handover_total = get_handover_total(selected_lot_no)
+                selected_handover_state = calculate_handover_state(
+                    selected_record.get("plan_qty"),
+                    selected_received_total,
+                    selected_handover_total,
+                )
+
+                st.divider()
+                status_col, delete_toggle_col = st.columns([4, 1.2])
+                with status_col:
+                    st.markdown("#### 🚚 3PART 인계정보")
+                    st.info(
+                        f"현재 상태: **{selected_handover_state['status']}**  ·  "
+                        f"입고 {selected_handover_state['received_total']:,}개  ·  "
+                        f"인계 {selected_handover_state['handover_total']:,}개  ·  "
+                        f"미인계 {selected_handover_state['available_qty']:,}개"
+                    )
+                with delete_toggle_col:
+                    delete_mode = st.toggle(
+                        "🗑️ 삭제 기능",
+                        value=False,
+                        key=f"material_delete_mode_{selected_lot_no}",
+                        help="선택 LOT의 입고 기록과 3PART 인계 기록을 모두 완전 삭제할 때만 켜세요.",
+                    )
+
+                if delete_mode:
+                    st.warning(
+                        "선택한 LOT와 관련된 모든 기록을 "
+                        "material_receiving_logs와 toss_logs 두 컬렉션에서 삭제합니다."
+                    )
+                    if st.button(
+                        "⚠️ LOT 완전 삭제 확인창 열기",
+                        key=f"material_delete_open_{selected_lot_no}",
+                        use_container_width=True,
+                    ):
+                        confirm_material_lot_delete(selected_lot_no)
 
                 detail_cols = st.columns(3)
                 detail_cols[0].metric(
@@ -2413,6 +2524,19 @@ def cancel_handover_dialog(record_id_text):
         st.rerun()
 
 
+def reset_handover_search_state():
+    """3PART 인계 등록 화면을 최초 검색 상태로 초기화합니다."""
+    keys_to_clear = (
+        "handover_search_keyword",
+        "handover_search_results",
+        "handover_search_executed",
+        "handover_selected_lot",
+        "handover_lot_selectbox",
+    )
+    for key in keys_to_clear:
+        st.session_state.pop(key, None)
+
+
 def show_3part_handover_page():
     ensure_toss_indexes()
     st.title("🚚 3PART 인수인계")
@@ -2434,7 +2558,19 @@ def show_3part_handover_page():
                 placeholder="예: KK20260703080, RING, 716-087943",
                 key="handover_search_keyword",
             )
-            search_submitted = st.form_submit_button("🔍 입고 LOT 조회", use_container_width=True)
+            search_col, reset_col = st.columns([3, 1])
+            with search_col:
+                search_submitted = st.form_submit_button(
+                    "🔍 입고 LOT 조회",
+                    use_container_width=True,
+                )
+            with reset_col:
+                st.form_submit_button(
+                    "🔄 검색 초기화",
+                    use_container_width=True,
+                    key="handover_search_reset_submit",
+                    on_click=reset_handover_search_state,
+                )
 
         if search_submitted:
             if not keyword.strip():
@@ -2472,6 +2608,15 @@ def show_3part_handover_page():
                     key="handover_lot_selectbox",
                 )
                 st.session_state.handover_selected_lot = selected_lot
+
+                close_col, spacer_col = st.columns([1, 4])
+                with close_col:
+                    st.button(
+                        "⬅️ 닫기 · 새 LOT 검색",
+                        key="handover_close_and_reset_btn",
+                        use_container_width=True,
+                        on_click=reset_handover_search_state,
+                    )
 
                 # 선택 후 최신 DB값을 다시 읽어 오래된 검색 결과로 저장되는 것을 방지합니다.
                 refreshed = get_handover_lot_summaries(selected_lot, limit=50)
