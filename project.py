@@ -2606,6 +2606,19 @@ def reset_handover_search_state():
             st.session_state.pop(key, None)
 
 
+def reset_handover_history_search_state():
+    """전체 인계이력 검색 조건과 결과를 완전히 초기화합니다."""
+    current_generation = int(
+        st.session_state.get("handover_history_generation", 0) or 0
+    )
+    st.session_state["handover_history_generation"] = current_generation + 1
+    st.session_state.pop("handover_history_results", None)
+
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("handover_history_widget_"):
+            st.session_state.pop(key, None)
+
+
 def show_3part_handover_page():
     ensure_toss_indexes()
     st.title("🚚 3PART 인수인계")
@@ -2846,67 +2859,199 @@ def show_3part_handover_page():
 
     with history_tab:
         st.markdown("#### 전체 인계이력 조건 검색")
-        with st.form("handover_history_search_form", clear_on_submit=False):
+
+        history_generation = int(
+            st.session_state.get("handover_history_generation", 0) or 0
+        )
+        key_prefix = f"handover_history_widget_{history_generation}"
+
+        with st.form(
+            f"handover_history_search_form_{history_generation}",
+            clear_on_submit=False,
+        ):
             row1 = st.columns([1.2, 1.6, 1.2, 0.9])
             lot_keyword = row1[0].text_input(
                 "LOT",
-                placeholder="예: 0703080",
-                key="handover_history_lot",
+                placeholder="전체 LOT, 뒤 7자리 또는 일부 번호",
+                key=f"{key_prefix}_lot",
             )
             product_spec_keyword = row1[1].text_input(
                 "품명 / 규격",
-                placeholder="품명, 규격 또는 규격 안의 약자 일부",
-                key="handover_history_product_spec",
+                placeholder="품명, 규격 또는 일부 문자",
+                key=f"{key_prefix}_product_spec",
             )
             person_keyword = row1[2].text_input(
                 "인계자 / 인수자",
-                key="handover_history_person",
+                placeholder="이름만 입력해도 전체 검색",
+                key=f"{key_prefix}_person",
             )
-            include_cancelled = row1[3].checkbox("취소 이력 포함", value=True)
+            include_cancelled = row1[3].checkbox(
+                "취소 이력 포함",
+                value=True,
+                key=f"{key_prefix}_include_cancelled",
+            )
+
+            use_date_filter = st.checkbox(
+                "날짜 조건 사용",
+                value=False,
+                key=f"{key_prefix}_use_date",
+                help="체크하지 않으면 날짜와 관계없이 전체 인계이력에서 검색합니다.",
+            )
             row2 = st.columns(2)
-            start_date = row2[0].date_input("시작일", value=get_now_kst().date().replace(day=1))
-            end_date = row2[1].date_input("종료일", value=get_now_kst().date())
-            history_submitted = st.form_submit_button("🔍 인계이력 조회", use_container_width=True)
+            start_date = row2[0].date_input(
+                "시작일",
+                value=get_now_kst().date().replace(day=1),
+                disabled=not use_date_filter,
+                key=f"{key_prefix}_start_date",
+            )
+            end_date = row2[1].date_input(
+                "종료일",
+                value=get_now_kst().date(),
+                disabled=not use_date_filter,
+                key=f"{key_prefix}_end_date",
+            )
+            history_submitted = st.form_submit_button(
+                "🔍 인계이력 조회",
+                use_container_width=True,
+            )
+
+        close_col, close_info_col = st.columns([1.3, 3.7])
+        with close_col:
+            st.button(
+                "❌ 검색 결과 닫기 · 초기화",
+                key=f"handover_history_close_{history_generation}",
+                use_container_width=True,
+                on_click=reset_handover_history_search_state,
+            )
+        with close_info_col:
+            st.caption(
+                "LOT·품명/규격·인계자/인수자·날짜 조건과 조회 결과를 모두 지웁니다."
+            )
 
         if history_submitted:
-            if start_date > end_date:
+            if use_date_filter and start_date > end_date:
                 st.error("시작일은 종료일보다 늦을 수 없습니다.")
             else:
-                conditions = [
-                    {"handover_date": {"$gte": str(start_date), "$lte": str(end_date)}}
-                ]
-                if lot_keyword.strip():
-                    conditions.append({"lot_no": {"$regex": re.escape(lot_keyword.strip()), "$options": "i"}})
+                conditions = []
+
+                # 날짜 조건은 사용자가 체크한 경우에만 적용합니다.
+                # 이름이나 LOT만 입력했을 때 과거 전체 이력이 검색되도록 기본값은 날짜 미사용입니다.
+                if use_date_filter:
+                    conditions.append(
+                        {
+                            "handover_date": {
+                                "$gte": str(start_date),
+                                "$lte": str(end_date),
+                            }
+                        }
+                    )
+
+                # LOT 전체번호, 뒤 7자리, 일부 번호를 모두 부분검색합니다.
+                lot_text = str(lot_keyword or "").strip().upper()
+                if lot_text:
+                    lot_candidates = []
+
+                    def add_lot_candidate(value):
+                        value = str(value or "").strip()
+                        if value and value not in lot_candidates:
+                            lot_candidates.append(value)
+
+                    add_lot_candidate(lot_text)
+                    add_lot_candidate(re.sub(r"\s+", "", lot_text))
+                    add_lot_candidate(re.sub(r"[^A-Z0-9]", "", lot_text))
+
+                    lot_digits = re.sub(r"\D", "", lot_text)
+                    if lot_digits:
+                        add_lot_candidate(lot_digits)
+                        if len(lot_digits) >= 7:
+                            add_lot_candidate(lot_digits[-7:])
+
+                    conditions.append(
+                        {
+                            "$or": [
+                                {
+                                    "lot_no": {
+                                        "$regex": re.escape(candidate),
+                                        "$options": "i",
+                                    }
+                                }
+                                for candidate in lot_candidates
+                            ]
+                        }
+                    )
+
                 if product_spec_keyword.strip():
-                    # 공백으로 여러 단어를 입력하면 각 단어가 품명 또는 규격 중 하나에 모두 포함되어야 합니다.
-                    # 예: "RING 716" -> 품명에 RING, 규격에 716이 있어도 검색됩니다.
+                    # 여러 단어를 입력하면 각 단어가 품명 또는 규격 중 한 곳에 포함되어야 합니다.
                     product_spec_tokens = [
-                        token for token in re.split(r"\s+", product_spec_keyword.strip()) if token
+                        token
+                        for token in re.split(
+                            r"\s+", product_spec_keyword.strip()
+                        )
+                        if token
                     ]
                     for token in product_spec_tokens:
                         safe_product_spec = re.escape(token)
                         conditions.append(
                             {
                                 "$or": [
-                                    {"product_name": {"$regex": safe_product_spec, "$options": "i"}},
-                                    {"spec": {"$regex": safe_product_spec, "$options": "i"}},
+                                    {
+                                        "product_name": {
+                                            "$regex": safe_product_spec,
+                                            "$options": "i",
+                                        }
+                                    },
+                                    {
+                                        "spec": {
+                                            "$regex": safe_product_spec,
+                                            "$options": "i",
+                                        }
+                                    },
                                 ]
                             }
                         )
+
+                # 이름 하나만 입력해도 인계자·인수자·취소담당자 중 일치하는 모든 이력을 조회합니다.
                 if person_keyword.strip():
-                    safe_person = re.escape(person_keyword.strip())
-                    conditions.append(
-                        {
-                            "$or": [
-                                {"handover_by": {"$regex": safe_person, "$options": "i"}},
-                                {"received_by": {"$regex": safe_person, "$options": "i"}},
-                                {"cancelled_by": {"$regex": safe_person, "$options": "i"}},
-                            ]
-                        }
-                    )
+                    person_tokens = [
+                        token
+                        for token in re.split(r"\s+", person_keyword.strip())
+                        if token
+                    ]
+                    for token in person_tokens:
+                        safe_person = re.escape(token)
+                        conditions.append(
+                            {
+                                "$or": [
+                                    {
+                                        "handover_by": {
+                                            "$regex": safe_person,
+                                            "$options": "i",
+                                        }
+                                    },
+                                    {
+                                        "received_by": {
+                                            "$regex": safe_person,
+                                            "$options": "i",
+                                        }
+                                    },
+                                    {
+                                        "cancelled_by": {
+                                            "$regex": safe_person,
+                                            "$options": "i",
+                                        }
+                                    },
+                                ]
+                            }
+                        )
+
                 if not include_cancelled:
                     conditions.append({"is_cancelled": {"$ne": True}})
-                query = {"$and": conditions}
+
+                query = (
+                    {"$and": conditions}
+                    if len(conditions) > 1
+                    else (conditions[0] if conditions else {})
+                )
                 records = list(
                     get_toss_collection()
                     .find(query)
@@ -2917,13 +3062,16 @@ def show_3part_handover_page():
 
         history_records = st.session_state.get("handover_history_results")
         if history_records is None:
-            st.info("조건을 선택하고 인계이력 조회 버튼을 눌러주세요.")
+            st.info("조건을 입력하고 인계이력 조회 버튼을 눌러주세요.")
         elif not history_records:
             st.warning("조건에 맞는 인계 이력이 없습니다.")
         else:
             rows = []
             for record in history_records:
-                cancelled = bool(record.get("is_cancelled")) or record.get("status") == "cancelled"
+                cancelled = (
+                    bool(record.get("is_cancelled"))
+                    or record.get("status") == "cancelled"
+                )
                 rows.append(
                     {
                         "상태": "취소" if cancelled else "정상",
@@ -2943,9 +3091,16 @@ def show_3part_handover_page():
             df = pd.DataFrame(rows)
             metric_cols = st.columns(3)
             metric_cols[0].metric("검색 결과", f"{len(df):,}건")
-            metric_cols[1].metric("정상 인계수량", f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개")
-            metric_cols[2].metric("취소 건수", f"{int((df['상태'] == '취소').sum()):,}건")
+            metric_cols[1].metric(
+                "정상 인계수량",
+                f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개",
+            )
+            metric_cols[2].metric(
+                "취소 건수",
+                f"{int((df['상태'] == '취소').sum()):,}건",
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
+
 
 def show_material_receiving_page():
     return show_material_receiving_page_live_qr()
