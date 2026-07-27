@@ -2771,7 +2771,7 @@ def show_3part_handover_page():
                         if int(handover_qty) > latest_available:
                             st.error(
                                 f"다른 사용자의 저장으로 인계 가능 수량이 {latest_available:,}개로 변경되었습니다. "
-                                "혹은 인계수량이 입고수량을 초과 하였습니다","LOT을 다시 조회해 주세요."
+                                "혹은 인계수량이 입고수량을 초과 하였습니다" "," "LOT을 다시 조회해 주세요."
                             )
                             st.stop()
 
