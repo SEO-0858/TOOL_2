@@ -2853,7 +2853,9 @@ def show_3part_handover_page():
                 elif selected["available_qty"] <= 0:
                     st.warning("현재 추가로 인계할 수 있는 수량이 없습니다.")
 
-                with st.form(f"handover_register_form_{selected_lot}"):
+                # 일반 컨테이너를 사용해 수량 변경 시 화면이 즉시 다시 계산되도록 합니다.
+                # 따라서 확인 체크박스 문구도 작업자가 입력한 현재 인계수량으로 바로 바뀝니다.
+                with st.container(border=True):
                     handover_qty = st.number_input(
                         "이번 인계수량",
                         min_value=0,
@@ -2885,8 +2887,9 @@ def show_3part_handover_page():
                             "K_SYSTEM의 원자재 납입 순서를 확인했으며, 선택한 LOT로 인계를 진행합니다.",
                             key=f"handover_manual_selection_confirm_{selected_lot}",
                         )
-                    register_submitted = st.form_submit_button(
+                    register_submitted = st.button(
                         "✅ 3PART 인수인계 등록",
+                        key=f"handover_register_submit_{selected_lot}",
                         use_container_width=True,
                         disabled=(
                             selected["available_qty"] <= 0
