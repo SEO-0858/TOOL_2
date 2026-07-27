@@ -2435,6 +2435,8 @@ def get_handover_lot_summaries(keyword, limit=200):
                     "product_name": {"$last": "$product_name"},
                     "spec": {"$last": "$spec"},
                     "plan_qty": {"$last": "$plan_qty"},
+                    "hold": {"$last": {"$ifNull": ["$hold", False]}},
+                    "first_receive_date": {"$first": "$receive_date"},
                     "latest_receive_date": {"$last": "$receive_date"},
                 }
             },
@@ -2456,11 +2458,77 @@ def get_handover_lot_summaries(keyword, limit=200):
                 "lot_no": lot_no,
                 "product_name": str(item.get("product_name", "") or ""),
                 "spec": str(item.get("spec", "") or ""),
+                "hold": bool(item.get("hold", False)),
+                "first_receive_date": str(item.get("first_receive_date", "") or ""),
                 "latest_receive_date": str(item.get("latest_receive_date", "") or ""),
                 **state,
             }
         )
     return rows
+
+
+def set_material_lot_hold(lot_no, hold):
+    """기존 material_receiving_logs 문서에 LOT 보류 여부만 저장합니다."""
+    lot_no = str(lot_no or "").strip()
+    if not lot_no:
+        return 0
+    result = get_material_collection().update_many(
+        {"lot_no": lot_no},
+        {"$set": {"hold": bool(hold)}},
+    )
+    return int(result.matched_count or 0)
+
+
+def get_recommended_handover_lot(product_name, spec):
+    """같은 품명·규격에서 보류가 아니며 인계 가능한 첫 LOT를 추천합니다.
+
+    이미 일부 인계한 LOT가 있으면 그 LOT를 우선하고, 없으면 입고 순서가 빠른 LOT를 추천합니다.
+    추천은 안내용이며 작업자는 다른 정상 LOT도 직접 선택할 수 있습니다.
+    """
+    product_name = str(product_name or "").strip()
+    spec = str(spec or "").strip()
+    if not product_name and not spec:
+        return None
+
+    conditions = []
+    if product_name:
+        conditions.append({"product_name": {"$regex": f"^{re.escape(product_name)}$", "$options": "i"}})
+    if spec:
+        conditions.append({"spec": {"$regex": f"^{re.escape(spec)}$", "$options": "i"}})
+    query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
+
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"_id": 1}},
+        {"$group": {
+            "_id": "$lot_no",
+            "received_total": {"$sum": "$received_qty"},
+            "product_name": {"$last": "$product_name"},
+            "spec": {"$last": "$spec"},
+            "plan_qty": {"$last": "$plan_qty"},
+            "hold": {"$last": {"$ifNull": ["$hold", False]}},
+            "first_receive_date": {"$first": "$receive_date"},
+        }},
+        {"$sort": {"first_receive_date": 1, "_id": 1}},
+    ]
+
+    candidates = []
+    for item in get_material_collection().aggregate(pipeline):
+        lot_no = str(item.get("_id", "") or "").strip()
+        if not lot_no or bool(item.get("hold", False)):
+            continue
+        handover_total = get_handover_total(lot_no)
+        state = calculate_handover_state(item.get("plan_qty"), item.get("received_total"), handover_total)
+        if state.get("available_qty", 0) <= 0 or state.get("is_complete"):
+            continue
+        candidates.append({
+            "lot_no": lot_no,
+            "handover_total": state.get("handover_total", 0),
+            "first_receive_date": str(item.get("first_receive_date", "") or ""),
+        })
+
+    continuing = next((item for item in candidates if item.get("handover_total", 0) > 0), None)
+    return continuing or (candidates[0] if candidates else None)
 
 
 def get_toss_records(lot_no, limit=300):
@@ -2600,6 +2668,8 @@ def reset_handover_search_state():
         "handover_received_by_",
         "handover_memo_",
         "handover_confirm_",
+        "handover_manual_selection_confirm_",
+        "handover_hold_toggle_",
     )
     for key in list(st.session_state.keys()):
         if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
@@ -2695,8 +2765,11 @@ def show_3part_handover_page():
                     option_lots,
                     index=default_index,
                     format_func=lambda lot: (
-                        f"{lot} | {option_map[lot]['product_name']} | {option_map[lot]['spec']} | "
-                        f"인계가능 {option_map[lot]['available_qty']:,}개"
+                        f"{'⏸ 보류 | ' if option_map[lot].get('hold') else ''}{lot} | "
+                        f"{option_map[lot]['product_name']} | {option_map[lot]['spec']} | "
+                        f"전체수량: {option_map[lot]['plan_qty']:,}개 | "
+                        f"인계된 수량: {option_map[lot]['handover_total']:,}개 | "
+                        f"남은 인계수량: {option_map[lot]['overall_not_handed']:,}개"
                     ),
                     key=handover_selectbox_key,
                 )
@@ -2714,6 +2787,50 @@ def show_3part_handover_page():
                 # 선택 후 최신 DB값을 다시 읽어 오래된 검색 결과로 저장되는 것을 방지합니다.
                 refreshed = get_handover_lot_summaries(selected_lot, limit=50)
                 selected = next((x for x in refreshed if x["lot_no"] == selected_lot), option_map[selected_lot])
+
+                recommended = get_recommended_handover_lot(
+                    selected.get("product_name", ""), selected.get("spec", "")
+                )
+                recommended_lot = str((recommended or {}).get("lot_no", "") or "")
+                is_nonrecommended_selection = bool(
+                    recommended_lot and selected_lot != recommended_lot
+                )
+
+                if recommended_lot:
+                    if selected_lot == recommended_lot:
+                        st.success(f"⭐ 시스템 추천 인계 대상 LOT: **{recommended_lot}**")
+                    else:
+                        st.info(
+                            f"⭐ 시스템 추천 LOT은 **{recommended_lot}**입니다. "
+                            f"현재 작업자가 직접 선택한 LOT은 **{selected_lot}**입니다."
+                        )
+                else:
+                    st.caption("현재 같은 품명·규격에서 자동 추천할 수 있는 정상 LOT가 없습니다.")
+
+                hold_col, hold_info_col = st.columns([1, 3])
+                with hold_col:
+                    hold_button_label = "▶ 보류 해제" if selected.get("hold") else "⏸ 이 LOT 보류"
+                    if st.button(
+                        hold_button_label,
+                        key=f"handover_hold_toggle_{selected_lot}_{handover_generation}",
+                        use_container_width=True,
+                    ):
+                        matched = set_material_lot_hold(selected_lot, not selected.get("hold"))
+                        if matched <= 0:
+                            st.error("보류 상태를 변경할 입고 기록을 찾지 못했습니다.")
+                            st.stop()
+                        st.session_state.handover_flash_message = (
+                            f"{selected_lot} LOT의 인계 보류를 "
+                            f"{'설정' if not selected.get('hold') else '해제'}했습니다."
+                        )
+                        st.session_state.pop("handover_search_results", None)
+                        st.session_state.handover_search_executed = False
+                        st.rerun()
+                with hold_info_col:
+                    if selected.get("hold"):
+                        st.warning("⏸ 현재 보류된 LOT입니다. 보류를 해제해야 인계 등록할 수 있습니다.")
+                    else:
+                        st.caption("보류하면 자동 추천 대상에서 제외되며, 보류 해제 후 다시 인계할 수 있습니다.")
 
                 st.markdown("#### LOT 현재 상태")
                 metric_cols = st.columns(6)
@@ -2742,7 +2859,11 @@ def show_3part_handover_page():
                         min_value=0,
                         value=int(selected["available_qty"]),
                         step=1,
-                        disabled=selected["available_qty"] <= 0 or selected.get("has_quantity_error", False),
+                        disabled=(
+                            selected["available_qty"] <= 0
+                            or selected.get("has_quantity_error", False)
+                            or selected.get("hold", False)
+                        ),
                         key=f"handover_qty_{selected_lot}",
                     )
                     person_cols = st.columns(2)
@@ -2755,10 +2876,23 @@ def show_3part_handover_page():
                         f"LOT {selected_lot} / 인계수량 {int(handover_qty):,}개를 확인했습니다.",
                         key=f"handover_confirm_{selected_lot}",
                     )
+                    manual_selection_confirmed = True
+                    if is_nonrecommended_selection:
+                        st.warning(
+                            f"추천 LOT({recommended_lot})이 아닌 LOT({selected_lot})를 직접 선택했습니다."
+                        )
+                        manual_selection_confirmed = st.checkbox(
+                            "K_SYSTEM의 원자재 납입 순서를 확인했으며, 선택한 LOT로 인계를 진행합니다.",
+                            key=f"handover_manual_selection_confirm_{selected_lot}",
+                        )
                     register_submitted = st.form_submit_button(
                         "✅ 3PART 인수인계 등록",
                         use_container_width=True,
-                        disabled=selected["available_qty"] <= 0 or selected.get("has_quantity_error", False),
+                        disabled=(
+                            selected["available_qty"] <= 0
+                            or selected.get("has_quantity_error", False)
+                            or selected.get("hold", False)
+                        ),
                     )
 
                 if register_submitted:
@@ -2775,6 +2909,10 @@ def show_3part_handover_page():
                         st.error("인계자와 인수자는 서로 다른 이름을 입력해 주세요.")
                     elif not register_confirmed:
                         st.error("LOT와 인계수량 확인란을 체크해 주세요.")
+                    elif is_nonrecommended_selection and not manual_selection_confirmed:
+                        st.error("추천 LOT가 아닌 LOT를 선택한 경우 K_SYSTEM 납입 순서 확인란을 체크해 주세요.")
+                    elif selected.get("hold", False):
+                        st.error("보류된 LOT은 인계할 수 없습니다. 먼저 보류를 해제해 주세요.")
                     else:
                         # 저장 직전 입고수량과 정상 인계합계를 다시 조회합니다.
                         latest_received_total = get_material_received_total(selected_lot)
@@ -2806,6 +2944,11 @@ def show_3part_handover_page():
                             "handover_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
                             "handover_date": now_kst.strftime("%Y-%m-%d"),
                             "memo": memo.strip(),
+                            "recommended_lot_at_handover": recommended_lot or None,
+                            "manual_lot_selection": bool(is_nonrecommended_selection),
+                            "manual_selection_confirmed": bool(
+                                is_nonrecommended_selection and manual_selection_confirmed
+                            ),
                             "status": "active",
                             "is_cancelled": False,
                             "cancelled_at": None,
@@ -3066,6 +3209,9 @@ def show_3part_handover_page():
         elif not history_records:
             st.warning("조건에 맞는 인계 이력이 없습니다.")
         else:
+            # -----------------------------------------------------------------
+            # 1) 검색된 원본 인계 이력 표
+            # -----------------------------------------------------------------
             rows = []
             for record in history_records:
                 cancelled = (
@@ -3079,6 +3225,7 @@ def show_3part_handover_page():
                         "LOT": record.get("lot_no", ""),
                         "품명": record.get("product_name", ""),
                         "규격": record.get("spec", ""),
+                        "전체수량": to_int_safe(record.get("plan_qty"), 0),
                         "인계수량": to_int_safe(record.get("handover_qty"), 0),
                         "인계자": record.get("handover_by", ""),
                         "인수자": record.get("received_by", ""),
@@ -3089,17 +3236,216 @@ def show_3part_handover_page():
                     }
                 )
             df = pd.DataFrame(rows)
-            metric_cols = st.columns(3)
-            metric_cols[0].metric("검색 결과", f"{len(df):,}건")
-            metric_cols[1].metric(
+
+            # 같은 LOT에 인계 이력이 여러 건 있어도 전체수량은 LOT별로 한 번만 합산합니다.
+            lot_total_qty = {}
+            for record in history_records:
+                lot_no = str(record.get("lot_no", "") or "").strip()
+                plan_qty = to_int_safe(record.get("plan_qty"), 0)
+                if not lot_no:
+                    continue
+                lot_total_qty[lot_no] = max(lot_total_qty.get(lot_no, 0), plan_qty)
+            total_plan_qty = sum(lot_total_qty.values())
+
+            metric_cols = st.columns(4)
+            metric_cols[0].metric("전체 수량", f"{total_plan_qty:,}개")
+            metric_cols[1].metric("검색 결과", f"{len(df):,}건")
+            metric_cols[2].metric(
                 "정상 인계수량",
                 f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개",
             )
-            metric_cols[2].metric(
+            metric_cols[3].metric(
                 "취소 건수",
                 f"{int((df['상태'] == '취소').sum()):,}건",
             )
-            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # -----------------------------------------------------------------
+            # 2) 검색 결과와 같은 품명·규격의 모든 LOT를 찾아 LOT별 진행현황 표시
+            #    작업자가 "어느 LOT에서 이어서 인계할지" 바로 판단할 수 있게 합니다.
+            # -----------------------------------------------------------------
+            product_spec_pairs = []
+            for record in history_records:
+                product_name = str(record.get("product_name", "") or "").strip()
+                spec = str(record.get("spec", "") or "").strip()
+                pair = (product_name, spec)
+                if (product_name or spec) and pair not in product_spec_pairs:
+                    product_spec_pairs.append(pair)
+
+            related_conditions = []
+            for product_name, spec in product_spec_pairs:
+                pair_conditions = []
+                if product_name:
+                    pair_conditions.append(
+                        {"product_name": {"$regex": f"^{re.escape(product_name)}$", "$options": "i"}}
+                    )
+                if spec:
+                    pair_conditions.append(
+                        {"spec": {"$regex": f"^{re.escape(spec)}$", "$options": "i"}}
+                    )
+                if pair_conditions:
+                    related_conditions.append(
+                        {"$and": pair_conditions} if len(pair_conditions) > 1 else pair_conditions[0]
+                    )
+
+            related_query = (
+                {"$or": related_conditions}
+                if len(related_conditions) > 1
+                else (related_conditions[0] if related_conditions else {})
+            )
+
+            related_pipeline = []
+            if related_query:
+                related_pipeline.append({"$match": related_query})
+            related_pipeline.extend(
+                [
+                    {"$sort": {"_id": 1}},
+                    {
+                        "$group": {
+                            "_id": "$lot_no",
+                            "received_total": {"$sum": "$received_qty"},
+                            "product_name": {"$last": "$product_name"},
+                            "spec": {"$last": "$spec"},
+                            "plan_qty": {"$last": "$plan_qty"},
+                            "hold": {"$last": {"$ifNull": ["$hold", False]}},
+                            "first_receive_date": {"$first": "$receive_date"},
+                            "latest_receive_date": {"$last": "$receive_date"},
+                        }
+                    },
+                    {"$sort": {"latest_receive_date": 1, "_id": 1}},
+                    {"$limit": 1000},
+                ]
+            )
+
+            lot_status_items = []
+            for material_item in get_material_collection().aggregate(related_pipeline):
+                lot_no = str(material_item.get("_id", "") or "").strip()
+                if not lot_no:
+                    continue
+
+                handover_total = get_handover_total(lot_no)
+                state = calculate_handover_state(
+                    material_item.get("plan_qty"),
+                    material_item.get("received_total"),
+                    handover_total,
+                )
+                latest_normal_handover = get_toss_collection().find_one(
+                    {
+                        "lot_no": lot_no,
+                        "is_cancelled": {"$ne": True},
+                        "status": {"$ne": "cancelled"},
+                    },
+                    sort=[("handover_at", -1), ("_id", -1)],
+                )
+                lot_status_items.append(
+                    {
+                        "lot_no": lot_no,
+                        "product_name": str(material_item.get("product_name", "") or ""),
+                        "spec": str(material_item.get("spec", "") or ""),
+                        "hold": bool(material_item.get("hold", False)),
+                        "first_receive_date": str(material_item.get("first_receive_date", "") or ""),
+                        "latest_receive_date": str(material_item.get("latest_receive_date", "") or ""),
+                        "last_handover_at": str(
+                            (latest_normal_handover or {}).get("handover_at", "") or ""
+                        ),
+                        **state,
+                    }
+                )
+
+            # 품명·규격별 FIFO 순서에서 먼저 이어서 넘길 LOT를 표시합니다.
+            grouped_items = {}
+            for item in lot_status_items:
+                group_key = (item["product_name"], item["spec"])
+                grouped_items.setdefault(group_key, []).append(item)
+
+            lot_summary_rows = []
+            for group_key, group_items in grouped_items.items():
+                group_items.sort(
+                    key=lambda item: (
+                        item.get("latest_receive_date", ""),
+                        item.get("lot_no", ""),
+                    )
+                )
+
+                actionable_items = [
+                    item
+                    for item in group_items
+                    if (
+                        item.get("available_qty", 0) > 0
+                        and not item.get("is_complete")
+                        and not item.get("hold", False)
+                    )
+                ]
+                continuing_item = next(
+                    (item for item in actionable_items if item.get("handover_total", 0) > 0),
+                    None,
+                )
+                recommended_item = continuing_item or (actionable_items[0] if actionable_items else None)
+
+                for item in group_items:
+                    if item.get("hold", False):
+                        guide = "⏸ 보류"
+                    elif item.get("is_complete"):
+                        guide = "✅ 완료"
+                    elif recommended_item is item and item.get("handover_total", 0) > 0:
+                        guide = "▶ 이어서 인계"
+                    elif recommended_item is item:
+                        guide = "▶ 다음 인계"
+                    elif item.get("available_qty", 0) <= 0 and item.get("overall_not_handed", 0) > 0:
+                        guide = "⏳ 추가 입고 대기"
+                    else:
+                        guide = "대기"
+
+                    lot_summary_rows.append(
+                        {
+                            "작업안내": guide,
+                            "LOT": item["lot_no"],
+                            "품명": item["product_name"],
+                            "규격": item["spec"],
+                            "전체수량": item["plan_qty"],
+                            "인계완료": item["handover_total"],
+                            "남은인계수량": item["overall_not_handed"],
+                            "현재입고": item["received_total"],
+                            "현재인계가능": item["available_qty"],
+                            "보류여부": "보류" if item.get("hold", False) else "정상",
+                            "LOT상태": item["status"],
+                            "마지막인계일시": item["last_handover_at"] or "-",
+                        }
+                    )
+
+            st.markdown("#### 📦 같은 제품 LOT별 인계 진행현황")
+            st.caption(
+                "같은 품명·규격의 LOT를 입고 순서대로 보여줍니다. "
+                "`▶ 이어서 인계` 또는 `▶ 다음 인계` 표시가 다음 작업 대상입니다."
+            )
+
+            if lot_summary_rows:
+                lot_summary_df = pd.DataFrame(lot_summary_rows)
+                st.dataframe(
+                    lot_summary_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "전체수량": st.column_config.NumberColumn(format="%d개"),
+                        "인계완료": st.column_config.NumberColumn(format="%d개"),
+                        "남은인계수량": st.column_config.NumberColumn(format="%d개"),
+                        "현재입고": st.column_config.NumberColumn(format="%d개"),
+                        "현재인계가능": st.column_config.NumberColumn(format="%d개"),
+                    },
+                )
+            else:
+                st.warning("같은 품명·규격의 입고 LOT 현황을 찾지 못했습니다.")
+
+            st.markdown("#### 📜 상세 인계·취소 이력")
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "전체수량": st.column_config.NumberColumn(format="%d개"),
+                    "인계수량": st.column_config.NumberColumn(format="%d개"),
+                },
+            )
+
 
 
 def show_material_receiving_page():
