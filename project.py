@@ -1422,18 +1422,36 @@ def build_material_advanced_search_query(
     start_date=None,
     end_date=None,
 ):
-    """입고 검색 화면에서 사용하는 조건별 MongoDB 조회 쿼리입니다."""
+    """입고 검색 화면의 조건별 MongoDB 조회 쿼리입니다.
+
+    LOT·품명·규격은 인계등록/인계이력과 동일한 스마트 검색을 사용합니다.
+    각 입력칸 안에서 공백으로 나뉜 모든 검색어가 해당 필드에 글자 순서대로
+    포함되어야 하며, 대소문자와 -, _, / 등의 기호 차이는 무시합니다.
+    인수자와 메모는 기존 부분 문자열 검색을 유지합니다.
+    """
     conditions = []
 
-    field_values = {
+    # LOT·품명·규격: 각 입력칸별 스마트 검색
+    smart_field_values = {
         "lot_no": lot_no,
         "product_name": product_name,
         "spec": spec,
+    }
+    for field, value in smart_field_values.items():
+        tokens = [token for token in re.split(r"\s+", str(value or "").strip()) if token]
+        for token in tokens:
+            smart_regex = build_smart_search_regex(token)
+            if smart_regex:
+                conditions.append(
+                    {field: {"$regex": smart_regex, "$options": "i"}}
+                )
+
+    # 인수자·메모: 기존 부분 문자열 검색 유지
+    normal_field_values = {
         "receiver_name": receiver_name,
         "memo": memo,
     }
-
-    for field, value in field_values.items():
+    for field, value in normal_field_values.items():
         value = str(value or "").strip()
         if value:
             conditions.append(
@@ -2043,7 +2061,10 @@ def show_material_receiving_page_live_qr():
                 on_click=reset_material_search_state,
             )
         with info_col:
-            st.caption("부분 문자열 검색 가능: LOT에 `11043`, 규격에 `716` 입력")
+            st.caption(
+                "스마트 검색: LOT `0511`·`1043`, 품명 `shie top`, "
+                "규격 `kz84`·`K84`처럼 일부만 입력해도 검색됩니다."
+            )
 
         if search_submitted:
             if use_date_filter and search_start_date > search_end_date:
