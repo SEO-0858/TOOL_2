@@ -2577,18 +2577,24 @@ def cancel_handover_dialog(record_id_text):
 
 def reset_handover_search_state():
     """3PART 인계 검색 조건·결과·선택·입력 상태를 최초 화면으로 초기화합니다."""
+    # Streamlit 위젯은 같은 key를 다시 사용하면 브라우저 입력값이 살아날 수 있으므로
+    # 검색 세대 번호를 증가시켜 다음 rerun에서 완전히 새로운 위젯 key를 사용합니다.
+    current_generation = int(st.session_state.get("handover_search_generation", 0) or 0)
+    st.session_state["handover_search_generation"] = current_generation + 1
+
     keys_to_clear = (
-        "handover_search_keyword",
         "handover_search_results",
         "handover_search_executed",
         "handover_selected_lot",
-        "handover_lot_selectbox",
+        "handover_selected_snapshot",
     )
     for key in keys_to_clear:
         st.session_state.pop(key, None)
 
-    # 선택 LOT별 등록 폼 입력값까지 제거하여 다음 검색에 이전 내용이 남지 않게 합니다.
+    # 이전 세대 검색 위젯 및 선택 LOT별 등록 폼 입력값을 모두 제거합니다.
     dynamic_prefixes = (
+        "handover_search_keyword_",
+        "handover_lot_selectbox_",
         "handover_qty_",
         "handover_by_",
         "handover_received_by_",
@@ -2615,11 +2621,20 @@ def show_3part_handover_page():
     search_tab, history_tab = st.tabs(["🚚 인계 등록", "📜 전체 인계이력 검색"])
 
     with search_tab:
-        with st.form("handover_lot_search_form", clear_on_submit=False):
+        handover_generation = int(
+            st.session_state.get("handover_search_generation", 0) or 0
+        )
+        handover_keyword_key = f"handover_search_keyword_{handover_generation}"
+        handover_selectbox_key = f"handover_lot_selectbox_{handover_generation}"
+
+        with st.form(
+            f"handover_lot_search_form_{handover_generation}",
+            clear_on_submit=False,
+        ):
             keyword = st.text_input(
                 "LOT · 품명 · 규격 검색",
                 placeholder="예: KK20260703080, RING, 716-087943",
-                key="handover_search_keyword",
+                key=handover_keyword_key,
             )
             search_submitted = st.form_submit_button(
                 "🔍 입고 LOT 조회",
@@ -2630,7 +2645,7 @@ def show_3part_handover_page():
         with reset_col:
             st.button(
                 "🔄 새 검색 · 전체 초기화",
-                key="handover_search_reset_button",
+                key=f"handover_search_reset_button_{handover_generation}",
                 use_container_width=True,
                 on_click=reset_handover_search_state,
             )
@@ -2670,7 +2685,7 @@ def show_3part_handover_page():
                         f"{lot} | {option_map[lot]['product_name']} | {option_map[lot]['spec']} | "
                         f"인계가능 {option_map[lot]['available_qty']:,}개"
                     ),
-                    key="handover_lot_selectbox",
+                    key=handover_selectbox_key,
                 )
                 st.session_state.handover_selected_lot = selected_lot
 
@@ -2678,7 +2693,7 @@ def show_3part_handover_page():
                 with close_col:
                     st.button(
                         "⬅️ 닫기 · 새 LOT 검색",
-                        key="handover_close_and_reset_btn",
+                        key=f"handover_close_and_reset_btn_{handover_generation}",
                         use_container_width=True,
                         on_click=reset_handover_search_state,
                     )
