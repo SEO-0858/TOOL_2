@@ -2399,23 +2399,53 @@ def calculate_handover_state(plan_qty, received_total, handover_total):
     }
 
 
+def build_smart_search_regex(token):
+    """검색어 글자 순서만 유지해도 일치하도록 MongoDB 정규식을 만듭니다.
+
+    예:
+      K84   -> K.*8.*4      (KZ-846 검색 가능)
+      kz84  -> k.*z.*8.*4   (KZ-846 검색 가능)
+      shie  -> s.*h.*i.*e   (SHIELD 검색 가능)
+      0511  -> 0.*5.*1.*1   (LOT 중간 번호 검색 가능)
+
+    공백과 -, _, / 등의 기호는 검색어에서 제외하며 대소문자는 MongoDB의 i 옵션으로 무시합니다.
+    """
+    normalized = "".join(
+        char for char in str(token or "").strip() if char.isalnum()
+    )
+    if not normalized:
+        return ""
+    return ".*".join(re.escape(char) for char in normalized)
+
+
 def build_handover_material_query(keyword):
+    """LOT·품명·규격을 단어별 스마트 부분검색합니다.
+
+    여러 단어를 입력하면 각 단어가 LOT·품명·규격 중 어느 한 필드에서든
+    글자 순서대로 발견되는 자료만 조회합니다.
+    """
     keyword = str(keyword or "").strip()
     if not keyword:
         return {}
+
     tokens = [token for token in re.split(r"\s+", keyword) if token]
     token_conditions = []
     for token in tokens:
-        safe = re.escape(token)
+        smart_regex = build_smart_search_regex(token)
+        if not smart_regex:
+            continue
         token_conditions.append(
             {
                 "$or": [
-                    {"lot_no": {"$regex": safe, "$options": "i"}},
-                    {"product_name": {"$regex": safe, "$options": "i"}},
-                    {"spec": {"$regex": safe, "$options": "i"}},
+                    {"lot_no": {"$regex": smart_regex, "$options": "i"}},
+                    {"product_name": {"$regex": smart_regex, "$options": "i"}},
+                    {"spec": {"$regex": smart_regex, "$options": "i"}},
                 ]
             }
         )
+
+    if not token_conditions:
+        return {}
     return {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
 
 
@@ -2716,7 +2746,7 @@ def show_3part_handover_page():
         ):
             keyword = st.text_input(
                 "LOT · 품명 · 규격 검색",
-                placeholder="예: KK20260703080, RING, 716-087943",
+                placeholder="예: 0511, shie top, kz84, k84",
                 key=handover_keyword_key,
             )
             search_submitted = st.form_submit_button(
@@ -3018,12 +3048,12 @@ def show_3part_handover_page():
             row1 = st.columns([1.2, 1.6, 1.2, 0.9])
             lot_keyword = row1[0].text_input(
                 "LOT",
-                placeholder="전체 LOT, 뒤 7자리 또는 일부 번호",
+                placeholder="예: 0511, 1043, kk051",
                 key=f"{key_prefix}_lot",
             )
             product_spec_keyword = row1[1].text_input(
                 "품명 / 규격",
-                placeholder="품명, 규격 또는 일부 문자",
+                placeholder="예: shie top, ring flat, kz84, k84",
                 key=f"{key_prefix}_product_spec",
             )
             person_keyword = row1[2].text_input(
@@ -3092,42 +3122,33 @@ def show_3part_handover_page():
                         }
                     )
 
-                # LOT 전체번호, 뒤 7자리, 일부 번호를 모두 부분검색합니다.
-                lot_text = str(lot_keyword or "").strip().upper()
+                # LOT는 대소문자와 기호를 무시하고 글자·숫자의 순서만 맞아도 검색합니다.
+                # 예: KK20260511043 -> 0511, 1043, k051, kk1043 등으로 검색 가능
+                lot_text = str(lot_keyword or "").strip()
                 if lot_text:
-                    lot_candidates = []
-
-                    def add_lot_candidate(value):
-                        value = str(value or "").strip()
-                        if value and value not in lot_candidates:
-                            lot_candidates.append(value)
-
-                    add_lot_candidate(lot_text)
-                    add_lot_candidate(re.sub(r"\s+", "", lot_text))
-                    add_lot_candidate(re.sub(r"[^A-Z0-9]", "", lot_text))
-
-                    lot_digits = re.sub(r"\D", "", lot_text)
-                    if lot_digits:
-                        add_lot_candidate(lot_digits)
-                        if len(lot_digits) >= 7:
-                            add_lot_candidate(lot_digits[-7:])
-
-                    conditions.append(
-                        {
-                            "$or": [
+                    lot_token_conditions = []
+                    for token in re.split(r"\s+", lot_text):
+                        smart_regex = build_smart_search_regex(token)
+                        if smart_regex:
+                            lot_token_conditions.append(
                                 {
                                     "lot_no": {
-                                        "$regex": re.escape(candidate),
+                                        "$regex": smart_regex,
                                         "$options": "i",
                                     }
                                 }
-                                for candidate in lot_candidates
-                            ]
-                        }
-                    )
+                            )
+                    if lot_token_conditions:
+                        conditions.append(
+                            {"$and": lot_token_conditions}
+                            if len(lot_token_conditions) > 1
+                            else lot_token_conditions[0]
+                        )
 
                 if product_spec_keyword.strip():
-                    # 여러 단어를 입력하면 각 단어가 품명 또는 규격 중 한 곳에 포함되어야 합니다.
+                    # 여러 단어를 입력하면 각 단어가 품명 또는 규격 중 한 곳에서
+                    # 글자 순서대로 발견되어야 합니다.
+                    # 예: "shie top" -> RING SHIELD TOP, "k84" -> KZ-846
                     product_spec_tokens = [
                         token
                         for token in re.split(
@@ -3136,19 +3157,21 @@ def show_3part_handover_page():
                         if token
                     ]
                     for token in product_spec_tokens:
-                        safe_product_spec = re.escape(token)
+                        smart_regex = build_smart_search_regex(token)
+                        if not smart_regex:
+                            continue
                         conditions.append(
                             {
                                 "$or": [
                                     {
                                         "product_name": {
-                                            "$regex": safe_product_spec,
+                                            "$regex": smart_regex,
                                             "$options": "i",
                                         }
                                     },
                                     {
                                         "spec": {
-                                            "$regex": safe_product_spec,
+                                            "$regex": smart_regex,
                                             "$options": "i",
                                         }
                                     },
