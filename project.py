@@ -2351,6 +2351,7 @@ def ensure_toss_indexes():
         collection.create_index([("lot_no", 1), ("is_cancelled", 1)])
         collection.create_index([("lot_no", 1), ("handover_at", -1)])
         collection.create_index([("handover_date", -1)])
+        collection.create_index([("record_type", 1), ("lot_no", 1), ("handover_at", -1)])
         return True
     except Exception:
         return False
@@ -2364,11 +2365,37 @@ def get_handover_total(lot_no):
         {
             "$match": {
                 "lot_no": lot_no,
+                "record_type": {"$ne": "machining_defect"},
                 "is_cancelled": {"$ne": True},
                 "status": {"$ne": "cancelled"},
             }
         },
         {"$group": {"_id": "$lot_no", "total": {"$sum": "$handover_qty"}}},
+    ]
+    result = list(get_toss_collection().aggregate(pipeline))
+    return to_int_safe(result[0].get("total"), 0) if result else 0
+
+
+def get_machining_defect_total(lot_no):
+    """선택 LOT에 별도로 등록된 4PART 가공불량 수량을 합산합니다.
+
+    가공불량은 추적용 기록이며 인계 가능 수량 계산에서는 차감하지 않습니다.
+    """
+    if not lot_no:
+        return 0
+    pipeline = [
+        {
+            "$match": {
+                "lot_no": lot_no,
+                "record_type": "machining_defect",
+            }
+        },
+        {
+            "$group": {
+                "_id": "$lot_no",
+                "total": {"$sum": "$machining_defect_qty"},
+            }
+        },
     ]
     result = list(get_toss_collection().aggregate(pipeline))
     return to_int_safe(result[0].get("total"), 0) if result else 0
@@ -2501,6 +2528,7 @@ def get_handover_lot_summaries(keyword, limit=200):
         if not lot_no:
             continue
         handover_total = get_handover_total(lot_no)
+        machining_defect_total = get_machining_defect_total(lot_no)
         state = calculate_handover_state(
             item.get("plan_qty"), item.get("received_total"), handover_total
         )
@@ -2512,6 +2540,7 @@ def get_handover_lot_summaries(keyword, limit=200):
                 "hold": bool(item.get("hold", False)),
                 "first_receive_date": str(item.get("first_receive_date", "") or ""),
                 "latest_receive_date": str(item.get("latest_receive_date", "") or ""),
+                "machining_defect_total": int(machining_defect_total),
                 **state,
             }
         )
@@ -2721,6 +2750,10 @@ def reset_handover_search_state():
         "handover_confirm_",
         "handover_manual_selection_confirm_",
         "handover_hold_toggle_",
+        "handover_defect_qty_",
+        "handover_defect_worker_",
+        "handover_defect_confirm_",
+        "handover_defect_submit_",
     )
     for key in list(st.session_state.keys()):
         if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
@@ -2884,13 +2917,14 @@ def show_3part_handover_page():
                         st.caption("보류하면 자동 추천 대상에서 제외되며, 보류 해제 후 다시 인계할 수 있습니다.")
 
                 st.markdown("#### LOT 현재 상태")
-                metric_cols = st.columns(6)
+                metric_cols = st.columns(7)
                 metric_cols[0].metric("계획수량", f"{selected['plan_qty']:,}")
                 metric_cols[1].metric("누적입고", f"{selected['received_total']:,}")
                 metric_cols[2].metric("미입고", f"{selected['missing_received']:,}")
                 metric_cols[3].metric("누적인계", f"{selected['handover_total']:,}")
-                metric_cols[4].metric("현재 인계가능", f"{selected['available_qty']:,}")
-                metric_cols[5].metric("전체 미인계", f"{selected['overall_not_handed']:,}")
+                metric_cols[4].metric("가공불량", f"{selected.get('machining_defect_total', 0):,}")
+                metric_cols[5].metric("현재 인계가능", f"{selected['available_qty']:,}")
+                metric_cols[6].metric("전체 미인계", f"{selected['overall_not_handed']:,}")
                 st.info(f"현재 상태: **{selected['status']}**")
 
                 if selected.get("has_quantity_error"):
@@ -2903,6 +2937,72 @@ def show_3part_handover_page():
                     st.success("이 LOT은 계획수량 전부가 입고되고 인계되어 완료되었습니다.")
                 elif selected["available_qty"] <= 0:
                     st.warning("현재 추가로 인계할 수 있는 수량이 없습니다.")
+
+                # 가공불량은 인계와 별도로 발생 즉시 기록합니다.
+                # 다른 LOT의 동일 제품으로 보충할 수 있으므로 인계 가능 수량에서는 차감하지 않습니다.
+                with st.expander("⚠️ 4PART 가공불량 바로 등록", expanded=False):
+                    st.caption(
+                        "선택한 LOT에서 발생한 불량수량만 기록합니다. "
+                        "이 수량은 인계 가능 수량에서 차감되지 않습니다."
+                    )
+                    defect_cols = st.columns(2)
+                    defect_qty = defect_cols[0].number_input(
+                        "가공불량 수량",
+                        min_value=0,
+                        value=0,
+                        step=1,
+                        key=f"handover_defect_qty_{selected_lot}",
+                    )
+                    defect_worker = defect_cols[1].text_input(
+                        "불량 등록 작업자 (4PART)",
+                        key=f"handover_defect_worker_{selected_lot}",
+                    )
+                    defect_confirmed = st.checkbox(
+                        f"LOT {selected_lot} / 가공불량 {int(defect_qty):,}개를 확인했습니다.",
+                        key=f"handover_defect_confirm_{selected_lot}",
+                    )
+                    defect_submitted = st.button(
+                        "⚠️ 가공불량 저장",
+                        key=f"handover_defect_submit_{selected_lot}",
+                        use_container_width=True,
+                    )
+
+                if defect_submitted:
+                    defect_worker = str(defect_worker or "").strip()
+                    if int(defect_qty) <= 0:
+                        st.error("가공불량 수량은 1개 이상이어야 합니다.")
+                    elif not defect_worker:
+                        st.error("불량 등록 작업자 이름을 입력해 주세요.")
+                    elif not defect_confirmed:
+                        st.error("LOT와 가공불량 수량 확인란을 체크해 주세요.")
+                    else:
+                        latest_material = get_material_latest_record(selected_lot) or {}
+                        now_kst = get_now_kst()
+                        defect_doc = {
+                            "record_type": "machining_defect",
+                            "lot_no": selected_lot,
+                            "product_name": str(latest_material.get("product_name", selected.get("product_name", "")) or ""),
+                            "spec": str(latest_material.get("spec", selected.get("spec", "")) or ""),
+                            "plan_qty": to_int_safe(latest_material.get("plan_qty"), selected.get("plan_qty", 0)),
+                            "machining_defect_qty": int(defect_qty),
+                            "defect_worker": defect_worker,
+                            "defect_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                            "handover_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                            "handover_date": now_kst.strftime("%Y-%m-%d"),
+                            "status": "defect_record",
+                            "is_cancelled": False,
+                            "created_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                        result = get_toss_collection().insert_one(defect_doc)
+                        if not result.inserted_id:
+                            st.error("MongoDB 가공불량 저장 결과를 확인하지 못했습니다.")
+                            st.stop()
+                        st.session_state.handover_flash_message = (
+                            f"{selected_lot} 가공불량 {int(defect_qty):,}개를 기록했습니다."
+                        )
+                        st.session_state.pop("handover_search_results", None)
+                        st.session_state.handover_search_executed = False
+                        st.rerun()
 
                 # 일반 컨테이너를 사용해 수량 변경 시 화면이 즉시 다시 계산되도록 합니다.
                 # 따라서 확인 체크박스 문구도 작업자가 입력한 현재 인계수량으로 바로 바뀝니다.
@@ -2983,6 +3083,7 @@ def show_3part_handover_page():
                         latest_material = get_material_latest_record(selected_lot) or {}
                         now_kst = get_now_kst()
                         doc = {
+                            "record_type": "handover",
                             "lot_no": selected_lot,
                             "product_name": str(latest_material.get("product_name", selected.get("product_name", "")) or ""),
                             "spec": str(latest_material.get("spec", selected.get("spec", "")) or ""),
@@ -3031,28 +3132,39 @@ def show_3part_handover_page():
                     st.info("아직 등록된 인계 이력이 없습니다.")
                 else:
                     for record in history:
+                        is_defect = record.get("record_type") == "machining_defect"
                         cancelled = bool(record.get("is_cancelled")) or record.get("status") == "cancelled"
-                        status_text = "❌ 취소" if cancelled else "✅ 정상"
-                        with st.container(border=True):
-                            info_cols = st.columns([1.2, 0.8, 1, 1, 1.2])
-                            info_cols[0].write(f"**{record.get('handover_at', '')}**")
-                            info_cols[1].write(f"**{to_int_safe(record.get('handover_qty'), 0):,}개**")
-                            info_cols[2].write(f"인계: {record.get('handover_by', '')}")
-                            info_cols[3].write(f"인수: {record.get('received_by', '')}")
-                            info_cols[4].write(status_text)
-                            if record.get("memo"):
-                                st.caption(f"메모: {record.get('memo')}")
-                            if cancelled:
-                                st.caption(
-                                    f"취소: {record.get('cancelled_at', '')} / "
-                                    f"{record.get('cancelled_by', '')} / {record.get('cancel_reason', '')}"
+                        if is_defect:
+                            with st.container(border=True):
+                                info_cols = st.columns([1.4, 1, 1.4, 1.2])
+                                info_cols[0].write(f"**{record.get('defect_at') or record.get('handover_at', '')}**")
+                                info_cols[1].write(
+                                    f"**가공불량 {to_int_safe(record.get('machining_defect_qty'), 0):,}개**"
                                 )
-                            else:
-                                if st.button(
-                                    "⚠️ 이 인계기록 취소",
-                                    key=f"open_cancel_handover_{record['_id']}",
-                                ):
-                                    cancel_handover_dialog(str(record["_id"]))
+                                info_cols[2].write(f"등록 작업자: {record.get('defect_worker', '')}")
+                                info_cols[3].write("⚠️ 불량기록")
+                        else:
+                            status_text = "❌ 취소" if cancelled else "✅ 정상"
+                            with st.container(border=True):
+                                info_cols = st.columns([1.2, 0.8, 1, 1, 1.2])
+                                info_cols[0].write(f"**{record.get('handover_at', '')}**")
+                                info_cols[1].write(f"**{to_int_safe(record.get('handover_qty'), 0):,}개**")
+                                info_cols[2].write(f"인계: {record.get('handover_by', '')}")
+                                info_cols[3].write(f"인수: {record.get('received_by', '')}")
+                                info_cols[4].write(status_text)
+                                if record.get("memo"):
+                                    st.caption(f"메모: {record.get('memo')}")
+                                if cancelled:
+                                    st.caption(
+                                        f"취소: {record.get('cancelled_at', '')} / "
+                                        f"{record.get('cancelled_by', '')} / {record.get('cancel_reason', '')}"
+                                    )
+                                else:
+                                    if st.button(
+                                        "⚠️ 이 인계기록 취소",
+                                        key=f"open_cancel_handover_{record['_id']}",
+                                    ):
+                                        cancel_handover_dialog(str(record["_id"]))
 
     with history_tab:
         st.markdown("#### 전체 인계이력 조건 검색")
@@ -3230,6 +3342,12 @@ def show_3part_handover_page():
                                             "$options": "i",
                                         }
                                     },
+                                    {
+                                        "defect_worker": {
+                                            "$regex": safe_person,
+                                            "$options": "i",
+                                        }
+                                    },
                                 ]
                             }
                         )
@@ -3261,21 +3379,23 @@ def show_3part_handover_page():
             # -----------------------------------------------------------------
             rows = []
             for record in history_records:
+                is_defect = record.get("record_type") == "machining_defect"
                 cancelled = (
                     bool(record.get("is_cancelled"))
                     or record.get("status") == "cancelled"
                 )
                 rows.append(
                     {
-                        "상태": "취소" if cancelled else "정상",
-                        "인계일시": record.get("handover_at", ""),
+                        "상태": "가공불량" if is_defect else ("취소" if cancelled else "정상"),
+                        "인계일시": record.get("defect_at") if is_defect else record.get("handover_at", ""),
                         "LOT": record.get("lot_no", ""),
                         "품명": record.get("product_name", ""),
                         "규격": record.get("spec", ""),
                         "전체수량": to_int_safe(record.get("plan_qty"), 0),
-                        "인계수량": to_int_safe(record.get("handover_qty"), 0),
-                        "인계자": record.get("handover_by", ""),
-                        "인수자": record.get("received_by", ""),
+                        "인계수량": 0 if is_defect else to_int_safe(record.get("handover_qty"), 0),
+                        "가공불량수량": to_int_safe(record.get("machining_defect_qty"), 0) if is_defect else 0,
+                        "인계자": record.get("defect_worker", "") if is_defect else record.get("handover_by", ""),
+                        "인수자": "" if is_defect else record.get("received_by", ""),
                         "메모": record.get("memo", ""),
                         "취소일시": record.get("cancelled_at", ""),
                         "취소담당자": record.get("cancelled_by", ""),
@@ -3294,7 +3414,7 @@ def show_3part_handover_page():
                 lot_total_qty[lot_no] = max(lot_total_qty.get(lot_no, 0), plan_qty)
             total_plan_qty = sum(lot_total_qty.values())
 
-            metric_cols = st.columns(4)
+            metric_cols = st.columns(5)
             metric_cols[0].metric("전체 수량", f"{total_plan_qty:,}개")
             metric_cols[1].metric("검색 결과", f"{len(df):,}건")
             metric_cols[2].metric(
@@ -3302,6 +3422,10 @@ def show_3part_handover_page():
                 f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개",
             )
             metric_cols[3].metric(
+                "가공불량",
+                f"{int(df['가공불량수량'].sum()):,}개",
+            )
+            metric_cols[4].metric(
                 "취소 건수",
                 f"{int((df['상태'] == '취소').sum()):,}건",
             )
@@ -3370,6 +3494,7 @@ def show_3part_handover_page():
                     continue
 
                 handover_total = get_handover_total(lot_no)
+                machining_defect_total = get_machining_defect_total(lot_no)
                 state = calculate_handover_state(
                     material_item.get("plan_qty"),
                     material_item.get("received_total"),
@@ -3378,6 +3503,7 @@ def show_3part_handover_page():
                 latest_normal_handover = get_toss_collection().find_one(
                     {
                         "lot_no": lot_no,
+                        "record_type": {"$ne": "machining_defect"},
                         "is_cancelled": {"$ne": True},
                         "status": {"$ne": "cancelled"},
                     },
@@ -3394,6 +3520,7 @@ def show_3part_handover_page():
                         "last_handover_at": str(
                             (latest_normal_handover or {}).get("handover_at", "") or ""
                         ),
+                        "machining_defect_total": int(machining_defect_total),
                         **state,
                     }
                 )
@@ -3450,6 +3577,7 @@ def show_3part_handover_page():
                             "규격": item["spec"],
                             "전체수량": item["plan_qty"],
                             "인계완료": item["handover_total"],
+                            "가공불량": item.get("machining_defect_total", 0),
                             "남은인계수량": item["overall_not_handed"],
                             "현재입고": item["received_total"],
                             "현재인계가능": item["available_qty"],
@@ -3474,6 +3602,7 @@ def show_3part_handover_page():
                     column_config={
                         "전체수량": st.column_config.NumberColumn(format="%d개"),
                         "인계완료": st.column_config.NumberColumn(format="%d개"),
+                        "가공불량": st.column_config.NumberColumn(format="%d개"),
                         "남은인계수량": st.column_config.NumberColumn(format="%d개"),
                         "현재입고": st.column_config.NumberColumn(format="%d개"),
                         "현재인계가능": st.column_config.NumberColumn(format="%d개"),
@@ -3490,6 +3619,7 @@ def show_3part_handover_page():
                 column_config={
                     "전체수량": st.column_config.NumberColumn(format="%d개"),
                     "인계수량": st.column_config.NumberColumn(format="%d개"),
+                    "가공불량수량": st.column_config.NumberColumn(format="%d개"),
                 },
             )
 
