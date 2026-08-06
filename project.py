@@ -2358,22 +2358,71 @@ def ensure_toss_indexes():
 
 
 def get_handover_total(lot_no):
-    """취소되지 않은 정상 인계수량만 합산합니다."""
+    """취소되지 않은 정상 인계수량에서 부분 반품수량을 차감한 실제 인계수량입니다."""
     if not lot_no:
         return 0
     pipeline = [
         {
             "$match": {
                 "lot_no": lot_no,
-                "record_type": {"$ne": "machining_defect"},
                 "is_cancelled": {"$ne": True},
                 "status": {"$ne": "cancelled"},
             }
         },
-        {"$group": {"_id": "$lot_no", "total": {"$sum": "$handover_qty"}}},
+        {
+            "$group": {
+                "_id": "$lot_no",
+                "total": {
+                    "$sum": {
+                        "$switch": {
+                            "branches": [
+                                {
+                                    "case": {"$eq": ["$record_type", "machining_defect"]},
+                                    "then": 0,
+                                },
+                                {
+                                    "case": {"$eq": ["$record_type", "handover_return"]},
+                                    "then": {"$multiply": [{"$ifNull": ["$return_qty", 0]}, -1]},
+                                },
+                            ],
+                            "default": {"$ifNull": ["$handover_qty", 0]},
+                        }
+                    }
+                },
+            }
+        },
     ]
     result = list(get_toss_collection().aggregate(pipeline))
-    return to_int_safe(result[0].get("total"), 0) if result else 0
+    return max(to_int_safe(result[0].get("total"), 0), 0) if result else 0
+
+
+def get_active_return_total(original_handover_id):
+    """특정 원본 인계기록에 연결된 취소되지 않은 부분 반품수량 합계입니다."""
+    if not original_handover_id:
+        return 0
+    original_id_text = str(original_handover_id)
+    pipeline = [
+        {
+            "$match": {
+                "record_type": "handover_return",
+                "original_handover_id": original_id_text,
+                "is_cancelled": {"$ne": True},
+                "status": {"$ne": "cancelled"},
+            }
+        },
+        {"$group": {"_id": "$original_handover_id", "total": {"$sum": "$return_qty"}}},
+    ]
+    result = list(get_toss_collection().aggregate(pipeline))
+    return max(to_int_safe(result[0].get("total"), 0), 0) if result else 0
+
+
+def get_net_handover_qty(record):
+    """원본 인계기록 한 건의 현재 실제 인계수량(원인계 - 누적 부분반품)입니다."""
+    if not record or record.get("record_type") in ("machining_defect", "handover_return"):
+        return 0
+    original_qty = max(to_int_safe(record.get("handover_qty"), 0), 0)
+    returned_qty = get_active_return_total(record.get("_id"))
+    return max(original_qty - returned_qty, 0)
 
 
 def get_machining_defect_total(lot_no):
@@ -2708,6 +2757,26 @@ def cancel_handover_dialog(record_id_text):
             if result.modified_count != 1:
                 st.error("다른 사용자가 이미 취소했거나 기록 상태가 변경되었습니다.")
                 st.stop()
+
+            # 원본 인계가 전부 취소되면 그 인계에 연결된 부분 반품도 계산에서 제외합니다.
+            get_toss_collection().update_many(
+                {
+                    "record_type": "handover_return",
+                    "original_handover_id": str(record_id),
+                    "is_cancelled": {"$ne": True},
+                },
+                {
+                    "$set": {
+                        "status": "cancelled",
+                        "is_cancelled": True,
+                        "cancelled_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                        "cancelled_date": now_kst.strftime("%Y-%m-%d"),
+                        "cancelled_by_no": cancel_worker_no,
+                        "cancelled_by": cancel_worker_name,
+                        "cancel_reason": "원본 인계기록 전체 취소에 따라 연결 반품이력도 계산 제외",
+                    }
+                },
+            )
             st.session_state.handover_flash_message = (
                 f"{record.get('lot_no', '')} 인계 {to_int_safe(record.get('handover_qty'), 0):,}개를 "
                 f"취소했습니다. 현재 수량을 다시 계산했습니다."
@@ -2721,6 +2790,153 @@ def cancel_handover_dialog(record_id_text):
         use_container_width=True,
     ):
         st.rerun()
+
+
+
+@st.dialog("↩ 3PART 일부 반품 처리")
+def partial_handover_return_dialog(record_id_text):
+    """3PART에서 일부 수량이 돌아온 경우 원본 인계는 유지하고 반품 이력을 추가합니다."""
+    try:
+        record_id = ObjectId(str(record_id_text))
+    except Exception:
+        st.error("반품 대상 인계기록 번호가 올바르지 않습니다.")
+        return
+
+    toss_collection = get_toss_collection()
+    record = toss_collection.find_one({"_id": record_id})
+    if not record:
+        st.error("반품 대상 인계기록을 찾지 못했습니다.")
+        return
+
+    if record.get("record_type") in ("machining_defect", "handover_return"):
+        st.error("정상 인계기록에서만 일부 반품을 처리할 수 있습니다.")
+        return
+
+    if record.get("is_cancelled") is True or record.get("status") == "cancelled":
+        st.warning("취소된 인계기록은 일부 반품 처리할 수 없습니다.")
+        return
+
+    original_qty = max(to_int_safe(record.get("handover_qty"), 0), 0)
+    already_returned = get_active_return_total(record_id)
+    returnable_qty = max(original_qty - already_returned, 0)
+
+    st.write(f"LOT: **{record.get('lot_no', '')}**")
+    info_cols = st.columns(3)
+    info_cols[0].metric("원래 인계수량", f"{original_qty:,}개")
+    info_cols[1].metric("기존 반품합계", f"{already_returned:,}개")
+    info_cols[2].metric("현재 실제 인계", f"{returnable_qty:,}개")
+
+    if returnable_qty <= 0:
+        st.warning("이 인계기록은 이미 전량 반품되어 추가 반품할 수 없습니다.")
+        return
+
+    return_qty = st.number_input(
+        "이번 반품수량",
+        min_value=1,
+        max_value=int(returnable_qty),
+        value=1,
+        step=1,
+        key=f"partial_return_qty_{record_id_text}",
+    )
+    after_qty = max(returnable_qty - int(return_qty), 0)
+    st.info(
+        f"이번에 {int(return_qty):,}개를 반품 처리하면 "
+        f"이 인계기록의 실제 인계수량은 **{after_qty:,}개**가 됩니다."
+    )
+
+    worker_option = st.selectbox(
+        "반품 처리 담당자",
+        get_material_receiver_options(),
+        key=f"partial_return_worker_{record_id_text}",
+    )
+    worker_no, worker_name = parse_material_receiver_option(worker_option)
+    return_memo = st.text_area(
+        "반품 메모",
+        placeholder="예: 3PART 검사 후 제품 이상으로 5개 반품",
+        key=f"partial_return_memo_{record_id_text}",
+    )
+    confirmed = st.checkbox(
+        f"LOT {record.get('lot_no', '')} / 반품 {int(return_qty):,}개 / "
+        f"처리 후 실제 인계 {after_qty:,}개를 확인했습니다.",
+        key=f"partial_return_confirm_{record_id_text}",
+    )
+
+    save_col, close_col = st.columns(2)
+    if save_col.button(
+        "↩ 일부 반품 저장",
+        key=f"partial_return_save_{record_id_text}",
+        use_container_width=True,
+        type="primary",
+    ):
+        # 저장 직전에 다시 합계를 조회하여 다른 사용자의 동시 입력을 방지합니다.
+        latest_record = toss_collection.find_one({"_id": record_id})
+        latest_returned = get_active_return_total(record_id)
+        latest_returnable = max(
+            to_int_safe(latest_record.get("handover_qty"), 0) - latest_returned,
+            0,
+        ) if latest_record else 0
+
+        if not latest_record:
+            st.error("원본 인계기록이 삭제되었거나 조회되지 않습니다.")
+        elif latest_record.get("is_cancelled") is True or latest_record.get("status") == "cancelled":
+            st.error("원본 인계기록이 이미 취소되어 반품할 수 없습니다.")
+        elif int(return_qty) > latest_returnable:
+            st.error(
+                f"현재 반품 가능한 수량은 {latest_returnable:,}개입니다. "
+                "다른 작업자가 먼저 반품 처리했을 수 있으니 창을 닫고 다시 확인해 주세요."
+            )
+        elif not worker_no or not worker_name:
+            st.error("반품 처리 담당자를 선택해 주세요.")
+        elif not confirmed:
+            st.error("반품수량 확인란을 체크해 주세요.")
+        else:
+            now_kst = get_now_kst()
+            latest_material = get_material_latest_record(record.get("lot_no", "")) or {}
+            return_doc = {
+                "record_type": "handover_return",
+                "original_handover_id": str(record_id),
+                "lot_no": record.get("lot_no", ""),
+                "product_name": record.get("product_name", latest_material.get("product_name", "")),
+                "spec": record.get("spec", latest_material.get("spec", "")),
+                "plan_qty": to_int_safe(record.get("plan_qty"), latest_material.get("plan_qty", 0)),
+                "original_handover_qty": int(original_qty),
+                "returned_total_before": int(latest_returned),
+                "return_qty": int(return_qty),
+                "returned_total_after": int(latest_returned + int(return_qty)),
+                "net_handover_qty_after": int(latest_returnable - int(return_qty)),
+                "return_by_no": worker_no,
+                "return_by": worker_name,
+                "return_memo": return_memo.strip(),
+                "return_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                "return_date": now_kst.strftime("%Y-%m-%d"),
+                # 기존 정렬·날짜검색과 호환되도록 공통 필드도 저장합니다.
+                "handover_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+                "handover_date": now_kst.strftime("%Y-%m-%d"),
+                "status": "returned",
+                "is_cancelled": False,
+                "created_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            result = toss_collection.insert_one(return_doc)
+            if not result.inserted_id:
+                st.error("MongoDB 반품 저장 결과를 확인하지 못했습니다.")
+                return
+
+            st.session_state.handover_flash_message = (
+                f"{record.get('lot_no', '')}에서 {int(return_qty):,}개를 일부 반품 처리했습니다. "
+                f"현재 실제 인계수량은 {int(latest_returnable - int(return_qty)):,}개입니다."
+            )
+            st.session_state.pop("handover_search_results", None)
+            st.session_state.handover_search_executed = False
+            time.sleep(0.3)
+            st.rerun()
+
+    if close_col.button(
+        "닫기",
+        key=f"partial_return_close_{record_id_text}",
+        use_container_width=True,
+    ):
+        st.rerun()
+
 
 
 def reset_handover_search_state():
@@ -2754,6 +2970,12 @@ def reset_handover_search_state():
         "handover_defect_worker_",
         "handover_defect_confirm_",
         "handover_defect_submit_",
+        "partial_return_qty_",
+        "partial_return_worker_",
+        "partial_return_memo_",
+        "partial_return_confirm_",
+        "partial_return_save_",
+        "partial_return_close_",
     )
     for key in list(st.session_state.keys()):
         if any(str(key).startswith(prefix) for prefix in dynamic_prefixes):
@@ -3132,8 +3354,11 @@ def show_3part_handover_page():
                     st.info("아직 등록된 인계 이력이 없습니다.")
                 else:
                     for record in history:
-                        is_defect = record.get("record_type") == "machining_defect"
+                        record_type = record.get("record_type")
+                        is_defect = record_type == "machining_defect"
+                        is_return = record_type == "handover_return"
                         cancelled = bool(record.get("is_cancelled")) or record.get("status") == "cancelled"
+
                         if is_defect:
                             with st.container(border=True):
                                 info_cols = st.columns([1.4, 1, 1.4, 1.2])
@@ -3143,12 +3368,41 @@ def show_3part_handover_page():
                                 )
                                 info_cols[2].write(f"등록 작업자: {record.get('defect_worker', '')}")
                                 info_cols[3].write("⚠️ 불량기록")
+
+                        elif is_return:
+                            status_text = "❌ 계산 제외" if cancelled else "↩ 일부 반품"
+                            with st.container(border=True):
+                                info_cols = st.columns([1.25, 0.85, 1.1, 1.1, 1.1])
+                                info_cols[0].write(f"**{record.get('return_at') or record.get('handover_at', '')}**")
+                                info_cols[1].write(f"**반품 {to_int_safe(record.get('return_qty'), 0):,}개**")
+                                info_cols[2].write(f"처리: {record.get('return_by', '')}")
+                                info_cols[3].write(
+                                    f"처리 후 {to_int_safe(record.get('net_handover_qty_after'), 0):,}개"
+                                )
+                                info_cols[4].write(status_text)
+                                if record.get("return_memo"):
+                                    st.caption(f"반품 메모: {record.get('return_memo')}")
+                                if cancelled:
+                                    st.caption(
+                                        f"계산 제외: {record.get('cancelled_at', '')} / "
+                                        f"{record.get('cancelled_by', '')} / {record.get('cancel_reason', '')}"
+                                    )
+
                         else:
+                            original_qty = to_int_safe(record.get("handover_qty"), 0)
+                            returned_qty = get_active_return_total(record.get("_id"))
+                            net_qty = max(original_qty - returned_qty, 0)
                             status_text = "❌ 취소" if cancelled else "✅ 정상"
                             with st.container(border=True):
-                                info_cols = st.columns([1.2, 0.8, 1, 1, 1.2])
+                                info_cols = st.columns([1.2, 1.15, 1, 1, 1.0])
                                 info_cols[0].write(f"**{record.get('handover_at', '')}**")
-                                info_cols[1].write(f"**{to_int_safe(record.get('handover_qty'), 0):,}개**")
+                                if returned_qty > 0 and not cancelled:
+                                    info_cols[1].write(
+                                        f"**현재 {net_qty:,}개**\n\n"
+                                        f"원인계 {original_qty:,} / 반품 {returned_qty:,}"
+                                    )
+                                else:
+                                    info_cols[1].write(f"**{original_qty:,}개**")
                                 info_cols[2].write(f"인계: {record.get('handover_by', '')}")
                                 info_cols[3].write(f"인수: {record.get('received_by', '')}")
                                 info_cols[4].write(status_text)
@@ -3160,9 +3414,17 @@ def show_3part_handover_page():
                                         f"{record.get('cancelled_by', '')} / {record.get('cancel_reason', '')}"
                                     )
                                 else:
-                                    if st.button(
+                                    button_cols = st.columns(2)
+                                    if net_qty > 0 and button_cols[0].button(
+                                        "↩ 일부 반품",
+                                        key=f"open_partial_return_{record['_id']}",
+                                        use_container_width=True,
+                                    ):
+                                        partial_handover_return_dialog(str(record["_id"]))
+                                    if button_cols[1].button(
                                         "⚠️ 이 인계기록 취소",
                                         key=f"open_cancel_handover_{record['_id']}",
+                                        use_container_width=True,
                                     ):
                                         cancel_handover_dialog(str(record["_id"]))
 
@@ -3348,6 +3610,12 @@ def show_3part_handover_page():
                                             "$options": "i",
                                         }
                                     },
+                                    {
+                                        "return_by": {
+                                            "$regex": safe_person,
+                                            "$options": "i",
+                                        }
+                                    },
                                 ]
                             }
                         )
@@ -3379,24 +3647,59 @@ def show_3part_handover_page():
             # -----------------------------------------------------------------
             rows = []
             for record in history_records:
-                is_defect = record.get("record_type") == "machining_defect"
+                record_type = record.get("record_type")
+                is_defect = record_type == "machining_defect"
+                is_return = record_type == "handover_return"
                 cancelled = (
                     bool(record.get("is_cancelled"))
                     or record.get("status") == "cancelled"
                 )
+
+                if is_defect:
+                    state_text = "가공불량"
+                    event_time = record.get("defect_at") or record.get("handover_at", "")
+                    handover_qty_value = 0
+                    return_qty_value = 0
+                    actual_qty_value = 0
+                    handover_person = record.get("defect_worker", "")
+                    received_person = ""
+                    memo_value = record.get("memo", "")
+                elif is_return:
+                    state_text = "반품취소" if cancelled else "일부반품"
+                    event_time = record.get("return_at") or record.get("handover_at", "")
+                    handover_qty_value = 0
+                    return_qty_value = to_int_safe(record.get("return_qty"), 0)
+                    actual_qty_value = 0
+                    handover_person = record.get("return_by", "")
+                    received_person = ""
+                    memo_value = record.get("return_memo", "")
+                else:
+                    state_text = "취소" if cancelled else "정상"
+                    event_time = record.get("handover_at", "")
+                    original_qty = to_int_safe(record.get("handover_qty"), 0)
+                    active_returned = 0 if cancelled else get_active_return_total(record.get("_id"))
+                    handover_qty_value = original_qty
+                    return_qty_value = active_returned
+                    actual_qty_value = 0 if cancelled else max(original_qty - active_returned, 0)
+                    handover_person = record.get("handover_by", "")
+                    received_person = record.get("received_by", "")
+                    memo_value = record.get("memo", "")
+
                 rows.append(
                     {
-                        "상태": "가공불량" if is_defect else ("취소" if cancelled else "정상"),
-                        "인계일시": record.get("defect_at") if is_defect else record.get("handover_at", ""),
+                        "상태": state_text,
+                        "인계일시": event_time,
                         "LOT": record.get("lot_no", ""),
                         "품명": record.get("product_name", ""),
                         "규격": record.get("spec", ""),
                         "전체수량": to_int_safe(record.get("plan_qty"), 0),
-                        "인계수량": 0 if is_defect else to_int_safe(record.get("handover_qty"), 0),
+                        "원인계수량": handover_qty_value,
+                        "반품수량": return_qty_value,
+                        "현재실제인계": actual_qty_value,
                         "가공불량수량": to_int_safe(record.get("machining_defect_qty"), 0) if is_defect else 0,
-                        "인계자": record.get("defect_worker", "") if is_defect else record.get("handover_by", ""),
-                        "인수자": "" if is_defect else record.get("received_by", ""),
-                        "메모": record.get("memo", ""),
+                        "처리자/인계자": handover_person,
+                        "인수자": received_person,
+                        "메모": memo_value,
                         "취소일시": record.get("cancelled_at", ""),
                         "취소담당자": record.get("cancelled_by", ""),
                         "취소사유": record.get("cancel_reason", ""),
@@ -3414,21 +3717,26 @@ def show_3part_handover_page():
                 lot_total_qty[lot_no] = max(lot_total_qty.get(lot_no, 0), plan_qty)
             total_plan_qty = sum(lot_total_qty.values())
 
-            metric_cols = st.columns(5)
+            metric_cols = st.columns(6)
             metric_cols[0].metric("전체 수량", f"{total_plan_qty:,}개")
             metric_cols[1].metric("검색 결과", f"{len(df):,}건")
             metric_cols[2].metric(
-                "정상 인계수량",
-                f"{int(df.loc[df['상태'] == '정상', '인계수량'].sum()):,}개",
+                "현재 실제 인계",
+                f"{int(df.loc[df['상태'] == '정상', '현재실제인계'].sum()):,}개",
             )
             metric_cols[3].metric(
+                "부분 반품",
+                f"{int(df.loc[df['상태'] == '일부반품', '반품수량'].sum()):,}개",
+            )
+            metric_cols[4].metric(
                 "가공불량",
                 f"{int(df['가공불량수량'].sum()):,}개",
             )
-            metric_cols[4].metric(
+            metric_cols[5].metric(
                 "취소 건수",
                 f"{int((df['상태'] == '취소').sum()):,}건",
             )
+
 
             # -----------------------------------------------------------------
             # 2) 검색 결과와 같은 품명·규격의 모든 LOT를 찾아 LOT별 진행현황 표시
