@@ -4479,16 +4479,9 @@ def build_machine_tool_history_rows():
         "last_erp_lot_list": 1,
     }
 
-    # note에 '호기' 이력이 있거나 과거 장비정보가 남아 있는 툴만 읽어 불필요한 전송량을 줄입니다.
-    query = {
-        "$or": [
-            {"note": {"$regex": "호기"}},
-            {"last_active_machine": {"$regex": "호기"}},
-            {"machine_no": {"$regex": "호기"}},
-        ]
-    }
-
-    for tool in db_collection.find(query, projection):
+    # 과거 데이터는 기계번호가 note/history/disposal_logs 등 서로 다른 곳에 남아 있을 수 있으므로
+    # 여기서는 툴 전체를 읽고 아래에서 실제 장비 이력만 선별합니다.
+    for tool in db_collection.find({}, projection):
         serial = str(tool.get("serial_no", "") or "").strip()
         if not serial:
             continue
@@ -4509,6 +4502,63 @@ def build_machine_tool_history_rows():
                         "worker": str(tool.get("worker", "") or ""),
                         "spec": str(tool.get("spec_detail", "") or ""),
                         "qty": to_int_safe(tool.get("last_active_count"), 0),
+                        "reason": "",
+                        "lots": [],
+                        "raw": "",
+                    }
+                )
+
+        # disposal_logs에만 기계번호가 남아 있는 과거 폐기 데이터도 장비 이력에 포함합니다.
+        disposal_log = disposal_map.get(serial, {})
+        disposal_machine_text = str(disposal_log.get("machine_no", "") or "")
+        disposal_machine_match = re.search(r"0*(\d{1,3})\s*호기", disposal_machine_text)
+        if disposal_machine_match:
+            disposal_machine_no = int(disposal_machine_match.group(1))
+            already_has_same_disposal = any(
+                e.get("status") == "폐기" and e.get("machine_no") == disposal_machine_no
+                for e in events
+            )
+            if not already_has_same_disposal:
+                disposal_reason_text = str(
+                    disposal_log.get("detail_reason")
+                    or disposal_log.get("disposal_reason")
+                    or disposal_log.get("reason")
+                    or ""
+                )
+                events.append(
+                    {
+                        "time": str(disposal_log.get("disposal_date", "") or ""),
+                        "time_dt": _machine_history_parse_time(disposal_log.get("disposal_date")),
+                        "status": "폐기",
+                        "machine_no": disposal_machine_no,
+                        "worker": str(disposal_log.get("worker", "") or ""),
+                        "spec": str(disposal_log.get("spec_detail", "") or tool.get("spec_detail", "") or ""),
+                        "qty": to_int_safe(disposal_log.get("waste_qty"), 0),
+                        "reason": disposal_reason_text,
+                        "lots": [],
+                        "raw": "",
+                    }
+                )
+
+        # 현재 machine_no가 남아 있는 사용중/재사용 툴도 누락하지 않습니다.
+        current_machine_text = str(tool.get("machine_no", "") or "")
+        current_machine_match = re.search(r"0*(\d{1,3})\s*호기", current_machine_text)
+        if current_machine_match and str(tool.get("status", "")) in ("사용중", "재사용"):
+            current_machine_no = int(current_machine_match.group(1))
+            if not any(
+                e.get("machine_no") == current_machine_no
+                and e.get("status") in ("사용중", "재사용")
+                for e in events
+            ):
+                events.append(
+                    {
+                        "time": str(tool.get("start_time", "") or ""),
+                        "time_dt": _machine_history_parse_time(tool.get("start_time")),
+                        "status": str(tool.get("status", "")),
+                        "machine_no": current_machine_no,
+                        "worker": str(tool.get("worker", "") or ""),
+                        "spec": str(tool.get("spec_detail", "") or ""),
+                        "qty": 0,
                         "reason": "",
                         "lots": [],
                         "raw": "",
@@ -4640,44 +4690,90 @@ def build_machine_tool_history_rows():
 
 def show_machine_tool_history_page():
     st.title("🏭 장비별 툴 장착/폐기 이력")
-    st.caption("전체 장비 또는 특정 호기를 선택하면 해당 장비에서 사용된 툴 이력을 표로 확인합니다.")
+    st.caption("조회 범위를 선택한 뒤 검색 버튼을 누르면 해당 장비에서 사용된 툴 이력을 표로 확인합니다.")
 
-    try:
-        all_rows = build_machine_tool_history_rows()
-    except Exception as exc:
-        st.error(f"장비별 툴 이력 조회 중 오류가 발생했습니다: {exc}")
-        return
-
-    if not all_rows:
-        st.info("장비번호가 기록된 툴 이력이 없습니다.")
-        return
-
-    scope = st.selectbox(
+    # 검색 UI는 DB 결과 유무와 관계없이 항상 먼저 표시합니다.
+    search_cols = st.columns([1.2, 1.2, 1.0])
+    scope = search_cols[0].selectbox(
         "조회 범위",
         ["전체 장비", "특정 장비"],
         key="machine_tool_history_scope",
     )
 
-    display_rows = all_rows
+    selected_number = None
     if scope == "특정 장비":
-        machine_numbers = sorted(set(row["_machine_no"] for row in all_rows))
-        machine_options = [f"{number}호기" for number in machine_numbers]
-        selected_machine = st.selectbox(
+        # 기존 데이터가 없어도 장비를 선택할 수 있도록 고정 호기 목록을 제공합니다.
+        machine_options = [f"{number}호기" for number in range(3, 58)]
+        selected_machine = search_cols[1].selectbox(
             "장비 선택",
             machine_options,
             key="machine_tool_history_machine",
         )
         selected_number = int(re.search(r"\d+", selected_machine).group())
-        display_rows = [
-            row for row in all_rows
-            if row.get("_machine_no") == selected_number
-        ]
+    else:
+        search_cols[1].text_input(
+            "장비 선택",
+            value="전체 장비",
+            disabled=True,
+            key="machine_tool_history_all_label",
+        )
 
-    if not display_rows:
-        st.info("선택한 장비의 툴 이력이 없습니다.")
+    do_search = search_cols[2].button(
+        "🔍 검색",
+        key="machine_tool_history_search_btn",
+        use_container_width=True,
+        type="primary",
+    )
+
+    reset_clicked = st.button(
+        "↻ 검색 초기화",
+        key="machine_tool_history_reset_btn",
+    )
+    if reset_clicked:
+        st.session_state.pop("machine_tool_history_results", None)
+        st.session_state.pop("machine_tool_history_searched", None)
+        st.rerun()
+
+    # 검색 버튼을 누르기 전에는 결과 조회를 하지 않습니다.
+    if do_search:
+        try:
+            all_rows = build_machine_tool_history_rows()
+        except Exception as exc:
+            st.error(f"장비별 툴 이력 조회 중 오류가 발생했습니다: {exc}")
+            return
+
+        if scope == "특정 장비":
+            result_rows = [
+                row for row in all_rows
+                if row.get("_machine_no") == selected_number
+            ]
+            search_description = f"{selected_number}호기"
+        else:
+            result_rows = all_rows
+            search_description = "전체 장비"
+
+        # 세션에 결과를 저장해서 Streamlit rerun 후에도 표가 유지되도록 합니다.
+        st.session_state["machine_tool_history_results"] = result_rows
+        st.session_state["machine_tool_history_searched"] = True
+        st.session_state["machine_tool_history_search_description"] = search_description
+
+    if not st.session_state.get("machine_tool_history_searched"):
+        st.info("조회 범위를 선택한 뒤 **🔍 검색** 버튼을 눌러주세요.")
         return
 
-    # 화면에 필요한 열만 노출하고 내부 정렬용 필드는 숨깁니다.
+    display_rows = st.session_state.get("machine_tool_history_results", [])
+    search_description = st.session_state.get(
+        "machine_tool_history_search_description",
+        "장비",
+    )
+
+    if not display_rows:
+        st.warning(
+            f"**{search_description}**에서 확인 가능한 툴 장착/폐기 이력이 없습니다. "
+            "기존 데이터에 기계번호가 저장되지 않은 기록은 장비별로 분류할 수 없습니다."
+        )
+        return
+
     visible_columns = [
         "호기",
         "시리얼",
@@ -4700,6 +4796,14 @@ def show_machine_tool_history_page():
     display_df = pd.DataFrame(display_rows)
     display_df = display_df[visible_columns]
 
+    summary_cols = st.columns(3)
+    summary_cols[0].metric("조회 대상", search_description)
+    summary_cols[1].metric("툴 이력", f"{len(display_df):,}건")
+    summary_cols[2].metric(
+        "폐기 기록",
+        f"{int((display_df['폐기일시'].astype(str).str.strip() != '').sum()):,}건",
+    )
+
     st.dataframe(
         display_df,
         use_container_width=True,
@@ -4711,6 +4815,7 @@ def show_machine_tool_history_page():
             "장착횟수": st.column_config.NumberColumn(format="%d회"),
         },
     )
+
 
 
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
