@@ -4678,6 +4678,12 @@ def build_machine_tool_history_rows():
                     "폐기사유": disposal_reason,
                     "폐기수량": int(disposal_qty),
                     "_sort_time": last_event.get("time_dt") or dt.min,
+                    # 특정 기간 검색용 내부 필드입니다. 화면 표에는 표시하지 않습니다.
+                    "_event_times": [
+                        event.get("time_dt")
+                        for event in machine_events
+                        if event.get("time_dt") is not None
+                    ],
                 }
             )
 
@@ -4690,11 +4696,16 @@ def build_machine_tool_history_rows():
 
 def show_machine_tool_history_page():
     st.title("🏭 장비별 툴 장착/폐기 이력")
-    st.caption("조회 범위를 선택한 뒤 검색 버튼을 누르면 해당 장비에서 사용된 툴 이력을 표로 확인합니다.")
+    st.caption(
+        "전체 장비 또는 특정 호기를 선택하고, 필요하면 기간을 지정하여 "
+        "그 기간에 실제 장착·분리·폐기 이력이 있었던 툴만 조회합니다."
+    )
 
-    # 검색 UI는 DB 결과 유무와 관계없이 항상 먼저 표시합니다.
-    search_cols = st.columns([1.2, 1.2, 1.0])
-    scope = search_cols[0].selectbox(
+    # ---------------------------------------------------------------------------------
+    # 1. 장비 검색 조건
+    # ---------------------------------------------------------------------------------
+    machine_cols = st.columns([1.2, 1.2])
+    scope = machine_cols[0].selectbox(
         "조회 범위",
         ["전체 장비", "특정 장비"],
         key="machine_tool_history_scope",
@@ -4702,39 +4713,83 @@ def show_machine_tool_history_page():
 
     selected_number = None
     if scope == "특정 장비":
-        # 기존 데이터가 없어도 장비를 선택할 수 있도록 고정 호기 목록을 제공합니다.
         machine_options = [f"{number}호기" for number in range(3, 58)]
-        selected_machine = search_cols[1].selectbox(
+        selected_machine = machine_cols[1].selectbox(
             "장비 선택",
             machine_options,
             key="machine_tool_history_machine",
         )
         selected_number = int(re.search(r"\d+", selected_machine).group())
     else:
-        search_cols[1].text_input(
+        machine_cols[1].text_input(
             "장비 선택",
             value="전체 장비",
             disabled=True,
             key="machine_tool_history_all_label",
         )
 
-    do_search = search_cols[2].button(
+    # ---------------------------------------------------------------------------------
+    # 2. 날짜 검색 조건
+    #    Streamlit date_input을 사용하므로 클릭하면 달력 선택창이 열립니다.
+    # ---------------------------------------------------------------------------------
+    use_date_filter = st.checkbox(
+        "📅 특정 기간만 조회",
+        value=False,
+        key="machine_tool_history_use_date_filter",
+        help="체크하면 시작일과 종료일을 달력에서 선택할 수 있습니다.",
+    )
+
+    today_kst = get_now_kst().date()
+    default_start = today_kst.replace(day=1)
+
+    date_cols = st.columns(2)
+    start_date = date_cols[0].date_input(
+        "시작일",
+        value=st.session_state.get("machine_tool_history_start_date", default_start),
+        key="machine_tool_history_start_date",
+        disabled=not use_date_filter,
+        format="YYYY/MM/DD",
+    )
+    end_date = date_cols[1].date_input(
+        "종료일",
+        value=st.session_state.get("machine_tool_history_end_date", today_kst),
+        key="machine_tool_history_end_date",
+        disabled=not use_date_filter,
+        format="YYYY/MM/DD",
+    )
+
+    if use_date_filter and start_date > end_date:
+        st.error("시작일은 종료일보다 늦을 수 없습니다.")
+
+    # ---------------------------------------------------------------------------------
+    # 3. 검색 / 초기화 버튼
+    # ---------------------------------------------------------------------------------
+    button_cols = st.columns([1.3, 1.0, 4.0])
+    do_search = button_cols[0].button(
         "🔍 검색",
         key="machine_tool_history_search_btn",
         use_container_width=True,
         type="primary",
+        disabled=bool(use_date_filter and start_date > end_date),
     )
-
-    reset_clicked = st.button(
+    reset_clicked = button_cols[1].button(
         "↻ 검색 초기화",
         key="machine_tool_history_reset_btn",
+        use_container_width=True,
     )
+
     if reset_clicked:
-        st.session_state.pop("machine_tool_history_results", None)
-        st.session_state.pop("machine_tool_history_searched", None)
+        for key in (
+            "machine_tool_history_results",
+            "machine_tool_history_searched",
+            "machine_tool_history_search_description",
+        ):
+            st.session_state.pop(key, None)
         st.rerun()
 
-    # 검색 버튼을 누르기 전에는 결과 조회를 하지 않습니다.
+    # ---------------------------------------------------------------------------------
+    # 4. 검색 실행
+    # ---------------------------------------------------------------------------------
     if do_search:
         try:
             all_rows = build_machine_tool_history_rows()
@@ -4742,25 +4797,75 @@ def show_machine_tool_history_page():
             st.error(f"장비별 툴 이력 조회 중 오류가 발생했습니다: {exc}")
             return
 
+        # 장비 조건
         if scope == "특정 장비":
             result_rows = [
                 row for row in all_rows
                 if row.get("_machine_no") == selected_number
             ]
-            search_description = f"{selected_number}호기"
+            machine_description = f"{selected_number}호기"
         else:
-            result_rows = all_rows
-            search_description = "전체 장비"
+            result_rows = list(all_rows)
+            machine_description = "전체 장비"
 
-        # 세션에 결과를 저장해서 Streamlit rerun 후에도 표가 유지되도록 합니다.
+        # 날짜 조건
+        if use_date_filter:
+            start_dt = dt.combine(start_date, datetime.time.min)
+            end_dt = dt.combine(end_date, datetime.time.max)
+
+            filtered_rows = []
+            for row in result_rows:
+                event_times = row.get("_event_times") or []
+
+                # 해당 장비에서 기록된 실제 이벤트 중 하나라도 기간 안에 있으면 표시합니다.
+                has_event_in_range = any(
+                    isinstance(event_dt, datetime.datetime)
+                    and start_dt <= event_dt <= end_dt
+                    for event_dt in event_times
+                )
+
+                # 아주 오래된 데이터에서 event_times가 비어 있을 경우 최근 정렬시간을 보조로 확인합니다.
+                if not has_event_in_range:
+                    fallback_dt = row.get("_sort_time")
+                    if (
+                        isinstance(fallback_dt, datetime.datetime)
+                        and fallback_dt != dt.min
+                        and start_dt <= fallback_dt <= end_dt
+                    ):
+                        has_event_in_range = True
+
+                if has_event_in_range:
+                    filtered_rows.append(row)
+
+            result_rows = filtered_rows
+            search_description = (
+                f"{machine_description} · "
+                f"{start_date.strftime('%Y/%m/%d')} ~ {end_date.strftime('%Y/%m/%d')}"
+            )
+        else:
+            search_description = f"{machine_description} · 전체 기간"
+
+        # 최신 이력부터 보이도록 정렬
+        result_rows.sort(
+            key=lambda row: row.get("_sort_time") or dt.min,
+            reverse=True,
+        )
+
         st.session_state["machine_tool_history_results"] = result_rows
         st.session_state["machine_tool_history_searched"] = True
         st.session_state["machine_tool_history_search_description"] = search_description
 
+    # 검색 전 안내
     if not st.session_state.get("machine_tool_history_searched"):
-        st.info("조회 범위를 선택한 뒤 **🔍 검색** 버튼을 눌러주세요.")
+        st.info(
+            "장비를 선택한 뒤 **🔍 검색** 버튼을 눌러주세요. "
+            "특정 기간이 필요하면 **📅 특정 기간만 조회**를 체크하고 달력에서 날짜를 선택하세요."
+        )
         return
 
+    # ---------------------------------------------------------------------------------
+    # 5. 검색 결과
+    # ---------------------------------------------------------------------------------
     display_rows = st.session_state.get("machine_tool_history_results", [])
     search_description = st.session_state.get(
         "machine_tool_history_search_description",
@@ -4769,8 +4874,7 @@ def show_machine_tool_history_page():
 
     if not display_rows:
         st.warning(
-            f"**{search_description}**에서 확인 가능한 툴 장착/폐기 이력이 없습니다. "
-            "기존 데이터에 기계번호가 저장되지 않은 기록은 장비별로 분류할 수 없습니다."
+            f"**{search_description}** 조건에서 확인 가능한 툴 장착/폐기 이력이 없습니다."
         )
         return
 
@@ -4797,7 +4901,7 @@ def show_machine_tool_history_page():
     display_df = display_df[visible_columns]
 
     summary_cols = st.columns(3)
-    summary_cols[0].metric("조회 대상", search_description)
+    summary_cols[0].metric("조회 조건", search_description)
     summary_cols[1].metric("툴 이력", f"{len(display_df):,}건")
     summary_cols[2].metric(
         "폐기 기록",
