@@ -1088,6 +1088,8 @@ MATERIAL_COLLECTION_NAME = "material_receiving_logs"
 HANDOVER_MENU_LABEL = "🚚 3PART 인계"
 TOSS_COLLECTION_NAME = "toss_logs"
 
+MACHINE_TOOL_HISTORY_MENU_LABEL = "🏭 장비별 툴 장착/폐기 이력"
+
 MATERIAL_RECEIVER_MAP = {
     "01": "서재욱",
     "02": "서동일",
@@ -4290,6 +4292,427 @@ def show_waste_dialog(s_no, current_mach, orig_note, ed_worker, from_status):
 
 
 
+
+# =================================================================================================
+# 🏭 장비(호기)별 툴 장착/폐기 이력 조회
+# - 기존 DB 구조를 변경하지 않습니다.
+# - tools_management의 note에 누적된 상태변경 로그를 읽어 장비별로 정리합니다.
+# - disposal_logs는 폐기정보가 note에 없는 과거 데이터의 보조 정보로만 사용합니다.
+# =================================================================================================
+
+def _machine_history_parse_time(value):
+    """문자열 시간을 정렬 가능한 datetime으로 변환합니다."""
+    value = str(value or "").strip()
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%m/%d %H:%M"):
+        try:
+            parsed = dt.strptime(value, fmt)
+            if fmt == "%m/%d %H:%M":
+                parsed = parsed.replace(year=get_now_kst().year)
+            return parsed
+        except Exception:
+            pass
+    return None
+
+
+def _machine_history_extract_lots(line):
+    """note 한 줄에서 ERP LOT 번호들을 중복 없이 추출합니다."""
+    line = str(line or "")
+    lots = []
+
+    # 완성형 LOT가 로그 어디에 있든 우선 추출합니다.
+    for lot in re.findall(r"\bKK20\d{6,}\b", line, flags=re.IGNORECASE):
+        lot_text = lot.upper()
+        if lot_text not in lots:
+            lots.append(lot_text)
+
+    # 과거 형식의 ERP LOT: 값도 보조로 인식합니다.
+    for lot in re.findall(r"ERP\s*LOT\s*:\s*([^,\]\s/]+)", line, flags=re.IGNORECASE):
+        lot_text = str(lot).strip().upper()
+        if lot_text and lot_text not in lots:
+            lots.append(lot_text)
+
+    return lots
+
+
+def _machine_history_parse_note_events(tool_doc):
+    """툴 note의 상태변경 기록을 장비 이력 이벤트 목록으로 변환합니다."""
+    events = []
+    raw_note = str(tool_doc.get("note", "") or "")
+    if not raw_note:
+        return events
+
+    for raw_line in raw_note.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        # 이력 시간
+        time_match = re.search(r"\[([^\]]+)\]", line)
+        event_time = time_match.group(1).strip() if time_match else ""
+
+        # 상태
+        status_match = re.search(r"상태\s*:\s*([^,]+)", line)
+        if not status_match:
+            # history 스타일: 상태변환:폐기
+            status_match = re.search(r"상태변환\s*:\s*([^\s,(]+)", line)
+        status = status_match.group(1).strip() if status_match else ""
+        status = status.replace("(", "").replace(")", "").strip()
+
+        # 작업자
+        worker_match = re.search(r"작업자\s*:\s*([^,)\]]+)", line)
+        worker = worker_match.group(1).strip() if worker_match else ""
+
+        # 장비번호: '가공기계'를 먼저 찾고, 없으면 '기계'를 찾습니다.
+        machine_match = re.search(
+            r"(?:가공기계|기계)\s*:\s*0*(\d{1,3})\s*호기",
+            line,
+            flags=re.IGNORECASE,
+        )
+        machine_no = int(machine_match.group(1)) if machine_match else None
+
+        # 스펙
+        spec_match = re.search(r"스펙\s*:\s*([^,)\]]+)", line)
+        spec = spec_match.group(1).strip() if spec_match else ""
+
+        # 수량: 로그 형식이 여러 버전이라 모두 대응
+        qty_match = re.search(
+            r"(?:최종수량|가공갯수|가공수량|사용갯수|사용수량|수량)\s*:\s*(\d+)\s*개",
+            line,
+        )
+        qty = int(qty_match.group(1)) if qty_match else 0
+
+        # 폐기 사유
+        reason_match = re.search(r"(?:폐기사유|사유)\s*:\s*([^,\]]+)", line)
+        reason = reason_match.group(1).strip() if reason_match else ""
+
+        # 장비번호가 실제로 기록된 줄만 장비 이력 후보로 사용합니다.
+        if machine_no is None:
+            continue
+
+        # 장착/재장착/분리/폐기와 관련된 이벤트만 표시 대상에 포함합니다.
+        # 과거 로그에서 상태 앞뒤 공백이 달라도 정상 인식합니다.
+        normalized_status = re.sub(r"\s+", "", status)
+        if normalized_status not in ("사용중", "재사용", "재사용대기", "폐기"):
+            continue
+
+        events.append(
+            {
+                "time": event_time,
+                "time_dt": _machine_history_parse_time(event_time),
+                "status": normalized_status,
+                "machine_no": machine_no,
+                "worker": worker,
+                "spec": spec,
+                "qty": qty,
+                "reason": reason,
+                "lots": _machine_history_extract_lots(line),
+                "raw": line,
+            }
+        )
+
+    return events
+
+
+def _machine_history_disposal_map():
+    """disposal_logs의 최신 폐기정보를 시리얼별 보조 맵으로 만듭니다."""
+    result = {}
+    try:
+        cursor = db_collection.database["disposal_logs"].find(
+            {},
+            {
+                "_id": 0,
+                "serial_no": 1,
+                "machine_no": 1,
+                "worker": 1,
+                "disposal_date": 1,
+                "disposal_reason": 1,
+                "detail_reason": 1,
+                "reason": 1,
+                "waste_qty": 1,
+                "spec_detail": 1,
+            },
+        )
+        for row in cursor:
+            serial = str(row.get("serial_no", "") or "").strip()
+            if not serial:
+                continue
+            row_time = _machine_history_parse_time(row.get("disposal_date"))
+            previous = result.get(serial)
+            previous_time = _machine_history_parse_time(previous.get("disposal_date")) if previous else None
+            if previous is None or (
+                row_time is not None
+                and (previous_time is None or row_time >= previous_time)
+            ):
+                result[serial] = row
+    except Exception:
+        # disposal_logs 조회에 문제가 있어도 note 기반 장비 이력 화면은 동작하도록 합니다.
+        pass
+    return result
+
+
+def build_machine_tool_history_rows():
+    """장비 + 툴 조합별로 장착/분리/폐기 정보를 한 줄로 집계합니다."""
+    rows = []
+    disposal_map = _machine_history_disposal_map()
+
+    projection = {
+        "_id": 0,
+        "serial_no": 1,
+        "tool_type": 1,
+        "spec_detail": 1,
+        "make": 1,
+        "status": 1,
+        "worker": 1,
+        "machine_no": 1,
+        "note": 1,
+        "waste_date": 1,
+        "disposal_reason": 1,
+        "detail_reason": 1,
+        "use_count": 1,
+        "current_use": 1,
+        "last_active_machine": 1,
+        "last_active_count": 1,
+        "last_active_time": 1,
+        "last_erp_lot_no": 1,
+        "last_erp_lot_list": 1,
+    }
+
+    # note에 '호기' 이력이 있거나 과거 장비정보가 남아 있는 툴만 읽어 불필요한 전송량을 줄입니다.
+    query = {
+        "$or": [
+            {"note": {"$regex": "호기"}},
+            {"last_active_machine": {"$regex": "호기"}},
+            {"machine_no": {"$regex": "호기"}},
+        ]
+    }
+
+    for tool in db_collection.find(query, projection):
+        serial = str(tool.get("serial_no", "") or "").strip()
+        if not serial:
+            continue
+
+        events = _machine_history_parse_note_events(tool)
+
+        # 과거 note가 불완전하지만 last_active_machine이 있는 데이터도 누락하지 않습니다.
+        if not events:
+            last_machine_text = str(tool.get("last_active_machine", "") or "")
+            last_machine_match = re.search(r"0*(\d{1,3})\s*호기", last_machine_text)
+            if last_machine_match:
+                events.append(
+                    {
+                        "time": str(tool.get("last_active_time", "") or ""),
+                        "time_dt": _machine_history_parse_time(tool.get("last_active_time")),
+                        "status": "재사용대기",
+                        "machine_no": int(last_machine_match.group(1)),
+                        "worker": str(tool.get("worker", "") or ""),
+                        "spec": str(tool.get("spec_detail", "") or ""),
+                        "qty": to_int_safe(tool.get("last_active_count"), 0),
+                        "reason": "",
+                        "lots": [],
+                        "raw": "",
+                    }
+                )
+
+        if not events:
+            continue
+
+        # 툴의 최종 폐기 정보: note의 폐기 이벤트를 우선하고 disposal_logs를 보조로 사용합니다.
+        disposal_events = [e for e in events if e.get("status") == "폐기"]
+        disposal_events_sorted = sorted(
+            disposal_events,
+            key=lambda e: e.get("time_dt") or dt.min,
+        )
+        latest_disposal_event = disposal_events_sorted[-1] if disposal_events_sorted else None
+        disposal_log = disposal_map.get(serial, {})
+
+        disposal_time = ""
+        disposal_worker = ""
+        disposal_reason = ""
+        disposal_qty = 0
+
+        if latest_disposal_event:
+            disposal_time = latest_disposal_event.get("time", "")
+            disposal_worker = latest_disposal_event.get("worker", "")
+            disposal_reason = latest_disposal_event.get("reason", "")
+            disposal_qty = to_int_safe(latest_disposal_event.get("qty"), 0)
+
+        if not disposal_time:
+            disposal_time = str(
+                disposal_log.get("disposal_date")
+                or tool.get("waste_date")
+                or ""
+            )
+        if not disposal_worker:
+            disposal_worker = str(disposal_log.get("worker", "") or "")
+        if not disposal_reason:
+            disposal_reason = str(
+                disposal_log.get("detail_reason")
+                or disposal_log.get("disposal_reason")
+                or disposal_log.get("reason")
+                or tool.get("detail_reason")
+                or tool.get("disposal_reason")
+                or ""
+            )
+        if not disposal_qty:
+            disposal_qty = to_int_safe(
+                disposal_log.get("waste_qty"),
+                to_int_safe(tool.get("use_count"), to_int_safe(tool.get("current_use"), 0)),
+            )
+
+        machine_numbers = sorted(set(e["machine_no"] for e in events if e.get("machine_no") is not None))
+
+        for machine_no in machine_numbers:
+            machine_events = [e for e in events if e.get("machine_no") == machine_no]
+            machine_events.sort(key=lambda e: e.get("time_dt") or dt.min)
+
+            attach_events = [
+                e for e in machine_events
+                if e.get("status") in ("사용중", "재사용")
+            ]
+
+            # 예전 데이터에서 장착 로그 자체가 없는 경우에도 장비 사용 흔적(재사용대기/폐기)이 있으면 표시합니다.
+            basis_events = attach_events if attach_events else machine_events
+            first_event = basis_events[0] if basis_events else {}
+            last_event = basis_events[-1] if basis_events else {}
+
+            # 해당 호기에서 실제 가공 실적을 저장하는 시점은 주로 재사용대기/폐기이므로 그 수량을 합산합니다.
+            processed_qty = sum(
+                to_int_safe(e.get("qty"), 0)
+                for e in machine_events
+                if e.get("status") in ("재사용대기", "폐기")
+            )
+
+            lot_list = []
+            for event in machine_events:
+                for lot in event.get("lots", []):
+                    if lot and lot not in lot_list:
+                        lot_list.append(lot)
+
+            # 현재 문서에 남아 있는 LOT도 보조 표시
+            current_lots = tool.get("last_erp_lot_list") or []
+            if not isinstance(current_lots, list):
+                current_lots = [current_lots]
+            for lot in current_lots:
+                lot_text = str(lot or "").strip()
+                if lot_text and lot_text not in lot_list:
+                    lot_list.append(lot_text)
+            current_lot = str(tool.get("last_erp_lot_no", "") or "").strip()
+            if current_lot and current_lot not in lot_list:
+                lot_list.append(current_lot)
+
+            raw_tool_type = str(tool.get("tool_type", "") or "").strip()
+            if raw_tool_type:
+                tool_type = raw_tool_type
+            else:
+                tool_type = get_tool_type_name(serial)
+
+            rows.append(
+                {
+                    "호기": f"{machine_no}호기",
+                    "_machine_no": machine_no,
+                    "시리얼": serial,
+                    "툴종류": tool_type,
+                    "스펙": str(tool.get("spec_detail", "") or last_event.get("spec", "") or ""),
+                    "제조사": str(tool.get("make", "") or ""),
+                    "최초장착일시": str(first_event.get("time", "") or ""),
+                    "최근장착일시": str(last_event.get("time", "") or ""),
+                    "장착횟수": len(attach_events) if attach_events else 1,
+                    "최근작업자": str(last_event.get("worker", "") or ""),
+                    "해당호기 누적가공수량": int(processed_qty),
+                    "LOT 이력": " / ".join(lot_list),
+                    "현재/최종상태": str(tool.get("status", "") or ""),
+                    "폐기일시": disposal_time,
+                    "폐기작업자": disposal_worker,
+                    "폐기사유": disposal_reason,
+                    "폐기수량": int(disposal_qty),
+                    "_sort_time": last_event.get("time_dt") or dt.min,
+                }
+            )
+
+    rows.sort(
+        key=lambda row: (row.get("_machine_no", 0), row.get("_sort_time", dt.min)),
+        reverse=True,
+    )
+    return rows
+
+
+def show_machine_tool_history_page():
+    st.title("🏭 장비별 툴 장착/폐기 이력")
+    st.caption("전체 장비 또는 특정 호기를 선택하면 해당 장비에서 사용된 툴 이력을 표로 확인합니다.")
+
+    try:
+        all_rows = build_machine_tool_history_rows()
+    except Exception as exc:
+        st.error(f"장비별 툴 이력 조회 중 오류가 발생했습니다: {exc}")
+        return
+
+    if not all_rows:
+        st.info("장비번호가 기록된 툴 이력이 없습니다.")
+        return
+
+    scope = st.selectbox(
+        "조회 범위",
+        ["전체 장비", "특정 장비"],
+        key="machine_tool_history_scope",
+    )
+
+    display_rows = all_rows
+    if scope == "특정 장비":
+        machine_numbers = sorted(set(row["_machine_no"] for row in all_rows))
+        machine_options = [f"{number}호기" for number in machine_numbers]
+        selected_machine = st.selectbox(
+            "장비 선택",
+            machine_options,
+            key="machine_tool_history_machine",
+        )
+        selected_number = int(re.search(r"\d+", selected_machine).group())
+        display_rows = [
+            row for row in all_rows
+            if row.get("_machine_no") == selected_number
+        ]
+
+    if not display_rows:
+        st.info("선택한 장비의 툴 이력이 없습니다.")
+        return
+
+    # 화면에 필요한 열만 노출하고 내부 정렬용 필드는 숨깁니다.
+    visible_columns = [
+        "호기",
+        "시리얼",
+        "툴종류",
+        "스펙",
+        "제조사",
+        "최초장착일시",
+        "최근장착일시",
+        "장착횟수",
+        "최근작업자",
+        "해당호기 누적가공수량",
+        "LOT 이력",
+        "현재/최종상태",
+        "폐기일시",
+        "폐기작업자",
+        "폐기사유",
+        "폐기수량",
+    ]
+
+    display_df = pd.DataFrame(display_rows)
+    display_df = display_df[visible_columns]
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(780, 42 + len(display_df) * 35),
+        column_config={
+            "해당호기 누적가공수량": st.column_config.NumberColumn(format="%d개"),
+            "폐기수량": st.column_config.NumberColumn(format="%d개"),
+            "장착횟수": st.column_config.NumberColumn(format="%d회"),
+        },
+    )
+
+
 # --- 📱 [모바일/현장 QR 스캔 기입 모드] --------------------------------------------------------------------------------------------------------
 
 # [최종 확인 팝업창 - 상태 대조 기능 포함]
@@ -4612,7 +5035,7 @@ if qr_scanned_serial:
 else:
     st.session_state.sidebar_errors = []
     st.sidebar.markdown("## 📁 KKQ 통합 시스템")
-    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황"]
+    menu_options = ["📊 빈데이터 QR코드 대량 선발행", "📂 전체 데이터 현황판", "⚙️ 데이터 수정 / 삭제 / QR 재발행", "🖥️ 실시간 기계 정보창","🔧 툴 상세스펙 마스터 관리","🔍 툴 재고 검색 및 인쇄","📅 날짜별 툴 현황", MACHINE_TOOL_HISTORY_MENU_LABEL]
     all_menu_options = menu_options + [MATERIAL_MENU_LABEL, HANDOVER_MENU_LABEL]
     if "sidebar_choice" not in st.session_state:
         st.session_state.sidebar_choice = menu_options[0]
@@ -5219,6 +5642,10 @@ else:
 
     elif tool_menu == HANDOVER_MENU_LABEL:
         show_3part_handover_page()
+
+    # [장비별 툴 장착/폐기 이력]-------------------------------------------------------------------------------------------------------------------------------------------------
+    elif tool_menu == MACHINE_TOOL_HISTORY_MENU_LABEL:
+        show_machine_tool_history_page()
 
     # [실시간 기계 정보창 로직 전체]-------------------------------------------------------------------------------------------------------------------------------------------------
     elif tool_menu == "🖥️ 실시간 기계 정보창":
