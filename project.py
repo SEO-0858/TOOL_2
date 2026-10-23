@@ -3134,6 +3134,60 @@ def load_material_status():
                        "수량오류": state["has_quantity_error"]})
     return result
 
+# Read-only display helpers: preserve stored MongoDB fields and values.
+MATERIAL_DETAIL_LABELS = {
+    "lot_no": "LOT 번호", "product_name": "품명", "spec": "규격",
+    "plan_qty": "계획수량", "received_qty": "입고수량",
+    "received_total_before": "입고 전 누적수량", "received_total_after": "입고 후 누적수량",
+    "receive_date": "입고일", "receiver_no": "입고 담당자 번호",
+    "receiver_name": "입고 담당자", "memo": "비고", "source": "등록경로",
+    "created_at": "등록일시", "record_type": "기록구분",
+    "received_total_at_handover": "인계 당시 입고누계",
+    "handover_total_before": "인계 전 누계", "handover_qty": "인계수량",
+    "handover_total_after": "인계 후 누계", "handover_by_no": "인계자 번호",
+    "handover_by": "인계자", "received_by_no": "인수자 번호",
+    "received_by": "인수자", "handover_at": "인계일시",
+    "handover_date": "인계일", "recommended_lot_at_handover": "당시 추천 LOT",
+    "manual_lot_selection": "수동 LOT 선택", "manual_selection_confirmed": "수동 선택 확인",
+    "status": "기록상태", "is_cancelled": "취소여부",
+    "cancelled_at": "취소일시", "cancelled_date": "취소일",
+    "cancelled_by_no": "취소자 번호", "cancelled_by": "취소자",
+    "cancel_reason": "취소사유", "return_qty": "반품수량",
+    "return_at": "반품일시", "return_date": "반품일",
+    "return_by": "반품자", "return_by_no": "반품자 번호",
+    "net_handover_qty_after": "반품 후 실인계수량",
+    "defect_qty": "불량수량", "defect_reason": "불량사유",
+}
+MATERIAL_DETAIL_VALUES = {
+    "record_type": {"handover": "인계", "handover_return": "반품", "machining_defect": "가공불량"},
+    "status": {"active": "정상", "cancelled": "취소"},
+    "source": {"qr_live": "QR 등록", "manual_or_not_found": "수동 등록 또는 조회 실패"},
+}
+
+def material_detail_display(records):
+    if not records:
+        return pd.DataFrame()
+    frame = pd.DataFrame(records).copy()
+    for key, mapping in MATERIAL_DETAIL_VALUES.items():
+        if key in frame.columns:
+            frame[key] = frame[key].map(lambda v: mapping.get(v, v) if isinstance(v, str) else v)
+    for key in ("is_cancelled", "manual_lot_selection", "manual_selection_confirmed"):
+        if key in frame.columns:
+            frame[key] = frame[key].map(lambda v: "예" if v is True else ("아니요" if v is False else v))
+    frame.rename(columns=MATERIAL_DETAIL_LABELS, inplace=True)
+    return frame
+
+
+def material_handover_display(received, handed):
+    received, handed = int(received), int(handed)
+    remaining = max(received - handed, 0)
+    if handed <= 0:
+        return f"미인계 · 0/{received:,}개 · 잔량 {remaining:,}개"
+    if received > 0 and handed >= received:
+        return f"인계완료 · {handed:,}/{received:,}개 · 잔량 {remaining:,}개"
+    return f"인계중 · {handed:,}/{received:,}개 · 잔량 {remaining:,}개"
+
+
 def show_material_status_page():
     st.title("📋 원자재별 입고·인계 현황")
     st.caption("조회 전용 · 규격별 최초 입고일 순 · 45초 조회 캐시 (등록/수정은 기존 메뉴 이용)")
@@ -3223,7 +3277,13 @@ def show_material_status_page():
                     st.rerun()
 
     visible = filter_view(df, applied)
-    st.dataframe(visible[columns], use_container_width=True, hide_index=True, height=520)
+    # Keep raw quantity/status columns intact for the existing filters.
+    display = visible[columns].copy()
+    display["인계상황"] = visible.apply(
+        lambda r: material_handover_display(r["입고수량"], r["인계수량"]), axis=1)
+    st.caption("인계상황 안내: 미인계 = 0개 인계 / 인계중 = 일부 인계 / 인계완료 = 전량 인계 · 잔량은 아직 인계하지 않은 수량입니다.")
+    st.dataframe(display, use_container_width=True, hide_index=True, height=520,
+                 column_config={"인계상황": st.column_config.TextColumn("인계상황 · 인계/입고 · 잔량", width="large")})
     st.caption(f"전체 {len(df):,}건 / 표시 {len(visible):,}건 · 열 제목을 클릭하면 표시 결과를 정렬할 수 있습니다.")
     df = visible
     if df.empty: return
@@ -3232,8 +3292,19 @@ def show_material_status_page():
         receive = list(get_material_collection().find({"lot_no": lot}, {"_id": 0}).sort("_id", 1))
         toss = list(get_toss_collection().find({"lot_no": lot}, {"_id": 0}).sort("_id", 1))
         tab1,tab2 = st.tabs([f"입고 {len(receive)}건", f"인계·반품·취소 {len(toss)}건"])
-        with tab1: st.dataframe(pd.DataFrame(receive), use_container_width=True, hide_index=True)
-        with tab2: st.dataframe(pd.DataFrame(toss), use_container_width=True, hide_index=True)
+        st.caption("상세 이력은 표 안에서 좌우로 스크롤해 확인하세요. 마우스 Shift+휠 또는 하단 가로 스크롤을 이용할 수 있습니다.")
+        with tab1:
+            if receive:
+                st.dataframe(material_detail_display(receive), use_container_width=True,
+                             hide_index=True, height=min(350, 70 + 36 * len(receive)))
+            else:
+                st.info("입고 이력이 없습니다.")
+        with tab2:
+            if toss:
+                st.dataframe(material_detail_display(toss), use_container_width=True,
+                             hide_index=True, height=min(350, 70 + 36 * len(toss)))
+            else:
+                st.info("인계·반품·취소 이력이 없습니다.")
 
 
 
