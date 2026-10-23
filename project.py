@@ -3142,16 +3142,76 @@ def show_material_status_page():
     c.metric("인계 합계", f"{int(df['인계수량'].sum()):,}")
     if df["수량오류"].any():
         st.warning(f"인계수량이 입고수량보다 많은 LOT {int(df['수량오류'].sum())}건: 원본 기록 확인 필요")
-    q = st.text_input("LOT·품명·규격 통합검색", placeholder="일부 문자 입력")
-    if q:
-        mask = df[["LOT", "품명", "규격"]].astype(str).apply(lambda col: col.str.contains(q, case=False, regex=False)).any(axis=1)
-        df = df[mask]
-    specs = sorted(x for x in df["규격"].unique() if x)
-    selected_specs = st.multiselect("규격 필터", specs)
-    if selected_specs: df = df[df["규격"].isin(selected_specs)]
-    st.dataframe(df[["LOT", "품명", "규격", "계획수량", "입고일", "입고상황", "인계상황"]],
-                 use_container_width=True, hide_index=True, height=520)
-    st.caption(f"표시 {len(df):,}건 · 표 헤더를 눌러 정렬 가능")
+    # 인계 상태는 입고수량 대비 실인계수량 기준이며 조회 화면에서만 계산한다.
+    # 원본 MongoDB 문서는 수정하지 않는다.
+    df["인계상태"] = df.apply(
+        lambda r: "인계없음" if int(r["인계수량"]) <= 0
+        else ("인계완료" if int(r["입고수량"]) > 0 and int(r["인계수량"]) >= int(r["입고수량"])
+              else "인계중"), axis=1)
+    # 필터는 화면 세션에만 보관하며 MongoDB에 어떠한 변경도 수행하지 않는다.
+    columns = ["LOT", "품명", "규격", "계획수량", "입고일", "입고상황", "인계상황"]
+    active_key = "material_status_applied_filters_v11"
+    if active_key not in st.session_state:
+        st.session_state[active_key] = {}
+    applied = st.session_state[active_key]
+
+    def filter_view(source, filters, exclude=None):
+        view = source
+        for field, chosen in filters.items():
+            if field == exclude or not chosen:
+                continue
+            source_field = "인계상태" if field == "인계상황" else field
+            view = view[view[source_field].astype(str).isin(chosen)]
+        return view
+
+    def filter_options(field):
+        # 다른 열에 적용된 필터를 반영하되 현재 열 자체의 필터는 제외한다.
+        # 따라서 기존에 선택한 항목도 재선택/해제할 수 있다.
+        available = filter_view(df, applied, exclude=field)
+        if field == "인계상황":
+            return [v for v in ("인계없음", "인계중", "인계완료") if v in set(available["인계상태"])]
+        return sorted(available[field].astype(str).unique().tolist(), key=lambda x: x.casefold())
+
+    st.caption("열별 필터 ▼ 를 눌러 선택한 뒤 '적용'을 누르세요. 여러 열의 조건은 누적됩니다.")
+    if st.button("🧹 전체 필터 초기화", key="material_filter_reset_all"):
+        st.session_state[active_key] = {}
+        st.rerun()
+
+    # Streamlit 기본 dataframe 헤더는 사용자 지정 팝업을 지원하지 않아
+    # 각 열 바로 위에 Excel 자동필터와 동일한 동작의 필터 팝업을 배치한다.
+    header_cells = st.columns([1.5, 1.6, 2.4, 1.1, 1.3, 1.2, 1.2], gap="small")
+    for field, cell in zip(columns, header_cells):
+        with cell:
+            marked = " ●" if applied.get(field) else ""
+            with st.popover(f"{field} ▼{marked}", use_container_width=True):
+                choices = filter_options(field)
+                previous = applied.get(field, [])
+                with st.form(f"material_filter_form_{field}", border=False):
+                    st.caption(f"{field} 항목 선택 · {len(choices):,}개")
+                    query = st.text_input("목록 검색", key=f"material_filter_search_{field}")
+                    shown = [x for x in choices if query.casefold() in x.casefold()] if query else choices
+                    selected = st.multiselect("표시할 값", options=shown,
+                        default=[x for x in previous if x in shown],
+                        help="선택하지 않고 적용하면 해당 열의 필터가 해제됩니다.")
+                    submit = st.form_submit_button("적용", use_container_width=True)
+                    if submit:
+                        updated = dict(applied)
+                        if selected:
+                            updated[field] = selected
+                        else:
+                            updated.pop(field, None)
+                        st.session_state[active_key] = updated
+                        st.rerun()
+                if st.button("이 열 필터 해제", key=f"material_filter_clear_{field}", use_container_width=True):
+                    updated = dict(applied)
+                    updated.pop(field, None)
+                    st.session_state[active_key] = updated
+                    st.rerun()
+
+    visible = filter_view(df, applied)
+    st.dataframe(visible[columns], use_container_width=True, hide_index=True, height=520)
+    st.caption(f"전체 {len(df):,}건 / 표시 {len(visible):,}건 · 열 제목을 클릭하면 표시 결과를 정렬할 수 있습니다.")
+    df = visible
     if df.empty: return
     lot = st.selectbox("상세 이력 조회 LOT", df["LOT"].tolist())
     with st.expander(f"📑 {lot} 입고·인계 상세 이력", expanded=False):
