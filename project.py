@@ -3189,7 +3189,8 @@ def material_handover_display(received, handed):
 
 
 def show_material_status_page():
-    st.title("📋 원자재별 입고·인계 현황")
+    st.title("📋 원자재별 입고·인계 현황 · V1.4B")
+    st.caption("화면 버전: V1.4B · 인계상황 한글 표시 / LOT 상세 이력 한글화 적용")
     st.caption("조회 전용 · 규격별 최초 입고일 순 · 45초 조회 캐시 (등록/수정은 기존 메뉴 이용)")
     if st.button("🔄 최신 기록 새로고침"):
         load_material_status.clear()
@@ -3281,7 +3282,7 @@ def show_material_status_page():
     display = visible[columns].copy()
     display["인계상황"] = visible.apply(
         lambda r: material_handover_display(r["입고수량"], r["인계수량"]), axis=1)
-    st.caption("인계상황 안내: 미인계 = 0개 인계 / 인계중 = 일부 인계 / 인계완료 = 전량 인계 · 잔량은 아직 인계하지 않은 수량입니다.")
+    st.info("인계상황: 미인계(0개 인계) / 인계중(일부 인계) / 인계완료(전량 인계) · 잔량은 아직 인계하지 않은 수량입니다.")
     st.dataframe(display, use_container_width=True, hide_index=True, height=520,
                  column_config={"인계상황": st.column_config.TextColumn("인계상황 · 인계/입고 · 잔량", width="large")})
     st.caption(f"전체 {len(df):,}건 / 표시 {len(visible):,}건 · 열 제목을 클릭하면 표시 결과를 정렬할 수 있습니다.")
@@ -3296,13 +3297,15 @@ def show_material_status_page():
         with tab1:
             if receive:
                 st.dataframe(material_detail_display(receive), use_container_width=True,
-                             hide_index=True, height=min(350, 70 + 36 * len(receive)))
+                             hide_index=True, height=min(350, 70 + 36 * len(receive)),
+                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호", pinned=True)})
             else:
                 st.info("입고 이력이 없습니다.")
         with tab2:
             if toss:
                 st.dataframe(material_detail_display(toss), use_container_width=True,
-                             hide_index=True, height=min(350, 70 + 36 * len(toss)))
+                             hide_index=True, height=min(350, 70 + 36 * len(toss)),
+                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호", pinned=True)})
             else:
                 st.info("인계·반품·취소 이력이 없습니다.")
 
