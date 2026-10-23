@@ -3150,7 +3150,7 @@ def show_material_status_page():
               else "인계중"), axis=1)
     # 필터는 화면 세션에만 보관하며 MongoDB에 어떠한 변경도 수행하지 않는다.
     columns = ["LOT", "품명", "규격", "계획수량", "입고일", "입고상황", "인계상황"]
-    active_key = "material_status_applied_filters_v11"
+    active_key = "material_status_applied_filters_v12"
     if active_key not in st.session_state:
         st.session_state[active_key] = {}
     applied = st.session_state[active_key]
@@ -3187,17 +3187,21 @@ def show_material_status_page():
                 choices = filter_options(field)
                 previous = applied.get(field, [])
                 with st.form(f"material_filter_form_{field}", border=False):
-                    st.caption(f"{field} 항목 선택 · {len(choices):,}개")
-                    query = st.text_input("목록 검색", key=f"material_filter_search_{field}")
-                    shown = [x for x in choices if query.casefold() in x.casefold()] if query else choices
-                    selected = st.multiselect("표시할 값", options=shown,
-                        default=[x for x in previous if x in shown],
-                        help="선택하지 않고 적용하면 해당 열의 필터가 해제됩니다.")
+                    st.caption(f"{field} 선택 · {len(choices):,}개")
+                    # DB 집계에 실제 존재하는 값만 체크박스로 표시한다.
+                    # 인계상황은 입고/인계 실제 수량에서 계산된 3가지 상태만 표시한다.
+                    # 검색창/중첩 드롭다운 없이 여러 값을 직접 체크할 수 있다.
+                    checked = []
+                    with st.container(height=260, border=False):
+                        for index, value in enumerate(choices):
+                            if st.checkbox(str(value), value=value in previous,
+                                           key=f"material_v12_{field}_{index}_{value}"):
+                                checked.append(value)
                     submit = st.form_submit_button("적용", use_container_width=True)
                     if submit:
                         updated = dict(applied)
-                        if selected:
-                            updated[field] = selected
+                        if checked:
+                            updated[field] = checked
                         else:
                             updated.pop(field, None)
                         st.session_state[active_key] = updated
