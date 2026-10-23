@@ -3093,7 +3093,10 @@ def load_material_status():
     pipeline = [
         {"$sort": {"_id": 1}},
         {"$group": {"_id": "$lot_no", "received_total": {"$sum": {"$ifNull": ["$received_qty", 0]}},
-                    "product_name": {"$last": "$product_name"}, "spec": {"$last": "$spec"},
+                    # Preserve all historical values for read-only nonblank fallback.
+                    # A later partial receipt may omit product_name/spec.
+                    "product_name_history": {"$push": "$product_name"},
+                    "spec_history": {"$push": "$spec"},
                     "plan_qty": {"$last": "$plan_qty"}, "first_receive_date": {"$min": "$receive_date"},
                     "latest_receive_date": {"$max": "$receive_date"}}},
     ]
@@ -3109,13 +3112,20 @@ def load_material_status():
     ]
     handed = {str(r["_id"]): max(to_int_safe(r.get("total")), 0)
               for r in get_toss_collection().aggregate(toss_pipeline, allowDiskUse=True)}
+    def latest_nonblank(values):
+        # Read-only display fallback; never infer or write missing master data.
+        for value in reversed(values or []):
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return "정보 없음"
+
     result = []
     for item in received:
         lot = str(item.get("_id") or "").strip()
         if not lot: continue
         state = calculate_handover_state(item.get("plan_qty"), item.get("received_total"), handed.get(lot, 0))
-        result.append({"LOT": lot, "품명": str(item.get("product_name") or ""),
-                       "규격": str(item.get("spec") or ""), "계획수량": state["plan_qty"],
+        result.append({"LOT": lot, "품명": latest_nonblank(item.get("product_name_history")),
+                       "규격": latest_nonblank(item.get("spec_history")), "계획수량": state["plan_qty"],
                        "입고일": str(item.get("first_receive_date") or ""),
                        "입고상황": f'{state["received_total"]:,} / {state["plan_qty"]:,}',
                        "인계상황": f'{state["handover_total"]:,} / {state["received_total"]:,}',
