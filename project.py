@@ -3189,8 +3189,8 @@ def material_handover_display(received, handed):
 
 
 def show_material_status_page():
-    st.title("📋 원자재별 입고·인계 현황 · V1.4B")
-    st.caption("화면 버전: V1.4B · 인계상황 한글 표시 / LOT 상세 이력 한글화 적용")
+    st.title("📋 원자재별 입고·인계 현황 · V1.4C")
+    st.caption("화면 버전: V1.4C · 인계상황 한글 표시 / LOT 상세 이력 한글화 적용")
     st.caption("조회 전용 · 규격별 최초 입고일 순 · 45초 조회 캐시 (등록/수정은 기존 메뉴 이용)")
     if st.button("🔄 최신 기록 새로고침"):
         load_material_status.clear()
@@ -3298,14 +3298,14 @@ def show_material_status_page():
             if receive:
                 st.dataframe(material_detail_display(receive), use_container_width=True,
                              hide_index=True, height=min(350, 70 + 36 * len(receive)),
-                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호", pinned=True)})
+                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호")})
             else:
                 st.info("입고 이력이 없습니다.")
         with tab2:
             if toss:
                 st.dataframe(material_detail_display(toss), use_container_width=True,
                              hide_index=True, height=min(350, 70 + 36 * len(toss)),
-                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호", pinned=True)})
+                             column_config={"LOT 번호": st.column_config.TextColumn("LOT 번호")})
             else:
                 st.info("인계·반품·취소 이력이 없습니다.")
 
