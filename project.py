@@ -3293,44 +3293,53 @@ def show_material_status_page():
         st.session_state[active_key] = {}
         st.rerun()
 
-    # Streamlit 기본 dataframe 헤더는 사용자 지정 팝업을 지원하지 않아
-    # 각 열 바로 위에 Excel 자동필터와 동일한 동작의 필터 팝업을 배치한다.
-    @st.dialog("원자재 현황 필터", width="large")
-    def material_filter_dialog(field):
-        choices = filter_options(field)
-        previous = applied.get(field, [])
-        st.caption(f"{field} 선택 · {len(choices):,}개")
-        with st.form(f"material_filter_form_{field}", border=False):
-            checked = []
-            with st.container(height=300, border=False):
-                for index, value in enumerate(choices):
-                    if st.checkbox(str(value), value=value in previous,
-                                   key=f"material_v12_{field}_{index}_{value}"):
-                        checked.append(value)
-            submit = st.form_submit_button("적용", use_container_width=True)
-        if submit:
-            updated = dict(st.session_state.get(active_key, {}))
-            if checked:
-                updated[field] = checked
-            else:
-                updated.pop(field, None)
-            st.session_state[active_key] = updated
-            st.rerun(scope="app")
-        left, right = st.columns(2)
-        if left.button("✕ 닫기", key=f"material_filter_close_{field}", use_container_width=True):
-            st.rerun(scope="app")
-        if right.button("이 열 필터 해제", key=f"material_filter_clear_{field}", use_container_width=True):
-            updated = dict(st.session_state.get(active_key, {}))
-            updated.pop(field, None)
-            st.session_state[active_key] = updated
-            st.rerun(scope="app")
+    # V1.4G: dialog의 위젯 상호작용에 따른 fragment 재실행 문제를 피하기 위해
+    # 페이지 안에 고정되는 필터 패널을 사용한다. MongoDB 쓰기는 발생하지 않는다.
+    panel_key = "material_status_open_filter_v14g"
+    if panel_key not in st.session_state:
+        st.session_state[panel_key] = None
 
     header_cells = st.columns([1.5, 1.6, 2.4, 1.1, 1.3, 1.2, 1.2], gap="small")
     for field, cell in zip(columns, header_cells):
         with cell:
             marked = " ●" if applied.get(field) else ""
             if st.button(f"{field} ▼{marked}", key=f"material_filter_open_{field}", use_container_width=True):
-                material_filter_dialog(field)
+                st.session_state[panel_key] = field
+                st.rerun()
+
+    opened = st.session_state.get(panel_key)
+    if opened in columns:
+        choices = filter_options(opened)
+        previous = [v for v in applied.get(opened, []) if v in choices]
+        st.markdown(f"**{opened} 필터 선택** · 목록에서 여러 값을 선택할 수 있습니다.")
+        # 폼 내부의 선택값은 적용 버튼을 누르기 전까지 결과에 반영되지 않는다.
+        # 선택 변경만으로 패널이 닫히지 않도록 dialog 대신 인라인 폼 사용.
+        with st.form(f"material_filter_form_v14g_{opened}", clear_on_submit=False):
+            checked = st.multiselect(
+                f"{opened} 항목 (복수 선택)", options=choices,
+                default=previous, key=f"material_filter_values_v14g_{opened}",
+                placeholder="조건을 선택하세요",
+            )
+            apply_filter = st.form_submit_button("✓ 선택 조건 적용", use_container_width=True)
+        if apply_filter:
+            updated = dict(st.session_state.get(active_key, {}))
+            if checked:
+                updated[opened] = list(checked)
+            else:
+                updated.pop(opened, None)
+            st.session_state[active_key] = updated
+            st.session_state[panel_key] = None
+            st.rerun()
+        close_col, clear_col = st.columns(2)
+        if close_col.button("✕ 닫기 (조건 유지)", key=f"material_filter_close_v14g_{opened}", use_container_width=True):
+            st.session_state[panel_key] = None
+            st.rerun()
+        if clear_col.button("이 열 필터 해제", key=f"material_filter_clear_v14g_{opened}", use_container_width=True):
+            updated = dict(st.session_state.get(active_key, {}))
+            updated.pop(opened, None)
+            st.session_state[active_key] = updated
+            st.session_state[panel_key] = None
+            st.rerun()
 
     visible = filter_view(df, applied)
     # Keep raw quantity/status columns intact for the existing filters.
