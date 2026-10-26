@@ -1602,6 +1602,53 @@ def get_machining_defect_total(lot_no):
     return to_int_safe(result[0].get("total"), 0) if result else 0
 
 
+def get_handover_history_bulk_totals(lot_numbers, original_ids):
+    """검색 화면 전용 읽기 일괄 집계. 기존 수량 계산/저장 함수는 변경하지 않습니다."""
+    lot_numbers = sorted(set(str(x) for x in lot_numbers if x))
+    original_ids = sorted(set(str(x) for x in original_ids if x))
+    toss = get_toss_collection()
+    returns = {}
+    if original_ids:
+        pipeline = [
+            {"$match": {"record_type": "handover_return", "original_handover_id": {"$in": original_ids},
+                        "is_cancelled": {"$ne": True}, "status": {"$ne": "cancelled"}}},
+            {"$group": {"_id": "$original_handover_id", "total": {"$sum": "$return_qty"}}},
+        ]
+        returns = {str(r["_id"]): max(to_int_safe(r.get("total"), 0), 0) for r in toss.aggregate(pipeline)}
+    handovers, defects, latest = {}, {}, {}
+    if lot_numbers:
+        pipeline = [
+            {"$match": {"lot_no": {"$in": lot_numbers}, "is_cancelled": {"$ne": True}, "status": {"$ne": "cancelled"}}},
+            {"$group": {"_id": "$lot_no", "total": {"$sum": {"$switch": {"branches": [
+                {"case": {"$eq": ["$record_type", "machining_defect"]}, "then": 0},
+                {"case": {"$eq": ["$record_type", "handover_return"]}, "then": {"$multiply": [{"$ifNull": ["$return_qty", 0]}, -1]}}
+            ], "default": {"$ifNull": ["$handover_qty", 0]}}}}}},
+        ]
+        handovers = {str(r["_id"]): max(to_int_safe(r.get("total"), 0), 0) for r in toss.aggregate(pipeline)}
+        pipeline = [
+            {"$match": {"lot_no": {"$in": lot_numbers}, "record_type": "machining_defect"}},
+            {"$group": {"_id": "$lot_no", "total": {"$sum": "$machining_defect_qty"}}},
+        ]
+        defects = {str(r["_id"]): to_int_safe(r.get("total"), 0) for r in toss.aggregate(pipeline)}
+        pipeline = [
+            {"$match": {"lot_no": {"$in": lot_numbers}, "record_type": {"$ne": "machining_defect"},
+                        "is_cancelled": {"$ne": True}, "status": {"$ne": "cancelled"}}},
+            {"$sort": {"handover_at": -1, "_id": -1}},
+            {"$group": {"_id": "$lot_no", "handover_at": {"$first": "$handover_at"}}},
+        ]
+        latest = {str(r["_id"]): str(r.get("handover_at", "") or "") for r in toss.aggregate(pipeline)}
+    return returns, handovers, defects, latest
+
+
+@st.dialog("⚠️ 인계 전 가공불량 확인")
+def handover_defect_notice_dialog(lot_no, defect_qty):
+    st.warning(f"LOT **{lot_no}**에 가공불량 **{defect_qty:,}개**가 등록되어 있습니다.")
+    st.write("3PART로 인계하기 전에 등록된 불량수량을 확인해 주세요.")
+    st.caption("가공불량은 기존 운영 규칙에 따라 인계 가능수량에서 자동 차감하지 않습니다.")
+    if st.button("확인 · 닫기", key="handover_defect_notice_close", use_container_width=True):
+        st.rerun()
+
+
 def calculate_handover_state(plan_qty, received_total, handover_total):
     """LOT의 수량과 상태를 한 곳에서 계산하는 순수 함수입니다."""
     plan_qty = max(to_int_safe(plan_qty, 0), 0)
@@ -2290,6 +2337,12 @@ def show_3part_handover_page():
                     else:
                         st.caption("보류하면 자동 추천 대상에서 제외되며, 보류 해제 후 다시 인계할 수 있습니다.")
 
+                defect_notice_qty = to_int_safe(selected.get("machining_defect_total"), 0)
+                notice_signature = f"{selected_lot}:{defect_notice_qty}"
+                if defect_notice_qty > 0 and st.session_state.get("handover_defect_notice_seen") != notice_signature:
+                    st.session_state["handover_defect_notice_seen"] = notice_signature
+                    handover_defect_notice_dialog(selected_lot, defect_notice_qty)
+
                 st.markdown("#### LOT 현재 상태")
                 metric_cols = st.columns(7)
                 metric_cols[0].metric("계획수량", f"{selected['plan_qty']:,}")
@@ -2796,6 +2849,10 @@ def show_3part_handover_page():
             # -----------------------------------------------------------------
             # 1) 검색된 원본 인계 이력 표
             # -----------------------------------------------------------------
+            history_return_totals, _, _, _ = get_handover_history_bulk_totals(
+                [], [r.get("_id") for r in history_records
+                     if r.get("record_type") not in ("machining_defect", "handover_return")]
+            )
             rows = []
             for record in history_records:
                 record_type = record.get("record_type")
@@ -2828,7 +2885,7 @@ def show_3part_handover_page():
                     state_text = "취소" if cancelled else "정상"
                     event_time = record.get("handover_at", "")
                     original_qty = to_int_safe(record.get("handover_qty"), 0)
-                    active_returned = 0 if cancelled else get_active_return_total(record.get("_id"))
+                    active_returned = 0 if cancelled else history_return_totals.get(str(record.get("_id")), 0)
                     handover_qty_value = original_qty
                     return_qty_value = active_returned
                     actual_qty_value = 0 if cancelled else max(original_qty - active_returned, 0)
@@ -2946,28 +3003,24 @@ def show_3part_handover_page():
                 ]
             )
 
+            related_material_items = list(get_material_collection().aggregate(related_pipeline))
+            _, bulk_handover_totals, bulk_defect_totals, bulk_latest = get_handover_history_bulk_totals(
+                [item.get("_id") for item in related_material_items], []
+            )
             lot_status_items = []
-            for material_item in get_material_collection().aggregate(related_pipeline):
+            for material_item in related_material_items:
                 lot_no = str(material_item.get("_id", "") or "").strip()
                 if not lot_no:
                     continue
 
-                handover_total = get_handover_total(lot_no)
-                machining_defect_total = get_machining_defect_total(lot_no)
+                handover_total = bulk_handover_totals.get(lot_no, 0)
+                machining_defect_total = bulk_defect_totals.get(lot_no, 0)
                 state = calculate_handover_state(
                     material_item.get("plan_qty"),
                     material_item.get("received_total"),
                     handover_total,
                 )
-                latest_normal_handover = get_toss_collection().find_one(
-                    {
-                        "lot_no": lot_no,
-                        "record_type": {"$ne": "machining_defect"},
-                        "is_cancelled": {"$ne": True},
-                        "status": {"$ne": "cancelled"},
-                    },
-                    sort=[("handover_at", -1), ("_id", -1)],
-                )
+                latest_normal_handover_at = bulk_latest.get(lot_no, "")
                 lot_status_items.append(
                     {
                         "lot_no": lot_no,
@@ -2976,9 +3029,7 @@ def show_3part_handover_page():
                         "hold": bool(material_item.get("hold", False)),
                         "first_receive_date": str(material_item.get("first_receive_date", "") or ""),
                         "latest_receive_date": str(material_item.get("latest_receive_date", "") or ""),
-                        "last_handover_at": str(
-                            (latest_normal_handover or {}).get("handover_at", "") or ""
-                        ),
+                        "last_handover_at": latest_normal_handover_at,
                         "machining_defect_total": int(machining_defect_total),
                         **state,
                     }
@@ -3270,6 +3321,8 @@ def show_material_status_page():
                             updated.pop(field, None)
                         st.session_state[active_key] = updated
                         st.rerun()
+                if st.button("✕ 닫기", key=f"material_filter_close_{field}", use_container_width=True):
+                    st.rerun()
                 if st.button("이 열 필터 해제", key=f"material_filter_clear_{field}", use_container_width=True):
                     updated = dict(applied)
                     updated.pop(field, None)
