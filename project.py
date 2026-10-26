@@ -2588,55 +2588,54 @@ def show_3part_handover_page():
         )
         key_prefix = f"handover_history_widget_{history_generation}"
 
-        with st.form(
-            f"handover_history_search_form_{history_generation}",
-            clear_on_submit=False,
-        ):
-            row1 = st.columns([1.2, 1.6, 1.2, 0.9])
-            lot_keyword = row1[0].text_input(
-                "LOT",
-                placeholder="예: 0511, 1043, kk051",
-                key=f"{key_prefix}_lot",
-            )
-            product_spec_keyword = row1[1].text_input(
-                "품명 / 규격",
-                placeholder="예: shie top, ring flat, kz84, k84",
-                key=f"{key_prefix}_product_spec",
-            )
-            person_keyword = row1[2].text_input(
-                "인계자 / 인수자",
-                placeholder="이름만 입력해도 전체 검색",
-                key=f"{key_prefix}_person",
-            )
-            include_cancelled = row1[3].checkbox(
-                "취소 이력 포함",
-                value=True,
-                key=f"{key_prefix}_include_cancelled",
-            )
+        # 폼 밖에서 날짜 체크 변경 즉시 재실행되도록 처리합니다.
+        use_date_filter = st.checkbox(
+            "날짜 조건 사용",
+            value=False,
+            key=f"{key_prefix}_use_date",
+            help="체크하지 않으면 날짜와 관계없이 전체 인계이력에서 검색합니다.",
+        )
+        row2 = st.columns(2)
+        start_date = row2[0].date_input(
+            "시작일",
+            value=get_now_kst().date().replace(day=1),
+            disabled=not use_date_filter,
+            key=f"{key_prefix}_start_date",
+        )
+        end_date = row2[1].date_input(
+            "종료일",
+            value=get_now_kst().date(),
+            disabled=not use_date_filter,
+            key=f"{key_prefix}_end_date",
+        )
 
-            use_date_filter = st.checkbox(
-                "날짜 조건 사용",
-                value=False,
-                key=f"{key_prefix}_use_date",
-                help="체크하지 않으면 날짜와 관계없이 전체 인계이력에서 검색합니다.",
-            )
-            row2 = st.columns(2)
-            start_date = row2[0].date_input(
-                "시작일",
-                value=get_now_kst().date().replace(day=1),
-                disabled=not use_date_filter,
-                key=f"{key_prefix}_start_date",
-            )
-            end_date = row2[1].date_input(
-                "종료일",
-                value=get_now_kst().date(),
-                disabled=not use_date_filter,
-                key=f"{key_prefix}_end_date",
-            )
-            history_submitted = st.form_submit_button(
-                "🔍 인계이력 조회",
-                use_container_width=True,
-            )
+        # 검색 필드도 폼 밖에 두어 날짜 토글 시 입력값을 보존합니다.
+        row1 = st.columns([1.2, 1.6, 1.2, 0.9])
+        lot_keyword = row1[0].text_input(
+            "LOT",
+            placeholder="예: 0511, 1043, kk051",
+            key=f"{key_prefix}_lot",
+        )
+        product_spec_keyword = row1[1].text_input(
+            "품명 / 규격",
+            placeholder="예: shie top, ring flat, kz84, k84",
+            key=f"{key_prefix}_product_spec",
+        )
+        person_keyword = row1[2].text_input(
+            "인계자 / 인수자",
+            placeholder="이름만 입력해도 전체 검색",
+            key=f"{key_prefix}_person",
+        )
+        include_cancelled = row1[3].checkbox(
+            "취소 이력 포함",
+            value=True,
+            key=f"{key_prefix}_include_cancelled",
+        )
+
+        history_submitted = st.button(
+            "🔍 인계이력 조회",
+            use_container_width=True,
+        )
 
         close_col, close_info_col = st.columns([1.3, 3.7])
         with close_col:
