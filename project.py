@@ -1646,7 +1646,8 @@ def handover_defect_notice_dialog(lot_no, defect_qty):
     st.write("3PART로 인계하기 전에 등록된 불량수량을 확인해 주세요.")
     st.caption("가공불량은 기존 운영 규칙에 따라 인계 가능수량에서 자동 차감하지 않습니다.")
     if st.button("확인 · 닫기", key="handover_defect_notice_close", use_container_width=True):
-        st.rerun()
+        st.session_state["handover_defect_notice_acknowledged"] = True
+        st.rerun(scope="app")
 
 
 def calculate_handover_state(plan_qty, received_total, handover_total):
@@ -3294,40 +3295,42 @@ def show_material_status_page():
 
     # Streamlit 기본 dataframe 헤더는 사용자 지정 팝업을 지원하지 않아
     # 각 열 바로 위에 Excel 자동필터와 동일한 동작의 필터 팝업을 배치한다.
+    @st.dialog("원자재 현황 필터", width="large")
+    def material_filter_dialog(field):
+        choices = filter_options(field)
+        previous = applied.get(field, [])
+        st.caption(f"{field} 선택 · {len(choices):,}개")
+        with st.form(f"material_filter_form_{field}", border=False):
+            checked = []
+            with st.container(height=300, border=False):
+                for index, value in enumerate(choices):
+                    if st.checkbox(str(value), value=value in previous,
+                                   key=f"material_v12_{field}_{index}_{value}"):
+                        checked.append(value)
+            submit = st.form_submit_button("적용", use_container_width=True)
+        if submit:
+            updated = dict(st.session_state.get(active_key, {}))
+            if checked:
+                updated[field] = checked
+            else:
+                updated.pop(field, None)
+            st.session_state[active_key] = updated
+            st.rerun(scope="app")
+        left, right = st.columns(2)
+        if left.button("✕ 닫기", key=f"material_filter_close_{field}", use_container_width=True):
+            st.rerun(scope="app")
+        if right.button("이 열 필터 해제", key=f"material_filter_clear_{field}", use_container_width=True):
+            updated = dict(st.session_state.get(active_key, {}))
+            updated.pop(field, None)
+            st.session_state[active_key] = updated
+            st.rerun(scope="app")
+
     header_cells = st.columns([1.5, 1.6, 2.4, 1.1, 1.3, 1.2, 1.2], gap="small")
     for field, cell in zip(columns, header_cells):
         with cell:
             marked = " ●" if applied.get(field) else ""
-            with st.popover(f"{field} ▼{marked}", use_container_width=True):
-                choices = filter_options(field)
-                previous = applied.get(field, [])
-                with st.form(f"material_filter_form_{field}", border=False):
-                    st.caption(f"{field} 선택 · {len(choices):,}개")
-                    # DB 집계에 실제 존재하는 값만 체크박스로 표시한다.
-                    # 인계상황은 입고/인계 실제 수량에서 계산된 3가지 상태만 표시한다.
-                    # 검색창/중첩 드롭다운 없이 여러 값을 직접 체크할 수 있다.
-                    checked = []
-                    with st.container(height=260, border=False):
-                        for index, value in enumerate(choices):
-                            if st.checkbox(str(value), value=value in previous,
-                                           key=f"material_v12_{field}_{index}_{value}"):
-                                checked.append(value)
-                    submit = st.form_submit_button("적용", use_container_width=True)
-                    if submit:
-                        updated = dict(applied)
-                        if checked:
-                            updated[field] = checked
-                        else:
-                            updated.pop(field, None)
-                        st.session_state[active_key] = updated
-                        st.rerun()
-                if st.button("✕ 닫기", key=f"material_filter_close_{field}", use_container_width=True):
-                    st.rerun()
-                if st.button("이 열 필터 해제", key=f"material_filter_clear_{field}", use_container_width=True):
-                    updated = dict(applied)
-                    updated.pop(field, None)
-                    st.session_state[active_key] = updated
-                    st.rerun()
+            if st.button(f"{field} ▼{marked}", key=f"material_filter_open_{field}", use_container_width=True):
+                material_filter_dialog(field)
 
     visible = filter_view(df, applied)
     # Keep raw quantity/status columns intact for the existing filters.
