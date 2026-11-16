@@ -896,18 +896,39 @@ def show_material_receiving_page_live_qr():
     with input_tab:
         st.info(f"현재 작업자: {receiver_no} {receiver_name}")
 
-        scanned_value = render_material_qr_scanner()
-        if scanned_value:
-            component_scan_key = (
-                f"{st.session_state.material_scanner_generation}:"
-                f"{scanned_value}"
-            )
-            if component_scan_key != st.session_state.get(
-                "material_last_component_scan_key"
+        # QR을 인식한 뒤 LOT 확인/저장 중에는 카메라 컴포넌트를 렌더링하지 않습니다.
+        # 이전 카메라를 화면에서 내려놓은 뒤 저장 완료 시 새 컴포넌트를 생성하여
+        # 모바일 브라우저의 카메라 재시작 충돌 가능성을 줄입니다.
+        active_lot = st.session_state.get("material_live_lot", "")
+        if not active_lot:
+            # 모바일(특히 앱 내 브라우저)에서 자동 카메라 재시작이 실패할 때
+            # 메뉴를 나갔다 돌아오지 않고 사용자의 터치로 재시도할 수 있습니다.
+            if st.button(
+                "🔄 카메라 다시 시작",
+                key="material_camera_restart_live",
+                use_container_width=True,
+                help="QR 카메라가 보이지 않거나 멈췄을 때 눌러주세요.",
             ):
-                st.session_state.material_last_component_scan_key = component_scan_key
-                apply_material_lot_lookup(scanned_value, "QR")
+                st.session_state.material_scanner_generation = (
+                    int(st.session_state.get("material_scanner_generation", 0) or 0) + 1
+                )
+                st.session_state.pop("material_last_component_scan_key", None)
                 st.rerun()
+
+            scanned_value = render_material_qr_scanner()
+            if scanned_value:
+                component_scan_key = (
+                    f"{st.session_state.material_scanner_generation}:"
+                    f"{scanned_value}"
+                )
+                if component_scan_key != st.session_state.get(
+                    "material_last_component_scan_key"
+                ):
+                    st.session_state.material_last_component_scan_key = component_scan_key
+                    apply_material_lot_lookup(scanned_value, "QR")
+                    st.rerun()
+        else:
+            st.caption("LOT 정보 확인 및 저장 중에는 카메라를 잠시 중지합니다.")
 
         with st.expander("카메라가 안 될 때 수동 LOT 입력"):
             manual_lot = st.text_input(
@@ -1104,7 +1125,7 @@ def show_material_receiving_page_live_qr():
 
                     st.session_state.material_live_saved_message = (
                         f"{lot_no} 입고 {int(received_qty)}개 저장 완료. "
-                        "다음 QR 카메라를 준비했습니다."
+                        "다음 QR 카메라를 준비했습니다. 카메라가 보이지 않으면 🔄 카메라 다시 시작을 눌러주세요."
                     )
                     rerun_app()
 
