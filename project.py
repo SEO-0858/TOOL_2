@@ -3309,7 +3309,7 @@ def show_material_status_page():
             return [v for v in ("인계없음", "인계중", "인계완료") if v in set(available["인계상태"])]
         return sorted(available[field].astype(str).unique().tolist(), key=lambda x: x.casefold())
 
-    st.caption("열별 필터 ▼ 를 눌러 선택한 뒤 '적용'을 누르세요. 여러 열의 조건은 누적됩니다.")
+    st.caption("열별 필터 ▼ 를 누르세요. 입고일은 달력에서 날짜를 지정하고, 나머지 열은 복수 선택할 수 있습니다. 조건은 누적됩니다.")
     if st.button("🧹 전체 필터 초기화", key="material_filter_reset_all"):
         st.session_state[active_key] = {}
         st.rerun()
@@ -3330,27 +3330,53 @@ def show_material_status_page():
 
     opened = st.session_state.get(panel_key)
     if opened in columns:
-        choices = filter_options(opened)
-        previous = [v for v in applied.get(opened, []) if v in choices]
-        st.markdown(f"**{opened} 필터 선택** · 목록에서 여러 값을 선택할 수 있습니다.")
-        # 폼 내부의 선택값은 적용 버튼을 누르기 전까지 결과에 반영되지 않는다.
-        # 선택 변경만으로 패널이 닫히지 않도록 dialog 대신 인라인 폼 사용.
-        with st.form(f"material_filter_form_v14g_{opened}", clear_on_submit=False):
-            checked = st.multiselect(
-                f"{opened} 항목 (복수 선택)", options=choices,
-                default=previous, key=f"material_filter_values_v14g_{opened}",
-                placeholder="조건을 선택하세요",
-            )
-            apply_filter = st.form_submit_button("✓ 선택 조건 적용", use_container_width=True)
-        if apply_filter:
-            updated = dict(st.session_state.get(active_key, {}))
-            if checked:
-                updated[opened] = list(checked)
-            else:
-                updated.pop(opened, None)
-            st.session_state[active_key] = updated
-            st.session_state[panel_key] = None
-            st.rerun()
+        st.markdown(f"**{opened} 필터 선택**")
+        if opened == "입고일":
+            # 입고일은 긴 날짜 목록 대신 달력에서 날짜를 직접 선택합니다.
+            # 다른 열의 필터와 동일하게 '적용' 전까지 결과는 바뀌지 않습니다.
+            existing_dates = applied.get("입고일", [])
+            initial_date = get_now_kst().date()
+            if existing_dates:
+                try:
+                    initial_date = dt.strptime(str(existing_dates[0]), "%Y-%m-%d").date()
+                except (TypeError, ValueError):
+                    pass
+            st.caption("달력에서 입고일 하루를 지정하세요. 선택 조건은 다른 열 필터와 함께 적용됩니다.")
+            with st.form("material_filter_form_v14g_입고일", clear_on_submit=False):
+                selected_date = st.date_input(
+                    "📅 검색할 입고일",
+                    value=initial_date,
+                    format="YYYY-MM-DD",
+                    key="material_filter_calendar_v14g",
+                )
+                apply_filter = st.form_submit_button("✓ 선택 날짜 적용", use_container_width=True)
+            if apply_filter:
+                updated = dict(st.session_state.get(active_key, {}))
+                updated["입고일"] = [selected_date.isoformat()]
+                st.session_state[active_key] = updated
+                st.session_state[panel_key] = None
+                st.rerun()
+        else:
+            choices = filter_options(opened)
+            previous = [v for v in applied.get(opened, []) if v in choices]
+            st.caption("목록에서 여러 값을 선택할 수 있습니다.")
+            # 폼 내부의 선택값은 적용 버튼을 누르기 전까지 결과에 반영되지 않는다.
+            with st.form(f"material_filter_form_v14g_{opened}", clear_on_submit=False):
+                checked = st.multiselect(
+                    f"{opened} 항목 (복수 선택)", options=choices,
+                    default=previous, key=f"material_filter_values_v14g_{opened}",
+                    placeholder="조건을 선택하세요",
+                )
+                apply_filter = st.form_submit_button("✓ 선택 조건 적용", use_container_width=True)
+            if apply_filter:
+                updated = dict(st.session_state.get(active_key, {}))
+                if checked:
+                    updated[opened] = list(checked)
+                else:
+                    updated.pop(opened, None)
+                st.session_state[active_key] = updated
+                st.session_state[panel_key] = None
+                st.rerun()
         close_col, clear_col = st.columns(2)
         if close_col.button("✕ 닫기 (조건 유지)", key=f"material_filter_close_v14g_{opened}", use_container_width=True):
             st.session_state[panel_key] = None
