@@ -1664,7 +1664,18 @@ def get_handover_history_bulk_totals(lot_numbers, original_ids):
 @st.dialog("⚠️ 인계 전 가공불량 확인")
 def handover_defect_notice_dialog(lot_no, defect_qty):
     st.warning(f"LOT **{lot_no}**에 가공불량 **{defect_qty:,}개**가 등록되어 있습니다.")
-    st.write("3PART로 인계하기 전에 등록된 불량수량을 확인해 주세요.")
+    st.write("3PART로 인계하기 전에 등록된 불량수량과 발생 내역을 확인해 주세요.")
+    defect_records = list(get_toss_collection().find(
+        {"lot_no": lot_no, "record_type": "machining_defect", "is_cancelled": {"$ne": True}}
+    ).sort("_id", -1))
+    for item in defect_records:
+        st.markdown(
+            f"- **발생일:** {item.get('defect_date') or str(item.get('defect_at', ''))[:10] or '-'}"
+            f" | **불량:** {to_int_safe(item.get('machining_defect_qty'), 0):,}개"
+            f" | **기계:** {item.get('defect_machine') or '미입력'}"
+            f" | **작업자:** {item.get('defect_operator') or '미입력'}"
+            f" | **원인:** {item.get('defect_reason') or '미입력'}"
+        )
     st.caption("가공불량은 기존 운영 규칙에 따라 인계 가능수량에서 자동 차감하지 않습니다.")
     if st.button("확인 · 닫기", key="handover_defect_notice_close", use_container_width=True):
         st.session_state["handover_defect_notice_acknowledged"] = True
@@ -2189,6 +2200,10 @@ def reset_handover_search_state():
         "handover_hold_toggle_",
         "handover_defect_qty_",
         "handover_defect_worker_",
+        "handover_defect_date_",
+        "handover_defect_machine_",
+        "handover_defect_operator_",
+        "handover_defect_reason_",
         "handover_defect_confirm_",
         "handover_defect_submit_",
         "partial_return_qty_",
@@ -2406,6 +2421,25 @@ def show_3part_handover_page():
                         "불량 등록 작업자 (4PART)",
                         key=f"handover_defect_worker_{selected_lot}",
                     )
+                    defect_date = st.date_input(
+                        "📅 불량 발생 날짜", value=get_now_kst().date(),
+                        key=f"handover_defect_date_{selected_lot}",
+                    )
+                    defect_machine = st.text_input(
+                        "불량 발생 장소 / 기계호기",
+                        placeholder="예: CNC 12호기 / 4PART 가공실",
+                        key=f"handover_defect_machine_{selected_lot}",
+                    )
+                    defect_operator = st.text_input(
+                        "불량 발생 작업자 (직접 입력)",
+                        placeholder="실제 불량이 발생한 작업자의 이름",
+                        key=f"handover_defect_operator_{selected_lot}",
+                    )
+                    defect_reason = st.text_area(
+                        "불량 발생 원인 / 상세 내용",
+                        placeholder="예: 내경 치수 초과, 공구 마모 등",
+                        key=f"handover_defect_reason_{selected_lot}",
+                    )
                     defect_confirmed = st.checkbox(
                         f"LOT {selected_lot} / 가공불량 {int(defect_qty):,}개를 확인했습니다.",
                         key=f"handover_defect_confirm_{selected_lot}",
@@ -2422,6 +2456,12 @@ def show_3part_handover_page():
                         st.error("가공불량 수량은 1개 이상이어야 합니다.")
                     elif not defect_worker:
                         st.error("불량 등록 작업자 이름을 입력해 주세요.")
+                    elif not str(defect_machine or "").strip():
+                        st.error("불량 발생 장소 또는 기계호기를 입력해 주세요.")
+                    elif not str(defect_operator or "").strip():
+                        st.error("불량 발생 작업자 이름을 입력해 주세요.")
+                    elif not str(defect_reason or "").strip():
+                        st.error("불량 발생 원인을 입력해 주세요.")
                     elif not defect_confirmed:
                         st.error("LOT와 가공불량 수량 확인란을 체크해 주세요.")
                     else:
@@ -2435,6 +2475,10 @@ def show_3part_handover_page():
                             "plan_qty": to_int_safe(latest_material.get("plan_qty"), selected.get("plan_qty", 0)),
                             "machining_defect_qty": int(defect_qty),
                             "defect_worker": defect_worker,
+                            "defect_date": defect_date.isoformat(),
+                            "defect_machine": str(defect_machine).strip(),
+                            "defect_operator": str(defect_operator).strip(),
+                            "defect_reason": str(defect_reason).strip(),
                             "defect_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
                             "handover_at": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
                             "handover_date": now_kst.strftime("%Y-%m-%d"),
@@ -2595,6 +2639,10 @@ def show_3part_handover_page():
                                 )
                                 info_cols[2].write(f"등록 작업자: {record.get('defect_worker', '')}")
                                 info_cols[3].write("⚠️ 불량기록")
+                                st.write(f"**발생일:** {record.get('defect_date') or str(record.get('defect_at', ''))[:10] or '-'}")
+                                st.write(f"**장소/기계호기:** {record.get('defect_machine') or '기존 기록: 미입력'}")
+                                st.write(f"**발생 작업자:** {record.get('defect_operator') or '기존 기록: 미입력'}")
+                                st.write(f"**불량 원인:** {record.get('defect_reason') or '기존 기록: 미입력'}")
 
                         elif is_return:
                             status_text = "❌ 계산 제외" if cancelled else "↩ 일부 반품"
@@ -2927,6 +2975,10 @@ def show_3part_handover_page():
                         "반품수량": return_qty_value,
                         "현재실제인계": actual_qty_value,
                         "가공불량수량": to_int_safe(record.get("machining_defect_qty"), 0) if is_defect else 0,
+                        "불량발생일": record.get("defect_date", "") if is_defect else "",
+                        "불량기계호기": record.get("defect_machine", "") if is_defect else "",
+                        "불량발생작업자": record.get("defect_operator", "") if is_defect else "",
+                        "불량원인": record.get("defect_reason", "") if is_defect else "",
                         "처리자/인계자": handover_person,
                         "인수자": received_person,
                         "메모": memo_value,
@@ -3298,7 +3350,17 @@ def show_material_status_page():
             if field == exclude or not chosen:
                 continue
             source_field = "인계상태" if field == "인계상황" else field
-            view = view[view[source_field].astype(str).isin(chosen)]
+            if field == "입고일" and isinstance(chosen, dict):
+                start = str(chosen.get("start", ""))
+                end = str(chosen.get("end", ""))
+                dates = view[source_field].astype(str)
+                if start:
+                    view = view[dates >= start]
+                    dates = view[source_field].astype(str)
+                if end:
+                    view = view[dates <= end]
+            else:
+                view = view[view[source_field].astype(str).isin(chosen)]
         return view
 
     def filter_options(field):
@@ -3309,7 +3371,7 @@ def show_material_status_page():
             return [v for v in ("인계없음", "인계중", "인계완료") if v in set(available["인계상태"])]
         return sorted(available[field].astype(str).unique().tolist(), key=lambda x: x.casefold())
 
-    st.caption("열별 필터 ▼ 를 누르세요. 입고일은 달력에서 날짜를 지정하고, 나머지 열은 복수 선택할 수 있습니다. 조건은 누적됩니다.")
+    st.caption("열별 필터 ▼ 를 누르세요. 입고일은 달력에서 시작일~종료일을 지정하고, 나머지 열은 복수 선택할 수 있습니다. 조건은 누적됩니다.")
     if st.button("🧹 전체 필터 초기화", key="material_filter_reset_all"):
         st.session_state[active_key] = {}
         st.rerun()
@@ -3332,30 +3394,42 @@ def show_material_status_page():
     if opened in columns:
         st.markdown(f"**{opened} 필터 선택**")
         if opened == "입고일":
-            # 입고일은 긴 날짜 목록 대신 달력에서 날짜를 직접 선택합니다.
-            # 다른 열의 필터와 동일하게 '적용' 전까지 결과는 바뀌지 않습니다.
-            existing_dates = applied.get("입고일", [])
-            initial_date = get_now_kst().date()
-            if existing_dates:
-                try:
-                    initial_date = dt.strptime(str(existing_dates[0]), "%Y-%m-%d").date()
-                except (TypeError, ValueError):
-                    pass
-            st.caption("달력에서 입고일 하루를 지정하세요. 선택 조건은 다른 열 필터와 함께 적용됩니다.")
-            with st.form("material_filter_form_v14g_입고일", clear_on_submit=False):
-                selected_date = st.date_input(
-                    "📅 검색할 입고일",
-                    value=initial_date,
-                    format="YYYY-MM-DD",
-                    key="material_filter_calendar_v14g",
-                )
-                apply_filter = st.form_submit_button("✓ 선택 날짜 적용", use_container_width=True)
+            # 시작일~종료일 달력 검색. 이전 버전의 단일 날짜 필터도 읽습니다.
+            existing_dates = applied.get("입고일", {})
+            default_start = get_now_kst().date()
+            default_end = default_start
+            try:
+                if isinstance(existing_dates, dict):
+                    default_start = dt.strptime(existing_dates["start"], "%Y-%m-%d").date()
+                    default_end = dt.strptime(existing_dates["end"], "%Y-%m-%d").date()
+                elif isinstance(existing_dates, list) and existing_dates:
+                    default_start = dt.strptime(str(existing_dates[0]), "%Y-%m-%d").date()
+                    default_end = default_start
+            except (KeyError, TypeError, ValueError):
+                pass
+            st.caption("달력에서 시작일과 종료일을 선택하세요. 양쪽 날짜를 모두 포함하여 검색합니다.")
+            with st.form("material_filter_form_v15_입고일", clear_on_submit=False):
+                date_cols = st.columns(2)
+                with date_cols[0]:
+                    start_date = st.date_input(
+                        "📅 시작일", value=default_start, format="YYYY-MM-DD",
+                        key=f"material_filter_calendar_start_v15_{default_start}_{default_end}",
+                    )
+                with date_cols[1]:
+                    end_date = st.date_input(
+                        "📅 종료일", value=default_end, format="YYYY-MM-DD",
+                        key=f"material_filter_calendar_end_v15_{default_start}_{default_end}",
+                    )
+                apply_filter = st.form_submit_button("✓ 날짜 기간 적용", use_container_width=True)
             if apply_filter:
-                updated = dict(st.session_state.get(active_key, {}))
-                updated["입고일"] = [selected_date.isoformat()]
-                st.session_state[active_key] = updated
-                st.session_state[panel_key] = None
-                st.rerun()
+                if start_date > end_date:
+                    st.error("시작일은 종료일보다 늦을 수 없습니다.")
+                else:
+                    updated = dict(st.session_state.get(active_key, {}))
+                    updated["입고일"] = {"start": start_date.isoformat(), "end": end_date.isoformat()}
+                    st.session_state[active_key] = updated
+                    st.session_state[panel_key] = None
+                    st.rerun()
         else:
             choices = filter_options(opened)
             previous = [v for v in applied.get(opened, []) if v in choices]
