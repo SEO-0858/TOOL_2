@@ -454,6 +454,98 @@ def confirm_material_memo_update():
         st.rerun()
 
 
+@st.dialog("➕ 선택 LOT 추가 입고")
+def register_material_additional_receipt(lot_no, receiver_no, receiver_name):
+    """QR 없이 기존 LOT에 새 입고 이력을 추가합니다. 기존 문서는 변경하지 않습니다."""
+    lot_no = str(lot_no or "").strip().upper()
+    latest = get_material_latest_record(lot_no)
+    if not latest:
+        st.error("기존 입고 기록을 찾을 수 없습니다. 다시 검색해 주세요.")
+        return
+
+    # 과거 기록에 계획수량이 없는 경우에도 임의로 전량입고 판정을 하지 않습니다.
+    plan_qty = to_int_safe(latest.get("plan_qty"), 0)
+    received = get_material_received_total(lot_no)
+    remaining = max(plan_qty - received, 0)
+    st.write(f"**LOT:** {lot_no}")
+    st.write(f"**품명:** {latest.get('product_name', '-')}")
+    st.write(f"**규격:** {latest.get('spec', '-')}")
+    a, b, c = st.columns(3)
+    a.metric("계획수량", f"{plan_qty:,}개" if plan_qty > 0 else "미등록")
+    b.metric("누적 입고", f"{received:,}개")
+    c.metric("남은 수량", f"{remaining:,}개" if plan_qty > 0 else "확인 필요")
+
+    if plan_qty <= 0:
+        st.error("계획수량이 등록되지 않은 LOT입니다. 추가 입고 전에 원래 계획수량을 확인해 주세요.")
+        return
+    if received >= plan_qty:
+        st.success("이미 전량 입고 완료된 LOT입니다. 추가 입고할 수 없습니다.")
+        return
+
+    with st.form(f"material_add_receipt_form_{lot_no}"):
+        receipt_date = st.date_input("추가 입고일", value=get_now_kst().date())
+        qty = st.number_input("이번 추가 입고수량", min_value=1, max_value=remaining,
+                              value=remaining, step=1)
+        st.text_input("입고 작업자", value=f"{receiver_no} - {receiver_name}", disabled=True)
+        memo = st.text_area("입고 메모", placeholder="예: 11월 16일 9개 선입고 후 잔여 21개 입고")
+        st.info(f"저장 후 누적 입고: {received + int(qty):,} / {plan_qty:,}개 · "
+                + ("전량 입고 완료" if received + int(qty) == plan_qty else "부분 입고"))
+        confirmed = st.checkbox("선택 LOT와 추가 입고수량을 확인했습니다.")
+        submitted = st.form_submit_button("✅ 추가 입고 저장", use_container_width=True)
+
+    if submitted:
+        if not confirmed:
+            st.error("LOT와 수량을 확인한 뒤 체크해 주세요.")
+            return
+        if not receiver_no or not receiver_name:
+            st.error("입고 작업자를 먼저 선택해 주세요.")
+            return
+        # 저장 직전에 최신 입고합계를 다시 확인합니다.
+        latest = get_material_latest_record(lot_no)
+        if not latest:
+            st.error("기존 LOT 기록이 삭제되었습니다. 다시 조회해 주세요.")
+            return
+        current_plan = to_int_safe(latest.get("plan_qty"), 0)
+        current_total = get_material_received_total(lot_no)
+        if current_plan <= 0 or int(qty) > current_plan - current_total:
+            st.error(f"저장 직전 수량이 변경되었습니다. 현재 누적 {current_total:,}개 / 계획 {current_plan:,}개. 다시 확인해 주세요.")
+            return
+        timestamp = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        doc = {
+            "lot_no": lot_no,
+            "product_name": str(latest.get("product_name", "") or ""),
+            "spec": str(latest.get("spec", "") or ""),
+            "plan_qty": current_plan,
+            "received_qty": int(qty),
+            "received_total_before": current_total,
+            "received_total_after": current_total + int(qty),
+            "receive_date": str(receipt_date),
+            "receiver_no": receiver_no,
+            "receiver_name": receiver_name,
+            "memo": memo.strip(),
+            "source": "search_additional_receipt",
+            "created_at": timestamp,
+        }
+        try:
+            result = get_material_collection().insert_one(doc)
+        except Exception as exc:
+            st.error(f"MongoDB 추가 입고 저장 실패: {exc}")
+            return
+        if not result.inserted_id:
+            st.error("추가 입고 저장 여부를 확인하지 못했습니다.")
+            return
+        status = "전량 입고 완료" if doc["received_total_after"] == current_plan else "부분 입고"
+        st.session_state.material_add_receipt_message = (
+            f"{lot_no} · {receipt_date} 추가 입고 {int(qty):,}개 저장 완료 · "
+            f"누적 {doc['received_total_after']:,}/{current_plan:,}개 · {status}"
+        )
+        # 오래된 검색 결과를 그대로 표시하지 않도록 검색을 다시 실행하게 합니다.
+        for key in ("material_search_results_live", "material_search_description_live"):
+            st.session_state.pop(key, None)
+        st.session_state.material_search_executed_live = False
+        st.rerun()
+
+
 def to_int_safe(value, default=0):
     try:
         if value in (None, ""):
@@ -1130,6 +1222,10 @@ def show_material_receiving_page_live_qr():
                     rerun_app()
 
     with search_tab:
+        additional_receipt_message = st.session_state.pop("material_add_receipt_message", "")
+        if additional_receipt_message:
+            st.success(additional_receipt_message)
+            st.info("최신 입고 이력을 보려면 아래 '조건으로 조회' 버튼을 다시 눌러 주세요.")
         st.markdown("#### 🔍 입고 내역 조건 검색")
         st.caption(
             "검색 조건을 입력하고 조회 버튼을 눌러야 결과가 표시됩니다. "
@@ -1342,7 +1438,11 @@ def show_material_receiving_page_live_qr():
                 st.warning("조건에 맞는 입고 내역이 없습니다.")
             else:
                 rows = []
+                receipt_totals_cache = {}
                 for item in records:
+                    row_lot = str(item.get("lot_no", "") or "")
+                    if row_lot not in receipt_totals_cache:
+                        receipt_totals_cache[row_lot] = get_material_received_total(row_lot)
                     rows.append(
                         {
                             "입고일": item.get("receive_date", ""),
@@ -1351,8 +1451,12 @@ def show_material_receiving_page_live_qr():
                             "규격": item.get("spec", ""),
                             "K-System수량": to_int_safe(item.get("plan_qty"), 0),
                             "입고수량": to_int_safe(item.get("received_qty"), 0),
-                            "누적입고": to_int_safe(
-                                item.get("received_total_after"), 0
+                            "누적입고": receipt_totals_cache[row_lot],
+                            "입고상태": (
+                                "전량 입고 완료"
+                                if to_int_safe(item.get("plan_qty"), 0) > 0
+                                and receipt_totals_cache[row_lot] >= to_int_safe(item.get("plan_qty"), 0)
+                                else "부분 입고"
                             ),
                             "3PART 인계정보": item.get(
                                 "_handover_status", ""
@@ -1394,6 +1498,8 @@ def show_material_receiving_page_live_qr():
                     st.success(saved_memo_message)
 
                 st.divider()
+                st.markdown("#### ➕ 선택 LOT 추가 입고 (QR 없이 등록)")
+                st.caption("아래에서 기존 입고 기록을 선택하면 해당 LOT에 추가 입고를 등록할 수 있습니다. 기존 입고 이력은 유지됩니다.")
                 st.markdown("#### 📝 선택한 입고 기록 메모 수정")
                 st.caption(
                     "입고수량과 다른 정보는 변경하지 않고, 선택한 입고 건의 메모만 수정합니다."
@@ -1419,6 +1525,24 @@ def show_material_receiving_page_live_qr():
                 selected_record = records[selected_record_index]
                 selected_lot_no = str(selected_record.get("lot_no", "") or "").strip()
                 selected_received_total = get_material_received_total(selected_lot_no)
+                # 선택한 검색 결과의 LOT 전체 입고현황을 실시간으로 다시 계산합니다.
+                current_lot_latest = get_material_latest_record(selected_lot_no)
+                current_plan = to_int_safe((current_lot_latest or {}).get("plan_qty"), 0)
+                current_received = get_material_received_total(selected_lot_no)
+                if current_plan > 0 and current_received >= current_plan:
+                    st.success(f"✅ {selected_lot_no} 전량 입고 완료 · {current_received:,}/{current_plan:,}개")
+                elif current_plan > 0:
+                    st.warning(f"📦 {selected_lot_no} 부분 입고 · {current_received:,}/{current_plan:,}개 · 잔여 {current_plan-current_received:,}개")
+                else:
+                    st.warning("계획수량이 없어 추가 입고를 등록할 수 없습니다.")
+                if st.button(
+                    "➕ 선택 LOT 추가 입고",
+                    key=f"material_add_receipt_open_{selected_lot_no}",
+                    disabled=(current_plan <= 0 or current_received >= current_plan),
+                    use_container_width=True,
+                ):
+                    register_material_additional_receipt(selected_lot_no, receiver_no, receiver_name)
+
                 selected_handover_total = get_handover_total(selected_lot_no)
                 selected_handover_state = calculate_handover_state(
                     selected_record.get("plan_qty"),
@@ -1467,7 +1591,7 @@ def show_material_receiving_page_live_qr():
                 )
                 detail_cols[2].metric(
                     "누적 입고수량",
-                    f"{to_int_safe(selected_record.get('received_total_after'), 0):,}개",
+                    f"{selected_received_total:,}개",
                 )
 
                 selected_record_id = str(selected_record.get("_id", ""))
